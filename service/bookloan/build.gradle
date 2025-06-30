@@ -1,0 +1,27 @@
+plugins {
+    id 'com.ewerk.gradle.plugins.querydsl' version '1.0.10'
+}
+
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'com.mysql:mysql-connector-j'
+
+    // QueryDSL
+    implementation        'com.querydsl:querydsl-jpa'
+    annotationProcessor  'com.querydsl:querydsl-apt:4.7.4:jpa'
+}
+
+querydsl {
+    jpa                 = true
+    querydslSourcesDir  = 'src/main/generated'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/generated'
+        }
+    }
+}

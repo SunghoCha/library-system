@@ -1,13 +1,11 @@
-package msa.library;
+package msa.bookloan;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class LibraryApplication {
-
+public class BookLoanApplication {
     public static void main(String[] args) {
-        SpringApplication.run(LibraryApplication.class, args);
+        SpringApplication.run(BookLoanApplication.class, args);
     }
-
 }

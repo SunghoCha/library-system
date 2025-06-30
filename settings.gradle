@@ -1,1 +1,5 @@
 rootProject.name = 'library'
+
+include 'common'
+include 'service'
+include 'service:bookloan'
