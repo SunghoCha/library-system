@@ -1,3 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // 다른 공통 의존성들
+    api project(':common:snowflake')
+    api project(':common:domain')
+    api project(':common:exception')
 }
