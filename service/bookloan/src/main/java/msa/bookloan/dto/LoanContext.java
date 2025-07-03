@@ -6,7 +6,7 @@ import msa.common.domain.MemberGrade;
 import java.util.List;
 
 @Builder
-public record LoanCommand(
+public record LoanContext(
         Long memberId,
         MemberGrade memberGrade,
         List<Long> bookIds
