@@ -19,9 +19,12 @@ public class LoanLimitRule implements LoanValidationRule {
 
     @Override
     public void validate(LoanContext context) {
-        int count = loanRepository.countByMemberIdAndLoanStatusIn(context.memberId(),
+        int currentlyLoanedCount = loanRepository.countByMemberIdAndLoanStatusIn(context.memberId(),
                 List.of(LoanStatus.LOANED, LoanStatus.OVERDUE));
-        if (count > loanLimitPolicy.maxLoansFor(context.memberGrade())) {
+        int requestLoanedCount = context.bookIds().size();
+        int maxAllowedLoans = loanLimitPolicy.maxLoansFor(context.memberGrade());
+
+        if (currentlyLoanedCount + requestLoanedCount > maxAllowedLoans) {
             throw new LoanLimitExceededException();
         }
     }
