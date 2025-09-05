@@ -1,0 +1,27 @@
+server.port: 9001
+
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: jdbc:mysql://?:3306/yourdb
+    username: prod_user
+    password: prod_pw
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+
+kafka:
+  topics:
+    book-catalog-changed: book-catalog-changed
+
+
+
+aladin:
+  ttb:
+    key: ${ALADIN_TTB_KEY}
+
+kakao:
+  api:
+    key: ${KAKAO_REST_API_KEY}

@@ -2,18 +2,15 @@ package msa.bookloan.domain.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import msa.common.domain.BaseTimeEntity;
-import msa.common.domain.BookCategory;
+import lombok.*;
+import msa.common.domain.base.BaseTimeEntity;
+import msa.common.domain.model.BookCategory;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@RequiredArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BookLoan extends BaseTimeEntity {
 
     @Id
@@ -27,16 +24,16 @@ public class BookLoan extends BaseTimeEntity {
 
     private BookCategory bookCategory;
 
-    private LocalDateTime loanDate;
+    private LocalDate loanDate;
 
-    private LocalDateTime dueDate;
+    private LocalDate dueDate;
 
-    private LocalDateTime returnDate;
+    private LocalDate returnDate;
 
 
     @Builder
-    public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDateTime loanDate,
-                    LocalDateTime dueDate, LocalDateTime returnDate, BookCategory bookCategory) {
+    public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,
+                    LocalDate dueDate, LocalDate returnDate, BookCategory bookCategory) {
         this.id = id;
         this.memberId = memberId;
         this.bookId = bookId;

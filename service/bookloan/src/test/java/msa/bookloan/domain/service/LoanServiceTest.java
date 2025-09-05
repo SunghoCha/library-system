@@ -1,13 +1,16 @@
 package msa.bookloan.domain.service;
 
-import msa.bookloan.adaptor.outbound.persistence.LoanRepository;
+import msa.bookloan.domain.policy.LoanTermPolicy;
+import msa.bookloan.infra.projection.BookCatalogProjectionRepository;
+import msa.bookloan.repository.LoanRepository;
 import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
-import msa.bookloan.dto.LoanCommand;
-import msa.bookloan.exception.LoanLimitExceededException;
-import msa.bookloan.exception.LoanOverdueException;
-import msa.common.domain.MemberGrade;
+import msa.bookloan.service.dto.LoanCommand;
+import msa.bookloan.service.exception.LoanLimitExceededException;
+import msa.bookloan.service.exception.LoanOverdueException;
+import msa.bookloan.service.LoanService;
+import msa.common.domain.model.MemberGrade;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +43,12 @@ class LoanServiceTest {
     @Mock
     private LoanLimitPolicy loanLimitPolicy;
 
+    @Mock
+    private LoanTermPolicy loanTermPolicy;
+
+    @Mock
+    private BookCatalogProjectionRepository bookCatalogProjectionRepository;
+
     @InjectMocks
     private LoanService loanService;
 
@@ -51,7 +60,8 @@ class LoanServiceTest {
         loanService = new LoanService(
                 loanRepository,
                 List.of(overdueRule, loanLimitRule),
-                loanLimitPolicy
+                loanTermPolicy,
+                bookCatalogProjectionRepository
         );
     }
 
@@ -74,7 +84,7 @@ class LoanServiceTest {
                 .when(overdueRule)
                 .validate(any());
         // when & then
-        LoanCommand command = new LoanCommand(MEMBER_ID, MemberGrade.GOLD, BOOK_ID);
+        LoanCommand command = new LoanCommand(MEMBER_ID, MemberGrade.GOLD, List.of(BOOK_ID));
         assertThatThrownBy(() -> loanService.loanBooks(command))
                 .isInstanceOf(LoanOverdueException.class)
                 .hasMessage("연체 중인 도서가 있습니다.");
@@ -90,7 +100,7 @@ class LoanServiceTest {
                 .when(loanLimitRule)
                 .validate(any());
         // when & then
-        LoanCommand command = new LoanCommand(MEMBER_ID, MemberGrade.GOLD, BOOK_ID);
+        LoanCommand command = new LoanCommand(MEMBER_ID, MemberGrade.GOLD, List.of(BOOK_ID));
         assertThatThrownBy(() -> loanService.loanBooks(command))
                 .isInstanceOf(LoanLimitExceededException.class)
                 .hasMessage("대출 한도를 초과했습니다.");

@@ -1,6 +1,6 @@
 package msa.bookloan.domain.policy;
 
-import msa.common.domain.BookCategory;
+import msa.common.domain.model.BookCategory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -17,7 +17,8 @@ public class DefaultLoanTermPolicy implements LoanTermPolicy {
     );
 
     @Override
-    public Duration loanPeriodFor(BookCategory category) {
-        return TERMS.getOrDefault(category, Duration.ofDays(DEFAULT_LOAN_TERM));
+    public Long loanPeriodFor(BookCategory category) {
+        Duration duration = TERMS.getOrDefault(category, Duration.ofDays(DEFAULT_LOAN_TERM));
+        return duration.toDays();
     }
 }

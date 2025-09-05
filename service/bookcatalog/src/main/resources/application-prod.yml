@@ -1,0 +1,7 @@
+
+
+aladin:
+  ttb:
+    key: ${ALADIN_TTB_KEY}
+
+

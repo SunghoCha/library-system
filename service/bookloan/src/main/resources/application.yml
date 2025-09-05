@@ -1,0 +1,21 @@
+server.port: 9000
+
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: jdbc:mysql://?:3306/yourdb
+    username: prod_user
+    password: prod_pw
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+
+
+kafka:
+  topics:
+    category-changed: book-catalog-changed
+  group:
+    bookloan:
+      category-replica: bookloan-category-changed-replica

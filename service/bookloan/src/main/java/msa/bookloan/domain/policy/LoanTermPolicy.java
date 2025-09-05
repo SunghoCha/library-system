@@ -1,9 +1,7 @@
 package msa.bookloan.domain.policy;
 
-import msa.common.domain.BookCategory;
-
-import java.time.Duration;
+import msa.common.domain.model.BookCategory;
 
 public interface LoanTermPolicy {
-    Duration loanPeriodFor(BookCategory category);
+    Long loanPeriodFor(BookCategory category);
 }
