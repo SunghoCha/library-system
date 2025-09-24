@@ -27,18 +27,24 @@ import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class EventRecorder {
 
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final BookCatalogOutboxEventRecordRepository eventRecordRepository;
+    private final String topic;
 
-    @Value("${kafka.topics.book-catalog-changed}")
-    private String topic;
-
-    @Value("${outbox.retry.max-attempts:5}")
-    private int maxAttempts;
+    public EventRecorder(
+            Snowflake snowflake,
+            ObjectMapper objectMapper,
+            BookCatalogOutboxEventRecordRepository eventRecordRepository,
+            @Value("${kafka.topics.book-catalog-changed}") String topic
+    ) {
+        this.snowflake = snowflake;
+        this.objectMapper = objectMapper;
+        this.eventRecordRepository = eventRecordRepository;
+        this.topic = topic; // 주입받은 값으로 초기화
+    }
 
     @Transactional
     public void save(BookCatalogChangedEvent event) {
@@ -54,6 +60,7 @@ public class EventRecorder {
                 .eventId(event.getEventId())
                 .eventType(event.getEventType())
                 .aggregateId(String.valueOf(event.getAggregateId()))
+                .aggregateType(event.getAggregateType())
                 .payload(payload)
                 .occurredAt(LocalDateTime.now())
                 .outboxEventRecordStatus(NEW)
@@ -63,21 +70,6 @@ public class EventRecorder {
         eventRecordRepository.save(outboxEventRecord);
         log.debug("OutboxEventRecord saved: eventId=[{}], dbId=[{}]", event.getEventId(), outboxEventRecord.getId());
     }
-
-//    @Retryable(
-//            retryFor = DataAccessException.class,
-//            maxAttempts = 5,
-//            backoff = @Backoff(delay = 200)
-//    )
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    public void recordSuccess(Long eventId) {
-//        Long updated = markAsPublished(eventId);
-//        if (updated == 1) {
-//            log.info("Published event {}", eventId);
-//        } else {
-//            log.debug("Already published or not eligible: {}", eventId);
-//        }
-//    }
 
     @Retryable(
             retryFor = DataAccessException.class,
@@ -95,22 +87,9 @@ public class EventRecorder {
         }
     }
 
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    public void markAsDeadLetter(Long eventId, String errorMessage) {
-//        try {
-//            BookCatalogOutboxEventRecord record = findByEventId(eventId);
-//            record.markAsDeadLetter(errorMessage);
-//            log.error("Event [{}] marked as DEAD_LETTER directly. Reason: {}", eventId, errorMessage);
-//        } catch (Exception e) {
-//            log.error("Critical error during marking event [{}] as dead letter. Manual check required.", eventId, e);
-//        }
-//    }
-
     @Retryable(retryFor = DataAccessException.class, maxAttempts = 5, backoff = @Backoff(delay = 200))
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markAsDeadLetter(Long eventId, String error) {
-        // DEAD_LETTER는 보통 FAILED에서만 가는 게 자연스럽지만,
-        // 운영 상황에 따라 PUBLISHING에서도 바로 보내고 싶으면 둘 다 허용.
         int updated = eventRecordRepository.toDeadLetterIfCurrent(
                 eventId,
                 List.of(OutboxEventRecordStatus.FAILED, OutboxEventRecordStatus.PUBLISHING),
@@ -125,19 +104,7 @@ public class EventRecorder {
         }
     }
 
-//    @Retryable(
-//            retryFor = DataAccessException.class,
-//            maxAttempts = 5,
-//            backoff = @Backoff(delay = 100)
-//    )
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    public void handleFailure(Long eventId, String errorMessage) {
-//        BookCatalogOutboxEventRecord record = findByEventId(eventId);
-//        record.handleFailure(errorMessage, maxAttempts);
-//        log.info("Failure handled for event [{}]. New status: {}, RetryCount: {}",
-//                eventId, record.getOutboxEventRecordStatus(), record.getRetryCount());
-//    }
-
+    @Retryable(retryFor = DataAccessException.class, maxAttempts = 3, backoff = @Backoff(delay = 200))
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleFailure(Long eventId, String error) {
         int updated = eventRecordRepository.failAndIncrementIfCurrent(
@@ -146,29 +113,7 @@ public class EventRecorder {
             log.debug("[Outbox] 실패 스킵: 이미 처리되었거나 PUBLISHING 아님 (eventId={})", eventId);
         } else {
             log.warn("[Outbox] 발행 실패 (eventId={}, reason={})", eventId, error);
-            // 여기서 임계치 넘으면 DEAD_LETTER 전이도 별도 가드 UPDATE로
         }
-    }
-
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    public void recordFailure(Long eventId, String errorMessage) {
-//        try {
-//            Long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
-//            if (incremented == 0) {
-//                markAsDeadLetter(eventId);
-//            } else {
-//                markAsFailed(eventId);
-//            }
-//        } catch (Exception e) {
-//            log.warn("Failed to recordFailure for {}: {}", eventId, e.getMessage(), e);
-//        }
-//    }
-
-
-    private BookCatalogOutboxEventRecord findByEventId(Long eventId) {
-        // findByEventId가 있다고 가정, 없으면 findById 사용
-        return eventRecordRepository.findByEventId(eventId)
-                .orElseThrow(OutboxEventRecordNotFoundException::new);
     }
 
     private String serializeToPayload(BookCatalogChangedEvent event) {
@@ -180,8 +125,4 @@ public class EventRecorder {
         }
     }
 
-    private static void logStatusUpdated(Long eventId, OutboxEventRecordStatus status) {
-        log.debug("EventRecordStatus updated [eventId={}, EventRecordStatus={}]",
-                eventId, status);
-    }
 }

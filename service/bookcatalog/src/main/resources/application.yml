@@ -30,6 +30,13 @@ spring:
 
 
 
+outbox:
+  scheduler:
+    max-retry-count: 5
+    batch-size: 100
+    grace-period-minutes: 1
+    stale-timeout-minutes: 5
+
 aladin:
   ttb:
     key: ${ALADIN_TTB_KEY}
