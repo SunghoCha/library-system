@@ -65,16 +65,16 @@ class LoanServiceTest {
         );
     }
 
-    @Test
-    @DisplayName("조건을 만족하면 대출 승인")
-    void loanBook_with_correct_input() {
-        // given
-        given(loanRepository.existsByMemberIdAndLoanStatus(MEMBER_ID, LoanStatus.OVERDUE))
-                .willReturn(false);
-        // when
-
-        // then
-    }
+//    @Test
+//    @DisplayName("조건을 만족하면 대출 승인")
+//    void loanBook_with_correct_input() {
+//        // given
+//        given(loanRepository.existsByMemberIdAndLoanStatus(MEMBER_ID, LoanStatus.OVERDUE))
+//                .willReturn(false);
+//        // when
+//
+//        // then
+//    }
 
     @Test
     @DisplayName("회원이 연체 중인 도서가 하나라도 있으면 대출 거부")

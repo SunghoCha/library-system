@@ -1,10 +1,26 @@
 plugins {
     id 'java'
-    //id 'com.ewerk.gradle.plugins.querydsl' version '1.0.10'
     id 'org.springframework.boot' version '3.5.3'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
+group = 'msa.service'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+ext {
+    set('springCloudVersion', "2025.0.0")
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
 
 dependencies {
     implementation project(':common')
@@ -12,43 +28,43 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
-
+    implementation 'org.springframework.kafka:spring-kafka'
     implementation 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
-    testRuntimeOnly 'com.h2database:h2'
 
     // QueryDSL JPA Jakarta
     implementation       'com.querydsl:querydsl-jpa:5.0.0:jakarta'
     annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
-
     // Jakarta Persistence API
     compileOnly          'jakarta.persistence:jakarta.persistence-api:3.1.0'
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0'
 
-    // Spring Kafka 핵심
-    implementation 'org.springframework.kafka:spring-kafka'
-
     // .env
     implementation 'io.github.cdimascio:java-dotenv:5.1.1'
 
+    testImplementation 'org.awaitility:awaitility:4.2.0'
+
 }
-// Gradle 7+ 기본 generated 위치를 소스 루트로 추가
+def generated = 'build/generated/querydsl'
+
+tasks.withType(JavaCompile).configureEach {
+    options.getGeneratedSourceOutputDirectory().set(file(generated))
+}
+
 sourceSets {
-    main {
-        java {
-            srcDirs += "$buildDir/generated/sources/annotationProcessor/java/main"
-        }
-    }
+    main.java.srcDirs += [ generated ]
 }
 
 tasks.named("clean") {
     doLast {
-        delete "$buildDir/generated"
+        delete(file(generated))
     }
+}
+
+springBoot {
+    mainClass = 'msa.bookcatalog.BookCatalogApplication'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
-
-

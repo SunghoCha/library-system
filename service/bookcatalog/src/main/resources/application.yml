@@ -1,20 +1,32 @@
-server.port: 9001
+server:
+  port: 9001
 
 spring:
   config:
     import: optional:file:.env[.properties]
+
   datasource:
-    url: jdbc:mysql://?:3306/yourdb
+    url: jdbc:mysql://?:3306/yourdb # 임시. 일단 로컬은 local에서 설정 중
     username: prod_user
     password: prod_pw
+
   jpa:
     hibernate:
       ddl-auto: validate
 
+  kafka:
+    topics:
+      book-catalog-changed: book-catalog-changed
+    producer:
+      acks: all
+      batch-size: 32768
+      properties:
+        enable.idempotence: true
+        retry.backoff.ms: 100
+        delivery.timeout.ms: 120000
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 5
 
-kafka:
-  topics:
-    book-catalog-changed: book-catalog-changed
 
 
 

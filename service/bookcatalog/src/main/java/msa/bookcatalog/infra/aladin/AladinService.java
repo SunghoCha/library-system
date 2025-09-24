@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.Objects;
 
 @Slf4j
-@Service
+//@Service
 @RequiredArgsConstructor
 public class AladinService {
 

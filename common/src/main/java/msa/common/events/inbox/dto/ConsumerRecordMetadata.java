@@ -3,9 +3,10 @@ package msa.common.events.inbox.dto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-
+@Getter
 @Embeddable
 @NoArgsConstructor
 public class ConsumerRecordMetadata {
@@ -13,11 +14,11 @@ public class ConsumerRecordMetadata {
     @Column(nullable = false, length = 255)
     private String topic;
 
-    @Column(nullable = false)
-    private Integer partition;
+    @Column(name = "partition_no", nullable = false)
+    private int partition;
 
-    @Column(nullable = false)
-    private Long offset;
+    @Column(name = "record_offset", nullable = false)
+    private long offset;
 
     @Builder
     public ConsumerRecordMetadata(String topic, Integer partition, Long offset) {

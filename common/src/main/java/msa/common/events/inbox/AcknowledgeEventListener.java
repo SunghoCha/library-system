@@ -14,6 +14,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class AcknowledgeEventListener {
 
+    // TODO : 필요없어서 삭제해도 될 듯. 오프셋 커밋 방식 변경했음
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAcknowledge(AcknowledgeEvent event) {
         Acknowledgment ack = event.getAck();

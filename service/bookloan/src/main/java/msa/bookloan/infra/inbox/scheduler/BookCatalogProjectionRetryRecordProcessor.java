@@ -51,7 +51,8 @@ public class BookCatalogProjectionRetryRecordProcessor {
         return BookCatalogChangedEvent.builder()
                 .eventId(eventRecord.getEventId())
                 .eventType(eventRecord.getEventType())
-                .bookId(payload.getBookId())
+                .bookId(toLong(payload.getBookId()))
+                .aggregateVersion(eventRecord.getAggregateVersion())
                 .title(payload.getTitle())
                 .author(payload.getAuthor())
                 .category(payload.getCategory())
@@ -65,5 +66,10 @@ public class BookCatalogProjectionRetryRecordProcessor {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Invalid JSON in inbox record: " + eventRecord.getId(), e);
         }
+    }
+
+
+    private static long toLong(String s) {
+        return Long.parseLong(s.trim());
     }
 }

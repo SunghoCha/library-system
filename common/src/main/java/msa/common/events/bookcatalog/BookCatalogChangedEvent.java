@@ -7,30 +7,36 @@ import msa.common.domain.model.BookCategory;
 import msa.common.events.DomainEvent;
 import msa.common.events.EventType;
 
+import java.time.LocalDateTime;
+
 @Getter
 public class BookCatalogChangedEvent implements DomainEvent {
 
     private final Long eventId;
     private final EventType eventType;
-    private final String bookId;
+    private final long bookId;
+    private final long aggregateVersion;
     private final String title;
     private final String author;
     private final BookCategory category;
+    private final LocalDateTime occurredAt;
 
     @Builder
-    public BookCatalogChangedEvent(Long eventId, EventType eventType, String bookId,
-                                   String title, String author, BookCategory category) {
+    public BookCatalogChangedEvent(Long eventId, EventType eventType, long bookId, long aggregateVersion,
+                                   String title, String author, BookCategory category, LocalDateTime occurredAt) {
         this.eventId = eventId;
         this.eventType = eventType;
         this.bookId = bookId;
+        this.aggregateVersion = aggregateVersion;
         this.title = title;
         this.author = author;
         this.category = category;
+        this.occurredAt = occurredAt;
     }
 
 
     @Override
-    public String getAggregateId() {
+    public long getAggregateId() {
         return bookId;
     }
 }

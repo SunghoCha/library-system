@@ -1,9 +1,5 @@
 rootProject.name = 'library'
 
 include 'common'
-include 'common:snowflake'
-include 'common:domain'
-include 'common:exception'
-include 'service'
 include 'service:bookloan'
 include 'service:bookcatalog'

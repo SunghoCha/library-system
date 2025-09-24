@@ -17,8 +17,9 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
+// TODO : 나중에 활성화
 @Slf4j
-@Component
+//@Component
 @RequiredArgsConstructor
 //public class DummyDataLoader implements ApplicationRunner {
 public class DummyDataLoader  {

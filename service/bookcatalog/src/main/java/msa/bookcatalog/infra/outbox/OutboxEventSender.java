@@ -2,18 +2,14 @@ package msa.bookcatalog.infra.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
+import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
 import msa.bookcatalog.infra.outbox.scheduler.OutboxEventProcessor;
+import msa.bookcatalog.service.exception.OutboxEventRecordNotFoundException;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
-import org.springframework.kafka.KafkaException;
+import msa.common.events.outbox.dto.OutboxRouting;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -22,34 +18,39 @@ public class OutboxEventSender {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final OutboxEventProcessor outboxEventProcessor;
-    private final EventRecorder eventRecorder;
+    private final BookCatalogOutboxEventRecordRepository outboxRepository;
 
-    public void sendEventWithRetry(BookCatalogChangedEvent event, String topic, String msg) {
-        sendToKafka(event, topic, msg);
-        eventRecorder.recordSuccess(event.getEventId());
+    public void send(BookCatalogChangedEvent event) {
+        Long eventId = event.getEventId();
+        BookCatalogOutboxEventRecord record = outboxRepository.findByEventId(eventId)
+                .orElseThrow(OutboxEventRecordNotFoundException::new);
+
+        String topic = record.getRouting().getTopic();
+        String key = record.getRouting().getPartitionKey();
+        String payload = record.getPayload();
+
+        sendAsync(topic, key, payload, eventId);
     }
 
-    @Retryable(
-            retryFor = {KafkaException.class},
-            maxAttempts = 5,
-            backoff = @Backoff(delay = 500))
-    private void sendToKafka(BookCatalogChangedEvent event, String topic, String msg) {
-        try {
-            kafkaTemplate.send(topic, event.getAggregateId(), msg).get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new KafkaException("Kafka send failed", e);
+    public void resend(BookCatalogOutboxEventRecord record) {
+        OutboxRouting routing = record.getRouting();
+        if (routing == null) {
+            throw new IllegalStateException("OutboxRouting is null for eventId=" + record.getEventId());
         }
+        String topic  = routing.getTopic();
+        String key    = routing.getPartitionKey();
+        String value  = record.getPayload();
+        Long eventId  = record.getEventId();
+
+        sendAsync(topic, key, value, eventId);
     }
 
-    public void resendEvent(BookCatalogOutboxEventRecord record, String topic) {
-        kafkaTemplate.send(topic, record.getAggregateId(), record.getPayload())
-                .whenComplete((result, ex) -> outboxEventProcessor.updateRecord(record.getEventId(), ex));
+    private void sendAsync(String topic, String key, String payload, Long eventId) {
+        log.info("카프카 발행 시도. topic={}, key={}, eventId={}", topic, key, eventId);
+        kafkaTemplate.send(topic, key, payload)
+                .whenComplete((result, ex) -> {
+                    outboxEventProcessor.updateStatusAfterProcessing(eventId, ex);
+                });
     }
-
-    @Recover
-    public void recover(Long eventId, KafkaException e) {
-        eventRecorder.recordDeadLetter(eventId, e.getMessage());
-    }
-
 
 }
