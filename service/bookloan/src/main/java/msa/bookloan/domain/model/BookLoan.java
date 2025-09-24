@@ -1,7 +1,6 @@
 package msa.bookloan.domain.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.*;
 import msa.common.domain.base.BaseTimeEntity;
 import msa.common.domain.model.BookCategory;
@@ -20,16 +19,20 @@ public class BookLoan extends BaseTimeEntity {
 
     private Long bookId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24, nullable = false)
     private LoanStatus loanStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
     private BookCategory bookCategory;
 
     private LocalDate loanDate;
-
     private LocalDate dueDate;
-
     private LocalDate returnDate;
 
+    @Version
+    private Long version;
 
     @Builder
     public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,

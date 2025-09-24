@@ -34,11 +34,11 @@ public class BookCatalogProjectionService {
     }
 
     private void handleDeletedEvent(BookCatalogChangedEvent event) {
-        projectionRepository.deleteByBookId(getBookId(event));
+        projectionRepository.deleteByBookId(event.getBookId());
     }
 
     private void handleUpdatedEvent(BookCatalogChangedEvent event) {
-        projectionRepository.findByBookId(getBookId(event))
+        projectionRepository.findByBookId(event.getBookId())
                 .ifPresentOrElse(
                         existingBookProjection -> {
                             existingBookProjection.edit(createEditor(event, existingBookProjection));
@@ -65,15 +65,13 @@ public class BookCatalogProjectionService {
 
     private BookCatalogProjection createBookCatalogProjection(BookCatalogChangedEvent event) {
         return BookCatalogProjection.builder()
-                .bookId(getBookId(event))
+                .bookId(event.getBookId())
                 .title(event.getTitle())
                 .author(event.getAuthor())
                 .bookCategory(event.getCategory())
                 .build();
     }
 
-    private static long getBookId(BookCatalogChangedEvent event) {
-        return Long.parseLong(event.getBookId());
-    }
+
 
 }

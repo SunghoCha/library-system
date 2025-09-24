@@ -12,7 +12,6 @@ public class Snowflake {
     private static final long maxSequence = (1L << SEQUENCE_BITS) - 1;
 
     private final long nodeId = RandomGenerator.getDefault().nextLong(maxNodeId + 1);
-    // UTC = 2024-01-01T00:00:00Z
     private final long startTimeMillis = 1704067200000L;
 
     private long lastTimeMillis = startTimeMillis;

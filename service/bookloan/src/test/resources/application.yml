@@ -1,22 +1,11 @@
-server.port: 9000
-
 spring:
-  config:
-    import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
-    driver‑class‑name: org.h2.Driver
-    username: sa
-    password:
+    url: jdbc:tc:mysql:8.4:///testdb
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
+    open-in-view: false
 
 
-kafka:
-  topics:
-    category-changed: book-catalog-changed
-  group:
-    bookloan:
-      category-replica: bookloan-category-changed-replica
 

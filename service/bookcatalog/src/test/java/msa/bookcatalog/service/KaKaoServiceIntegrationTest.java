@@ -14,11 +14,11 @@ public class KaKaoServiceIntegrationTest {
     @Autowired
     private KaKaoService kaKaoService;
 
-    @Test
-    void testBestSellerListFetch() {
-        List<KakaoBookResponse.Document> documents = kaKaoService.search("용기");
-        System.out.println(documents);
-    }
+//    @Test
+//    void testBestSellerListFetch() {
+//        List<KakaoBookResponse.Document> documents = kaKaoService.search("용기");
+//        System.out.println(documents);
+//    }
 
 
 

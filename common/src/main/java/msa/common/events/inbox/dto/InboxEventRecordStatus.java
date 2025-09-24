@@ -2,8 +2,8 @@ package msa.common.events.inbox.dto;
 
 public enum InboxEventRecordStatus {
     NEW,
-    PROCESSING,
+    PROCESSING, // 임시
     PROCESSED,
-    FAILED,
+    FAILED, // 임시
     DEAD_LETTER
 }
