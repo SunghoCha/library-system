@@ -32,6 +32,7 @@ dependencies {
     implementation 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
 
+
     // QueryDSL JPA Jakarta
     implementation       'com.querydsl:querydsl-jpa:5.0.0:jakarta'
     annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
@@ -39,9 +40,14 @@ dependencies {
     compileOnly          'jakarta.persistence:jakarta.persistence-api:3.1.0'
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0'
 
+
     // .env
     implementation 'io.github.cdimascio:java-dotenv:5.1.1'
 
+    // Testcontainers
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8') // BOM으로 버전 관리
+    testImplementation 'org.testcontainers:junit-jupiter' // JUnit5 연동
+    testImplementation 'org.testcontainers:mysql' // MySQL 컨테이너 사용
     testImplementation 'org.awaitility:awaitility:4.2.0'
 
 }

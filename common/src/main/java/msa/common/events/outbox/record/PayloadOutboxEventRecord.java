@@ -1,10 +1,7 @@
 package msa.common.events.outbox.record;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import lombok.experimental.SuperBuilder;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
@@ -50,6 +47,7 @@ public abstract class PayloadOutboxEventRecord {
     @Column(nullable = false)
     private int retryCount = 0;
 
+    @Setter
     @Column
     private LocalDateTime pickedAt;
 
@@ -65,35 +63,6 @@ public abstract class PayloadOutboxEventRecord {
     })
     private OutboxRouting routing;
 
-    public void updateOutboxEventRecordStatus(OutboxEventRecordStatus outboxEventRecordStatus) {
-        this.outboxEventRecordStatus = outboxEventRecordStatus;
-    }
-
-    public void incrementRetryCount() {
-        retryCount++;
-    }
-
-    public void handleFailure(String errorMessage, int maxRetryCount) {
-        this.retryCount++;
-        if (this.retryCount >= maxRetryCount) {
-            markAsDeadLetter(errorMessage);
-        } else {
-            this.outboxEventRecordStatus = OutboxEventRecordStatus.FAILED;
-            this.lastError = errorMessage;
-        }
-    }
-
-    public void markAsPublished() {
-        this.outboxEventRecordStatus = OutboxEventRecordStatus.PUBLISHED;
-    }
-
-    public void markAsDeadLetter(String errorMessage) {
-        this.outboxEventRecordStatus = OutboxEventRecordStatus.DEAD_LETTER;
-        this.lastError = errorMessage;
-    }
-
-    // updateOutboxEventRecordStatus, incrementRetryCount 메서드는
-    // 더 구체적인 새 메서드들로 대체되었으므로 삭제하거나 private으로 변경할 수 있습니다.
 }
 
 

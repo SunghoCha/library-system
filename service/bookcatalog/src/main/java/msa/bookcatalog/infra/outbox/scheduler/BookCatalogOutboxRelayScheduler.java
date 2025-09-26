@@ -3,10 +3,12 @@ package msa.bookcatalog.infra.outbox.scheduler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.infra.outbox.OutboxEventSender;
+import msa.bookcatalog.infra.outbox.config.OutboxSchedulerProperties;
 import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
 import msa.bookcatalog.infra.outbox.service.OutboxClaimerService;
+import msa.common.events.outbox.OutboxEventRecordStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,35 +23,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BookCatalogOutboxRelayScheduler {
 
-    // TODO : 추후 설정값 외부로 분리
-    private static final int MAX_RETRY_COUNT = 3;
-    private static final int BATCH_SIZE = 20;
-    private static final int PROCESSING_TIMEOUT_MINUTES = 3;
-
-    private final BookCatalogOutboxEventRecordRepository eventRecordRepository;
+    private final EventRecorder eventRecorder;
+    private final OutboxSchedulerProperties properties;
     private final OutboxEventSender outboxEventSender;
     private final OutboxClaimerService outboxClaimerService;
-
-    // 실패 데이터가 적을 것이라는 전제로 배치에 트랜잭션. 비관적 락 사용
-    @Transactional
-    @Scheduled(fixedDelayString = "${outbox.relay.delay:60000}", initialDelayString = "${outbox.relay.initialDelay:10000}")
-    public void retryOutboxMessages() {
-        LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(PROCESSING_TIMEOUT_MINUTES);
-        List<BookCatalogOutboxEventRecord> targetList =
-                eventRecordRepository.findEventsToRetry(
-                        timeoutThreshold,
-                        MAX_RETRY_COUNT,
-                        PageRequest.of(0, BATCH_SIZE));
-
-        if (!targetList.isEmpty()) {
-            log.info("Retrying {} outbox events.", targetList.size());
-        }
-
-        for (BookCatalogOutboxEventRecord eventRecord : targetList) {
-            outboxEventSender.resend(eventRecord);
-        }
-
-    }
 
     @Scheduled(fixedDelay = 60000)
     public void retryPendingOutboxEvents() {
@@ -61,9 +38,23 @@ public class BookCatalogOutboxRelayScheduler {
         log.info("{}개의 아웃박스 이벤트를 재처리합니다.", targets.size());
 
         for (BookCatalogOutboxEventRecord record : targets) {
+            if (isDeadLetterCondition(record)) {
+                // 재시도 횟수 초과 시, 데드 레터로 보내고 이번 루프 종료
+                String reason = "최대 재시도 횟수(" + properties.maxRetryCount() + "회)를 초과했습니다.";
+                eventRecorder.markAsDeadLetter(record.getEventId(), reason);
+                continue; // 다음 레코드로 넘어감
+            }
             outboxEventSender.resend(record);
         }
+
     }
+
+    private boolean isDeadLetterCondition(BookCatalogOutboxEventRecord record) {
+        // 상태가 FAILED이고, 재시도 횟수가 최대치를 넘었는지 확인
+        return record.getOutboxEventRecordStatus() == OutboxEventRecordStatus.FAILED &&
+                record.getRetryCount() >= properties.maxRetryCount();
+    }
+
 
 }
 
