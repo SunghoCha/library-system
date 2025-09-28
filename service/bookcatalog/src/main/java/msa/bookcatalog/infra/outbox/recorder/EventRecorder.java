@@ -38,7 +38,7 @@ public class EventRecorder {
             Snowflake snowflake,
             ObjectMapper objectMapper,
             BookCatalogOutboxEventRecordRepository eventRecordRepository,
-            @Value("${kafka.topics.book-catalog-changed}") String topic
+            @Value("${app.kafka.topics.catalog-changed-topic}") String topic
     ) {
         this.snowflake = snowflake;
         this.objectMapper = objectMapper;
@@ -46,26 +46,31 @@ public class EventRecorder {
         this.topic = topic; // 주입받은 값으로 초기화
     }
 
-    @Transactional
-    public void save(BookCatalogChangedEvent event) {
+    public BookCatalogOutboxEventRecord createFrom(BookCatalogChangedEvent event) {
         String payload = serializeToPayload(event);
 
         OutboxRouting routing = OutboxRouting.builder()
                 .topic(topic)
-                .partitionKey(String.valueOf(event.getAggregateId())) // 순서 보장 단위
+                .partitionKey(String.valueOf(event.getAggregateId()))
                 .build();
 
-        BookCatalogOutboxEventRecord outboxEventRecord = BookCatalogOutboxEventRecord.builder()
+        return BookCatalogOutboxEventRecord.builder()
                 .id(snowflake.nextId())
                 .eventId(event.getEventId())
                 .eventType(event.getEventType())
                 .aggregateId(String.valueOf(event.getAggregateId()))
                 .aggregateType(event.getAggregateType())
+                .aggregateVersion(event.getAggregateVersion())
                 .payload(payload)
-                .occurredAt(LocalDateTime.now())
+                .occurredAt(event.getOccurredAt())
                 .outboxEventRecordStatus(NEW)
                 .routing(routing)
                 .build();
+    }
+
+    @Transactional
+    public void save(BookCatalogChangedEvent event) {
+        BookCatalogOutboxEventRecord outboxEventRecord = createFrom(event);
 
         eventRecordRepository.save(outboxEventRecord);
         log.debug("OutboxEventRecord saved: eventId=[{}], dbId=[{}]", event.getEventId(), outboxEventRecord.getId());

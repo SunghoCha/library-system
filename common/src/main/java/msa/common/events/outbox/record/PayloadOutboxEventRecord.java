@@ -22,8 +22,14 @@ public abstract class PayloadOutboxEventRecord {
     @Column(nullable = false, unique = true)
     private Long eventId;
 
+    @Column(name = "aggregate_type", nullable = false, length = 64)
     private String aggregateType;
+
+    @Column(name = "aggregate_id",   nullable = false, length = 191)
     private String aggregateId;
+
+    @Column(name = "aggregate_version", nullable = false)
+    private Long aggregateVersion;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -39,9 +45,6 @@ public abstract class PayloadOutboxEventRecord {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private OutboxEventRecordStatus outboxEventRecordStatus;
-
-    @Version
-    private Long version;
 
     @Builder.Default
     @Column(nullable = false)

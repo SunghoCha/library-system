@@ -12,8 +12,8 @@ public class BookCatalogEditor {
     private String publisher;
     private String coverImageUrl;
     private String description;
-    private Integer categoryId;
-    private String categoryName;
+    private BookType bookType;
+
 
     public static BookCatalogEditorBuilder builder() {
         return new BookCatalogEditorBuilder();
@@ -25,8 +25,7 @@ public class BookCatalogEditor {
         private String publisher;
         private String coverImageUrl;
         private String description;
-        private Integer categoryId;
-        private String categoryName;
+        private BookType bookType;
 
         public BookCatalogEditorBuilder title(String title) {
             if (title != null && !title.isBlank()) {
@@ -63,23 +62,13 @@ public class BookCatalogEditor {
             return this;
         }
 
-        public BookCatalogEditorBuilder categoryId(Integer categoryId) {
-            if (categoryId != null) {
-                this.categoryId = categoryId;
-            }
-            return this;
-        }
-
-        public BookCatalogEditorBuilder categoryName(String categoryName) {
-            if (categoryName != null && !categoryName.isBlank()) {
-                this.categoryName = categoryName;
-            }
+        public BookCatalogEditorBuilder bookType(BookType bookType) {
+            if (bookType != null) this.bookType = bookType;
             return this;
         }
 
         public BookCatalogEditor build() {
-            return new BookCatalogEditor(title, author, publisher, coverImageUrl,
-                    description, categoryId, categoryName);
+            return new BookCatalogEditor(title, author, publisher, coverImageUrl, description, bookType);
         }
 
     }

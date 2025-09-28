@@ -1,11 +1,15 @@
 package msa.bookcatalog.service;
 
 import msa.bookcatalog.infra.aladin.AladinService;
+import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
+import msa.bookcatalog.infra.aladin.dto.AladinBookListResponse;
 import msa.bookcatalog.infra.aladin.model.ListQueryType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import java.util.List;
 
 @SpringBootTest
 public class AladinServiceIntegrationTest {
@@ -15,9 +19,11 @@ public class AladinServiceIntegrationTest {
 
 //    @Test
 //    void testBestSellerListFetch() {
-//        String json = aladinService.getBookList(ListQueryType.Bestseller);
-//        System.out.println(json);
-//        Assertions.assertTrue(json.contains("item")); // 간단한 응답 검증
+//        AladinBookListResponse bookList = aladinService.getBookList(ListQueryType.Bestseller);
+//        List<AladinBookItemDto> items = bookList.item();
+//        for (AladinBookItemDto item : items) {
+//            System.out.println("item = " + item.isbn13());
+//        }
 //    }
 //
 //    @Test

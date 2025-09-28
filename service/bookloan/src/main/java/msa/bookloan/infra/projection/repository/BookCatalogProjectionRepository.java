@@ -1,5 +1,6 @@
-package msa.bookloan.infra.projection;
+package msa.bookloan.infra.projection.repository;
 
+import msa.bookloan.infra.projection.BookCatalogProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

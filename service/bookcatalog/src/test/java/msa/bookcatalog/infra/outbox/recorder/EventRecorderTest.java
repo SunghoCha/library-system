@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
-import msa.common.domain.model.BookCategory;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
@@ -16,13 +15,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,7 +65,7 @@ class EventRecorderTest {
                 .aggregateType("BookCatalog")
                 .title("New Title")
                 .author("New Author")
-                .category(BookCategory.STANDARD)
+                .category(BookType.STANDARD)
                 .occurredAt(LocalDateTime.now())
                 .build();
 

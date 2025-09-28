@@ -1,9 +1,8 @@
 package msa.bookloan.domain.service;
 
 import msa.bookloan.domain.policy.LoanTermPolicy;
-import msa.bookloan.infra.projection.BookCatalogProjectionRepository;
+import msa.bookloan.infra.projection.repository.BookCatalogProjectionRepository;
 import msa.bookloan.repository.LoanRepository;
-import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
 import msa.bookloan.service.dto.LoanCommand;
@@ -23,7 +22,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;

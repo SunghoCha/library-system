@@ -26,7 +26,7 @@ public class BookCatalogService {
     private final Snowflake snowflake;
 
     public Long createBookCatalog(CreateBookCommand command) {
-        validateDuplicate(command.itemId(), command.isbn13());
+        validateDuplicate(command.isbn13());
         BookCatalog saved = bookCatalogRepository.save(command.toEntity());
 
         eventPublisher.publishEvent(command.toEvent(snowflake.nextId()));
@@ -34,7 +34,7 @@ public class BookCatalogService {
     }
 
     public Long updateBookCatalog(UpdateBookCommand command) {
-        validateDuplicate(command.itemId(), command.isbn13());
+        validateDuplicate(command.isbn13());
         BookCatalog bookCatalog = bookCatalogRepository.findById(command.bookCatalogId())
                 .orElseThrow(() -> new BookCatalogNotFoundException(command.bookCatalogId()));
         bookCatalog.edit(createEditor(command, bookCatalog));
@@ -55,9 +55,9 @@ public class BookCatalogService {
                 .build();
     }
 
-    private void validateDuplicate(Long itemId, String isbn13) {
-        if (bookCatalogRepository.existsByItemId(itemId) || bookCatalogRepository.existsByIsbn13(isbn13)) {
-            throw new DuplicateBookException(itemId);
+    private void validateDuplicate(String isbn13) {
+        if (bookCatalogRepository.existsByIsbn13(isbn13)) {
+            throw new DuplicateBookException(isbn13);
         }
     }
 }

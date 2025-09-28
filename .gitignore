@@ -37,3 +37,4 @@ out/
 .vscode/
 
 service/bookcatalog/.env
+service/bookloan/.env
