@@ -1,0 +1,44 @@
+# docker-compose.db.yml
+
+version: '3.8'
+
+services:
+  # -------------------- Book Catalog Service DB --------------------
+  catalog-db:
+    image: mysql:8.0
+    container_name: catalog-db
+    ports:
+      - "13307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_CATALOG_DATABASE}
+      MYSQL_USER: ${MYSQL_CATALOG_USER}
+      MYSQL_PASSWORD: ${MYSQL_CATALOG_PASSWORD}
+    volumes:
+
+      - catalog_db_data:/var/lib/mysql
+    restart: always
+
+  # -------------------- Book Loan Service DB --------------------
+  loan-db:
+    image: mysql:8.0
+    container_name: loan-db
+    ports:
+      - "13306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_LOAN_DATABASE}
+      MYSQL_USER: ${MYSQL_LOAN_USER}
+      MYSQL_PASSWORD: ${MYSQL_LOAN_PASSWORD}
+    volumes:
+      - loan_db_data:/var/lib/mysql
+    restart: always
+
+  # --- 필요 시 다른 서비스의 DB 추가 ---
+
+
+
+# Docker가 관리하는 데이터 볼륨 선언
+volumes:
+  catalog_db_data:
+  loan_db_data:

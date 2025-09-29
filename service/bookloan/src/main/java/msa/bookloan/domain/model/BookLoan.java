@@ -3,7 +3,6 @@ package msa.bookloan.domain.model;
 import jakarta.persistence.*;
 import lombok.*;
 import msa.common.domain.base.BaseTimeEntity;
-import msa.common.domain.model.BookCategory;
 
 import java.time.LocalDate;
 
@@ -25,7 +24,7 @@ public class BookLoan extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 32)
-    private BookCategory bookCategory;
+    private BookType bookType;
 
     private LocalDate loanDate;
     private LocalDate dueDate;
@@ -36,7 +35,7 @@ public class BookLoan extends BaseTimeEntity {
 
     @Builder
     public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,
-                    LocalDate dueDate, LocalDate returnDate, BookCategory bookCategory) {
+                    LocalDate dueDate, LocalDate returnDate, BookType bookType) {
         this.id = id;
         this.memberId = memberId;
         this.bookId = bookId;
@@ -44,6 +43,6 @@ public class BookLoan extends BaseTimeEntity {
         this.loanDate = loanDate;
         this.dueDate = dueDate;
         this.returnDate = returnDate;
-        this.bookCategory = bookCategory;
+        this.bookType = bookType;
     }
 }

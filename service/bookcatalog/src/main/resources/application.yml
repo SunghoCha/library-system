@@ -2,45 +2,66 @@ server:
   port: 9001
 
 spring:
+  application:
+    name: book-catalog-service
+
+  profiles:
+    active: local
+
+  # .env 파일 import 설정
   config:
     import: optional:file:.env[.properties]
-
-  datasource:
-    url: jdbc:mysql://?:3306/yourdb # 임시. 일단 로컬은 local에서 설정 중
-    username: prod_user
-    password: prod_pw
 
   jpa:
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    producer:
+      acks: all
+      batch-size: 32768 # 32KB
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 120000 # 2분
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info   # 필요한 것만
+      base-path: /actuator     # 기본값이 이거지만 명시 추천
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    msa.bookcatalog.infra.aladin.AladinClient: DEBUG
+
+
+# 커스텀 설정
+app:
+  # Outbox 패턴 관련 설정
+  outbox:
+    scheduler:
+      max-retry-count: 5
+      batch-size: 100
+      grace-period-minutes: 1
+      stale-timeout-minutes: 5
 
   kafka:
     topics:
-      book-catalog-changed: book-catalog-changed
-    producer:
-      acks: all
-      batch-size: 32768
-      properties:
-        enable.idempotence: true
-        retry.backoff.ms: 100
-        delivery.timeout.ms: 120000
-        max.in.flight.requests.per.connection: 5
-        linger.ms: 5
+      catalog-changed-topic: book-catalog-changed
 
-
-
-
-outbox:
-  scheduler:
-    max-retry-count: 5
-    batch-size: 100
-    grace-period-minutes: 1
-    stale-timeout-minutes: 5
-
-aladin:
-  ttb:
-    key: ${ALADIN_TTB_KEY}
-
-kakao:
-  api:
-    key: ${KAKAO_REST_API_KEY}
+  # 외부 API 키 설정 (환경 변수로 주입)
+  aladin:
+    ttb:
+      key: ${ALADIN_TTB_KEY}
+  kakao:
+    api:
+      key: ${KAKAO_REST_API_KEY}

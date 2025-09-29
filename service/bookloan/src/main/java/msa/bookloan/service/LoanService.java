@@ -1,7 +1,7 @@
 package msa.bookloan.service;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.infra.projection.BookCatalogProjectionRepository;
+import msa.bookloan.infra.projection.repository.BookCatalogProjectionRepository;
 import msa.bookloan.repository.LoanRepository;
 import msa.bookloan.infra.projection.BookCatalogProjection;
 import msa.bookloan.domain.model.BookLoan;
@@ -10,7 +10,6 @@ import msa.bookloan.domain.policy.LoanTermPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
 import msa.bookloan.service.dto.LoanCommand;
 import msa.bookloan.service.dto.LoanContext;
-import msa.common.domain.model.BookCategory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -46,16 +45,16 @@ public class LoanService {
         List<BookLoan> bookLoans = command.bookIds().stream()
                 .map(id -> {
                     BookCatalogProjection bookCatalogProjection = infoMap.get(id);
-                    BookCategory bookCategory = bookCatalogProjection.getBookCategory();
+                    BookType bookType = bookCatalogProjection.getBookType();
                     LocalDate loanDate = LocalDate.now();
-                    Long loanTerm = loanTermPolicy.loanPeriodFor(bookCategory);
+                    Long loanTerm = loanTermPolicy.loanPeriodFor(bookType);
                     LocalDate dueDate = loanDate.plusDays(loanTerm);
 
                     return BookLoan.builder()
                             .memberId(command.memberId())
                             .bookId(id)
                             .loanStatus(LoanStatus.LOANED)
-                            .bookCategory(bookCategory)
+                            .bookCategory(bookType)
                             .loanDate(loanDate)
                             .dueDate(dueDate)
                             .returnDate(null)

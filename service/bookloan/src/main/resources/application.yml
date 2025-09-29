@@ -1,18 +1,37 @@
-server.port: 9000
+server:
+  port: 9000
 
 spring:
+  application:
+    name: bookloan-service
+  
+  profiles:
+    active: local
+
+  # .env 파일에서 환경 변수를 가져오는 설정 (공통으로 사용)
   config:
     import: optional:file:.env[.properties]
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update # 추후 변경
+    properties:
+      hibernate:
+        format_sql: true
+
   kafka:
     listener:
-      auto-startup: false
+      auto-startup: false # 기본적으로 리스너를 자동 시작하지 않게 일단 해뒀음. 추후 변경
 
 
 
 
-kafka:
-  topics:
-    category-changed: book-catalog-changed
-  group:
-    bookloan:
-      category-replica: bookloan-category-changed-replica
+# 커스텀 설정
+app:
+  kafka:
+    topics:
+      catalog-changed-topic: book-catalog-changed
+    groups:
+      catalog-replica-group: bookloan-category-changed-replica
+

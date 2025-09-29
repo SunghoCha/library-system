@@ -1,9 +1,11 @@
 package msa.bookloan.infra.kafka.listener;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.infra.inbox.recorder.EventRecorder;
 import msa.bookloan.infra.kafka.validator.BookCatalogUpdatedExternalEventPayloadValidator;
+import msa.bookloan.infra.kafka.validator.EventPayloadValidator;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
 import msa.common.exception.FailureCategory;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -21,6 +23,7 @@ public class BookCatalogProjectionEventListener {
 
     private final ApplicationEventPublisher eventPublisher;
     private final EventRecorder eventRecorder;
+    private final EventPayloadValidator payloadValidator;
 
     @Transactional
     @KafkaListener(
@@ -29,21 +32,45 @@ public class BookCatalogProjectionEventListener {
             containerFactory = "bookCatalogListenerFactory"
     )
     public void handleBookCatalogUpdate(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record) {
-        log.debug("Received records from topic={} partition(s) starting at offset={}", record.topic(), record.offset());
+        log.debug("카프카 레코드 수신: topic={}, partition={}, offset={}",
+                record.topic(), record.partition(), record.offset());
 
         BookCatalogChangedExternalEventPayload payload = record.value();
-        if (!BookCatalogUpdatedExternalEventPayloadValidator.isValid(payload)) {
-            log.info("Invalid event payload detected: eventId={}, skipping",
-                    (payload != null ? payload.getEventId() : "null"));
+
+        if (payload == null) {
+            log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
+                    record.topic(), record.partition(), record.offset());
+            eventRecorder.saveDeadLetter(record, FailureCategory.VALIDATION_FAIL);
+            return;
+        }
+
+        try {
+            payloadValidator.validateOrThrow(payload);
+        } catch (ConstraintViolationException ex) {
+            log.info("페이로드 검증 실패: {} [eventId={}, topic={}, partition={}, offset={}]",
+                    summarize(ex), payload.getEventId(), record.topic(), record.partition(), record.offset());
             eventRecorder.saveDeadLetter(record, FailureCategory.VALIDATION_FAIL);
             return;
         }
 
         boolean isNew = eventRecorder.saveOrBumpEventRecord(record);
         if (isNew) {
-            log.info("Publish domain event: eventId={} type={}", payload.getEventId(), payload.getEventType());
+            log.info("도메인 이벤트 발행: eventId={}, type={}, version={}",
+                    payload.getEventId(), payload.getEventType(), payload.getAggregateVersion());
             eventPublisher.publishEvent(payload.toEvent());
+        } else {
+            log.debug("중복/재처리 스킵: eventId={}, version={}",
+                    payload.getEventId(), payload.getAggregateVersion());
         }
+
+
+    }
+
+    private static String summarize(ConstraintViolationException ex) {
+        return ex.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .findFirst()
+                .orElse("violations");
     }
 
 }

@@ -3,7 +3,7 @@ package msa.bookloan.infra.projection.handler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.infra.inbox.recorder.EventRecorder;
-import msa.bookloan.service.BookCatalogProjectionService;
+import msa.bookloan.infra.projection.service.BookCatalogProjectionService;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;

@@ -14,8 +14,8 @@ public class DuplicateBookException extends BusinessException {
         super(errorCode);
     }
 
-    public DuplicateBookException(Long itemId) {
-        super(errorCode, Map.of("itemId", itemId));
+    public DuplicateBookException(String isbn13) {
+        super(errorCode, Map.of("isbn13", isbn13));
     }
 
 
