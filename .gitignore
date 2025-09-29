@@ -38,3 +38,4 @@ out/
 
 service/bookcatalog/.env
 service/bookloan/.env
+*/.env
