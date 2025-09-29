@@ -18,62 +18,45 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class BookCatalogBatchService {
 
-    private final Snowflake snowflake;
     private final EventRecorder eventRecorder;
     private final BookCatalogRepository bookCatalogRepository;
-    private final BookCatalogOutboxEventRecordRepository outboxRepository; // Outbox 저장 로직이 있다면
+    private final BookCatalogEventMapper bookCatalogEventMapper;
 
     @Transactional
-    public void processBookCatalogChunk(List<BookCatalog> bookCatalogChunk) {
+    public void processBookCatalogChunk(List<BatchItem> bookCatalogChunk) {
         if (bookCatalogChunk.isEmpty()) {
             return;
         }
+        List<BookCatalog> bookCatalogs = bookCatalogChunk.stream().map(BatchItem::bookCatalog).toList();
+        bookCatalogRepository.bulkUpsert(bookCatalogs);
 
-        // 1. 도메인 데이터 벌크 저장
-        bookCatalogRepository.bulkUpsert(bookCatalogChunk);
-
-        // 2. Outbox 데이터 벌크 저장 (하이브리드 모델의 '보장 경로')
-        List<BookCatalogChangedEvent> outboxRecords = bookCatalogChunk.stream()
-                .map(this::createUpsertEventFrom) // BookCatalog -> OutboxRecord
+        List<String> isbn13List = bookCatalogs.stream()
+                .map(BookCatalog::getIsbn13)
                 .toList();
-        eventRecorder.saveAll(outboxRecords);
+
+        Map<String, BookCatalog> updatedBooksMap  = bookCatalogRepository.findAllByIsbn13In(isbn13List)
+                .stream().collect(Collectors.toMap(BookCatalog::getIsbn13, Function.identity()));
+
+        List<BookCatalogChangedEvent> bookCatalogChangedEvents = bookCatalogChunk.stream()
+                .map(item -> {
+                    BookCatalog updatedBookCatalog = updatedBooksMap.get(item.bookCatalog().getIsbn13());
+                    return bookCatalogEventMapper.toEventFrom(updatedBookCatalog, item.eventType());
+                })
+                .toList();
+
+        eventRecorder.saveAll(bookCatalogChangedEvents);
 
         log.info("{}건의 도서 정보와 Outbox 메시지 청크 처리 완료.", bookCatalogChunk.size());
     }
 
-    private BookCatalogChangedEvent  createUpsertEventFrom(BookCatalog bookCatalog) {
-        CategoryRef categoryRef = new CategoryRef(
-                bookCatalog.getCategory().categoryId(),
-                bookCatalog.getCategory().categoryName()
-        );
-        BookTypeRef bookTypeRef = new BookTypeRef(
-                bookCatalog.getBookType().code(),
-                bookCatalog.getBookType().displayName()
-        );
-        long version = (bookCatalog.get != null) ? bookCatalog.getVersion() : 0L;
 
-        return null;
-    }
-
-    private BookCatalogChangedEvent createFrom(BookCatalog book) {
-
-        return BookCatalogChangedEvent.builder()
-                .eventId(snowflake.nextId()) // 새로운 이벤트 ID 생성
-                .eventType(EventType.BOOK_CATALOG_UPSERTED) // 배치 작업의 의미에 맞는 이벤트 타입
-                .bookId(book.getId()) // 엔티티의 ID를 이벤트의 bookId로 사용
-                .aggregateVersion(0L) // TODO: 엔티티에 @Version 필드가 있다면 그 값을 사용해야 함
-                .aggregateType("BookCatalog") // 애그리거트 타입 명시
-                .title(book.getTitle())
-                .author(book.getAuthor())
-                .category(category)
-                .bookType(new BookTypeRef(book.getBookType().code(), book.getBookType().displayName()))
-                .occurredAt(LocalDateTime.now()) // 이벤트 발생 시각
-                .build();
-    }
 }

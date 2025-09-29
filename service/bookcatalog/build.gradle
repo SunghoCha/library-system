@@ -34,6 +34,8 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
 
     // QueryDSL JPA Jakarta
     implementation       'com.querydsl:querydsl-jpa:5.0.0:jakarta'

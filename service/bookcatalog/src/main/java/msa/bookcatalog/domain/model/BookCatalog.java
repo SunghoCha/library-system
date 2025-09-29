@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
 import msa.common.domain.base.BaseTimeEntity;
+import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "book_catalog")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class BookCatalog extends BaseTimeEntity {
+public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
 
     @Id
     private Long id;
@@ -50,7 +51,10 @@ public class BookCatalog extends BaseTimeEntity {
     private BookType bookType;
 
     @Version
-    private Long aggregateVersion;
+    private Long version;
+
+    @Transient
+    private boolean isNew = true;
 
     @Builder
     public BookCatalog(Long id, String title, String author, LocalDate publishDate,
@@ -69,7 +73,6 @@ public class BookCatalog extends BaseTimeEntity {
     }
 
     public static BookCatalog from(long id, AladinBookItemDto dto) {
-        LocalDateTime now = LocalDateTime.now();
         LocalDate pubDate = dto.pubDate();
 
         LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
@@ -91,10 +94,6 @@ public class BookCatalog extends BaseTimeEntity {
                 .category(category)
                 .bookType(initialBookType)
                 .build();
-
-        // BaseTimeEntity의 시간 필드를 수동으로 설정
-        newBook.setCreatedTime(now);
-        newBook.setUpdateTime(now);
 
         return newBook;
     }
@@ -120,5 +119,21 @@ public class BookCatalog extends BaseTimeEntity {
 
     }
 
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @Override
+    public Long getId() {
+        return id;
+    }
+
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        this.isNew = false;
+    }
 }
+
 

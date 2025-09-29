@@ -3,11 +3,13 @@ package msa.bookcatalog.infra.batch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.domain.model.BookCatalog;
+import msa.bookcatalog.domain.model.BookCatalogEditor;
 import msa.bookcatalog.infra.aladin.AladinService;
 import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
 import msa.bookcatalog.infra.aladin.dto.AladinBookListResponse;
 import msa.bookcatalog.infra.aladin.model.QueryDate;
 import msa.bookcatalog.repository.BookCatalogRepository;
+import msa.common.events.EventType;
 import msa.common.snowflake.Snowflake;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,10 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -50,7 +50,6 @@ public class AladinBatchScheduler {
 
     //매일 새벽 4시에 실행되어 과거의 베스트셀러 데이터를 수집.
     @Scheduled(cron = "0 * * * * *")
-    @Transactional
     public void loadPastBestsellers() {
         log.info("알라딘 과거 베스트셀러 데이터 수집 작업을 시작합니다.");
 
@@ -68,7 +67,6 @@ public class AladinBatchScheduler {
         int week = targetDate.get(WeekFields.of(Locale.KOREA).weekOfMonth());
 
         QueryDate queryDate = new QueryDate(year, month, week);
-
         log.info("{}년 {}월 {}주차 베스트셀러를 조회합니다.", year, month, week);
 
         List<AladinBookItemDto> allFetchedBookDtos = new ArrayList<>();
@@ -82,31 +80,42 @@ public class AladinBatchScheduler {
         }
 
         if (allFetchedBookDtos.isEmpty()) {
-            log.info("API에서 조회된 도서 정보가 없습니다.");
-            return; // 이후 로직 실행 불필요
+            log.info("API에서 조회된 도서 정보가 없습니다. 다음 주기로 넘어갑니다.");
+            tracker.updateExecutionDate(targetDate);
+            trackerRepository.save(tracker); // 작업 진행 날짜를 업데이트해야 다음 주차로 넘어감
+            return;
         }
 
-        List<BookCatalog> booksToUpsert = allFetchedBookDtos.stream()
-                .filter(item -> item.isbn13() != null && !item.isbn13().isBlank())
-                .collect(Collectors.toMap(
-                        AladinBookItemDto::isbn13,
-                        dto -> dto,
-                        (dto1, dto2) -> dto2
-                ))
-                .values().stream()
-                .map(dto -> BookCatalog.from(snowflake.nextId(), dto))
+        List<String> isbn13List = allFetchedBookDtos.stream()
+                .map(AladinBookItemDto::isbn13)
+                .filter(isbn -> isbn != null && !isbn.isBlank())
+                .distinct()
                 .toList();
 
-//        if (!booksToUpsert.isEmpty()) {
-//            bookCatalogRepository.bulkUpsert(booksToUpsert);
-//            log.info("총 {}개의 도서 정보를 Upsert 했습니다.", booksToUpsert.size());
-//        } else {
-//            log.info("이번 주차에는 저장할 새로운 도서 정보가 없습니다.");
-//        }
+        Map<String, BookCatalog> existingBooksMap = bookCatalogRepository.findAllByIsbn13In(isbn13List)
+                .stream()
+                .collect(Collectors.toMap(BookCatalog::getIsbn13, Function.identity()));
 
-        // --- 청크 분할 및 위임 ---
+        List<BatchItem> booksToUpsert = allFetchedBookDtos.stream()
+                .filter(item -> item.isbn13() != null && !item.isbn13().isBlank())
+                .collect(Collectors.toMap(AladinBookItemDto::isbn13, Function.identity(), (a, b) -> b))
+                .values().stream()
+                .map(dto -> {
+                    BookCatalog existingBookCatalog = existingBooksMap.get(dto.isbn13());
+                    if (existingBookCatalog != null) {
+                        existingBookCatalog.edit(createEditorFromDto(dto, existingBookCatalog));
+                        return new BatchItem(existingBookCatalog, EventType.UPDATED);
+                    } else {
+                        BookCatalog newBookCatalog = BookCatalog.from(snowflake.nextId(), dto);
+                        return new BatchItem(newBookCatalog, EventType.CREATED);
+                    }
+                })
+                .toList();
+
+
+        // 청크 분할 및 위임
         for (int i = 0; i < booksToUpsert.size(); i += CHUNK_SIZE) {
-            List<BookCatalog> chunk = booksToUpsert.subList(i, Math.min(i + CHUNK_SIZE, booksToUpsert.size()));
+            List<BatchItem> chunk = booksToUpsert.subList(i, Math.min(i + CHUNK_SIZE, booksToUpsert.size()));
             try {
                 // 각 청크 처리를 새로운 서비스에 위임
                 batchService.processBookCatalogChunk(chunk);
@@ -121,5 +130,15 @@ public class AladinBatchScheduler {
         trackerRepository.save(tracker);
 
         log.info("데이터 수집 작업 완료. 다음 작업 시 조회할 날짜: {}", targetDate.minusWeeks(1));
+    }
+
+    private BookCatalogEditor createEditorFromDto(AladinBookItemDto dto, BookCatalog bookCatalog) {
+        return bookCatalog.toEditorBuilder()
+                .title(dto.title())
+                .author(dto.author())
+                .publisher(dto.publisher())
+                .coverImageUrl(dto.cover())
+                .description(dto.description())
+                .build();
     }
 }
