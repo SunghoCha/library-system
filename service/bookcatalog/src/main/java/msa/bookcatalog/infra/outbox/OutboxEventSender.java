@@ -25,11 +25,11 @@ public class OutboxEventSender {
         BookCatalogOutboxEventRecord record = outboxRepository.findByEventId(eventId)
                 .orElseThrow(OutboxEventRecordNotFoundException::new);
 
-        String topic = record.getRouting().getTopic();
-        String key = record.getRouting().getPartitionKey();
-        String payload = record.getPayload();
-
-        sendAsync(topic, key, payload, eventId);
+        OutboxRouting routing = record.getRouting();
+        if (routing == null) {
+            throw new IllegalStateException("OutboxRouting is null for eventId=" + record.getEventId());
+        }
+        sendAsync(routing.getTopic(), routing.getPartitionKey(), record.getPayload(), eventId);
     }
 
     public void resend(BookCatalogOutboxEventRecord record) {
@@ -47,10 +47,12 @@ public class OutboxEventSender {
 
     private void sendAsync(String topic, String key, String payload, Long eventId) {
         log.info("카프카 발행 시도. topic={}, key={}, eventId={}", topic, key, eventId);
-        kafkaTemplate.send(topic, key, payload)
-                .whenComplete((result, ex) -> {
-                    outboxEventProcessor.updateStatusAfterProcessing(eventId, ex);
-                });
+        try {
+            kafkaTemplate.send(topic, key, payload)
+                    .whenComplete((result, ex) -> {outboxEventProcessor.updateStatusAfterProcessing(eventId, ex);});
+        } catch (Exception e) {
+            outboxEventProcessor.updateStatusAfterProcessing(eventId, e);
+        }
     }
 
 }

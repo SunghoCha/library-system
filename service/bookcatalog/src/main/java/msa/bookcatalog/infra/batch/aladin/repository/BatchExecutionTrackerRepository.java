@@ -1,5 +1,6 @@
-package msa.bookcatalog.infra.batch;
+package msa.bookcatalog.infra.batch.aladin.repository;
 
+import msa.bookcatalog.infra.batch.aladin.BatchExecutionTracker;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

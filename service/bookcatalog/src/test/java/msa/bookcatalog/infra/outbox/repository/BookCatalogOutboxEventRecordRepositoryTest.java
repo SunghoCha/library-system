@@ -1,15 +1,22 @@
 package msa.bookcatalog.infra.outbox.repository;
 
 import msa.bookcatalog.config.QueryDslConfig;
+import msa.bookcatalog.infra.outbox.OutboxEventSender;
+import msa.bookcatalog.infra.outbox.scheduler.BookCatalogOutboxRelayScheduler;
+import msa.bookcatalog.infra.outbox.service.OutboxClaimerService;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,10 +24,28 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@Import({QueryDslConfig.class, TestMockConfiguration.class})
+@Import(QueryDslConfig.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DataJpaTest(properties = {
+        "app.aladin.enabled=false",
+        "app.scheduling.enabled=false"
+})
 class BookCatalogOutboxEventRecordRepositoryTest {
+
+    @TestConfiguration
+    static class MockConfig {
+        @Bean
+        @Primary
+        OutboxEventSender outboxEventSender() { return Mockito.mock(OutboxEventSender.class); }
+
+        @Bean
+        @Primary
+        BookCatalogOutboxRelayScheduler bookCatalogOutboxRelayScheduler() { return Mockito.mock(BookCatalogOutboxRelayScheduler.class); }
+
+        @Bean
+        @Primary
+        OutboxClaimerService outboxClaimerService() { return Mockito.mock(OutboxClaimerService.class); }
+    }
 
     @Autowired
     private BookCatalogOutboxEventRecordRepository outboxRepository;
@@ -129,6 +154,8 @@ class BookCatalogOutboxEventRecordRepositoryTest {
                 .eventId(eventId)
                 .eventType(EventType.CREATED)
                 .aggregateId("agg-id-" + eventId)
+                .aggregateType("BOOK_CATALOG")
+                .aggregateVersion(0L)
                 .payload("{}")
                 .outboxEventRecordStatus(status)
                 .retryCount(retryCount)

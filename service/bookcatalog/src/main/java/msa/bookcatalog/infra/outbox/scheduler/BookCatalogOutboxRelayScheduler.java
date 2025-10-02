@@ -10,6 +10,7 @@ import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepos
 import msa.bookcatalog.infra.outbox.service.OutboxClaimerService;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "outbox.relay.enabled", havingValue = "true", matchIfMissing = false)
 public class BookCatalogOutboxRelayScheduler {
 
     private final EventRecorder eventRecorder;
@@ -28,7 +30,7 @@ public class BookCatalogOutboxRelayScheduler {
     private final OutboxEventSender outboxEventSender;
     private final OutboxClaimerService outboxClaimerService;
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:60000}")
     public void retryPendingOutboxEvents() {
         List<BookCatalogOutboxEventRecord> targets = outboxClaimerService.claimEvents();
 

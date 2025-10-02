@@ -7,6 +7,7 @@ import msa.bookcatalog.infra.aladin.dto.AladinBookListResponse;
 import msa.bookcatalog.infra.aladin.dto.AladinSearchRequest;
 import msa.bookcatalog.infra.aladin.model.ListQueryType;
 import msa.bookcatalog.infra.aladin.model.QueryDate;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;

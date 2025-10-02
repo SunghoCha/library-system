@@ -8,16 +8,15 @@ import org.springframework.context.annotation.Configuration;
 
 @Getter
 @Setter
-@Configuration
 @ConfigurationProperties(prefix = "app.aladin.ttb")
 public class AladinProperties {
 
     private String key;
-    private final String version = "20131101";
-    private final String format = "js";
-    private final String searchTarget = "Book";
-    private final int defaultMaxResults = 50;
-    private final int defaultStart = 1;
+    private String version = "20131101";
+    private String format = "js";
+    private String searchTarget = "Book";
+    private int defaultMaxResults = 50;
+    private int defaultStart = 1;
 
 
 }

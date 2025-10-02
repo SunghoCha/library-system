@@ -16,8 +16,7 @@ import msa.common.events.inbox.record.PayloadInboxEventRecord;
 @Table(
         name = "book_catalog_inbox",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_inbox_event_id", columnNames = "event_id"),
-                @UniqueConstraint(name = "uk_agg_ver", columnNames = {"aggregate_id", "aggregate_version"})
+                @UniqueConstraint(name = "uk_inbox_event_id", columnNames = "event_id")
         },
         indexes = {
                 @Index(name="idx_inbox_status",   columnList="inbox_event_record_status"),

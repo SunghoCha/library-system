@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
 import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
+import msa.common.domain.model.BookTypeRef;
+import msa.common.domain.model.CategoryRef;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
@@ -62,10 +64,10 @@ class EventRecorderTest {
                 .eventType(EventType.CREATED)
                 .bookId(bookId)
                 .aggregateVersion(1L)
-                .aggregateType("BookCatalog")
                 .title("New Title")
                 .author("New Author")
-                .category(BookType.STANDARD)
+                .category(new CategoryRef(1, "카테고리이름"))
+                .bookType(new BookTypeRef("NEW_RELEASE", "신간"))
                 .occurredAt(LocalDateTime.now())
                 .build();
 
@@ -105,7 +107,10 @@ class EventRecorderTest {
                 .bookId(1L)
                 .title("T")
                 .author("A")
+                .category(new CategoryRef(1, "카테고리이름"))
+                .bookType(new BookTypeRef("NEW_RELEASE", "신간"))
                 .eventType(EventType.CREATED)
+                .occurredAt(LocalDateTime.now())
                 .build();
 
         // ObjectMapper를 Mock으로 만들고 예외를 던지도록 설정
