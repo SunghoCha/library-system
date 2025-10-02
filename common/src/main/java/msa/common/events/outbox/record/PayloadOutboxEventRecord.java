@@ -36,7 +36,7 @@ public abstract class PayloadOutboxEventRecord {
     private EventType eventType;
 
     @Lob
-    @Column(nullable = false)
+    @Column(name = "payload", columnDefinition = "longtext", nullable = false)
     private String payload;
 
     @Column(nullable = false, updatable = false)

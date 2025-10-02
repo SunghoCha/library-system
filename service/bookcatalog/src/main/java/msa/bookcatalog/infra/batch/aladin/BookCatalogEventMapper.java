@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.batch;
+package msa.bookcatalog.infra.batch.aladin;
 
 import lombok.RequiredArgsConstructor;
 import msa.bookcatalog.domain.model.BookCatalog;

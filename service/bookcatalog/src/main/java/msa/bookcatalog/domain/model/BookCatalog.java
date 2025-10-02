@@ -1,16 +1,13 @@
 package msa.bookcatalog.domain.model;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
 import msa.common.domain.base.BaseTimeEntity;
 import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Getter
 @Entity
@@ -21,7 +18,7 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
     @Id
     private Long id;
 
-    @Column(nullable = false, length = 255) // 제목 길이를 넉넉하게 늘림
+    @Column(nullable = false)
     private String title;
 
     @Column(length = 200)
@@ -39,7 +36,7 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
     @Column(name = "cover_url", length = 1000)
     private String coverImageUrl;
 
-    @Lob // 긴 텍스트를 위한 설정
+    @Lob
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -72,6 +69,7 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         this.bookType = bookType;
     }
 
+    @Deprecated
     public static BookCatalog from(long id, AladinBookItemDto dto) {
         LocalDate pubDate = dto.pubDate();
 
@@ -82,7 +80,7 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
 
         BookCategory category = BookCategory.fromId(dto.categoryId());
 
-        BookCatalog newBook = BookCatalog.builder()
+        return BookCatalog.builder()
                 .id(id)
                 .title(dto.title())
                 .author(dto.author())
@@ -94,21 +92,17 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
                 .category(category)
                 .bookType(initialBookType)
                 .build();
-
-        return newBook;
     }
 
-    public BookCatalogEditor.BookCatalogEditorBuilder toEditorBuilder() {
-        return BookCatalogEditor.builder()
-                .title(title)
-                .author(author)
-                .publisher(publisher)
-                .coverImageUrl(coverImageUrl)
-                .description(description)
-                .bookType(bookType);
-
+    // 만약 빌드 사용시 기존 엔티티 필드에 ""있을 경우 null로 대체될 위험있어서 생성자로 했음
+    public BookCatalogEditorBuilder toEditorBuilder() {
+        return new BookCatalogEditorBuilder(
+                title, author, publisher, coverImageUrl,
+                description, bookType, publishDate, category
+        );
     }
 
+    @Deprecated
     public void edit(BookCatalogEditor editor) {
         this.title = editor.getTitle();
         this.author = editor.getAuthor();
@@ -116,7 +110,58 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         this.coverImageUrl = editor.getCoverImageUrl();
         this.description = editor.getDescription();
         this.bookType = editor.getBookType();
+        this.publishDate = editor.getPublishDate();
+        this.category = editor.getCategory();
 
+    }
+
+    // 기존에는 완전히 같아도 그냥 업데이트했었는데 이렇게 하면 무의미한 UPDATED 이벤트가 발행되서 추가한 메서드
+    public boolean applyEditor(BookCatalogEditor editor) {
+        if (editor == null) throw new IllegalArgumentException("editor must not be null");
+        boolean isChanged = false;
+
+        if (!Objects.equals(this.title, editor.getTitle())) {
+            this.title = editor.getTitle();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.author, editor.getAuthor())) {
+            this.author = editor.getAuthor();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.publisher, editor.getPublisher())) {
+            this.publisher = editor.getPublisher();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.coverImageUrl, editor.getCoverImageUrl())) {
+            this.coverImageUrl = editor.getCoverImageUrl();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.description, editor.getDescription())) {
+            this.description = editor.getDescription();
+            isChanged = true;
+        }
+
+
+        if (!Objects.equals(this.publishDate, editor.getPublishDate())) {
+            this.publishDate = editor.getPublishDate();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.category, editor.getCategory())) {
+            this.category = editor.getCategory();
+            isChanged = true;
+        }
+
+        if (!Objects.equals(this.bookType, editor.getBookType())) {
+            this.bookType = editor.getBookType();
+            isChanged = true;
+        }
+
+        return isChanged;
     }
 
     @Override
@@ -133,6 +178,106 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
     @PostLoad
     void markNotNew() {
         this.isNew = false;
+    }
+
+    @Getter
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    public static final class BookCatalogEditor {
+
+        private final String title;
+        private final String author;
+        private final String publisher;
+        private final String coverImageUrl;
+        private final String description;
+        private final BookType bookType;
+        private final LocalDate publishDate;
+        private final BookCategory category;
+
+    }
+
+    public static final class BookCatalogEditorBuilder {
+
+        private String title;
+        private String author;
+        private String publisher;
+        private String coverImageUrl;
+        private String description;
+        private BookType bookType;
+        private LocalDate publishDate;
+        private BookCategory category;
+
+        private BookCatalogEditorBuilder(String title, String author, String publisher,
+                                        String coverImageUrl, String description, BookType bookType,
+                                        LocalDate publishDate, BookCategory category) {
+            this.title = title;
+            this.author = author;
+            this.publisher = publisher;
+            this.coverImageUrl = coverImageUrl;
+            this.description = description;
+            this.bookType = bookType;
+            this.publishDate = publishDate;
+            this.category = category;
+        }
+
+        private BookCatalogEditorBuilder() {}
+
+        public BookCatalogEditorBuilder title(String title) {
+            if (title != null && !title.isBlank()) {
+                this.title = title;
+            }
+            return this;
+        }
+
+        public BookCatalogEditorBuilder author(String author) {
+            if (author != null && !author.isBlank()) {
+                this.author = author;
+            }
+            return this;
+        }
+
+        public BookCatalogEditorBuilder publisher(String publisher) {
+            if (publisher != null && !publisher.isBlank()) {
+                this.publisher = publisher;
+            }
+            return this;
+        }
+
+        public BookCatalogEditorBuilder coverImageUrl(String coverImageUrl) {
+            if (coverImageUrl != null && !coverImageUrl.isBlank()) {
+                this.coverImageUrl = coverImageUrl;
+            }
+            return this;
+        }
+
+        public BookCatalogEditorBuilder description(String description) {
+            if (description != null && !description.isBlank()) {
+                this.description = description;
+            }
+            return this;
+        }
+
+        public BookCatalogEditorBuilder bookType(BookType bookType) {
+            if (bookType != null) this.bookType = bookType;
+            return this;
+        }
+
+        public BookCatalogEditorBuilder publishDate(LocalDate publishDate) {
+            if (publishDate != null) this.publishDate = publishDate;
+            return this;
+        }
+
+        public BookCatalogEditorBuilder category(BookCategory category) {
+            if (category != null) {
+                this.category = category;
+            }
+            return this;
+        }
+
+        public BookCatalogEditor build() {
+            return new BookCatalogEditor(title, author, publisher, coverImageUrl,
+                    description, bookType, publishDate, category);
+        }
+
     }
 }
 

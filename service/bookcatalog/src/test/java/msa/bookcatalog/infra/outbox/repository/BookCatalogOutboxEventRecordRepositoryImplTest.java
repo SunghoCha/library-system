@@ -2,6 +2,7 @@ package msa.bookcatalog.infra.outbox.repository;
 
 import jakarta.persistence.EntityManager;
 import msa.bookcatalog.config.QueryDslConfig;
+import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,16 +20,16 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@Import({QueryDslConfig.class, TestMockConfiguration.class})
+@Import(QueryDslConfig.class)
+@DataJpaTest(properties = {
+        "app.aladin.enabled=false",
+        "app.scheduling.enabled=false"
+})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class BookCatalogOutboxEventRecordRepositoryImplTest {
 
     @Autowired
     private BookCatalogOutboxEventRecordRepository outboxRepository;
-
-    @Autowired
-    private EntityManager entityManager;
 
     @Test
     @DisplayName("findEventsToRetryWithSkipLock: 복잡한 조건에 맞는 재시도 대상 이벤트들을 정확히 조회한다")
@@ -67,6 +69,8 @@ class BookCatalogOutboxEventRecordRepositoryImplTest {
                 .eventId(eventId)
                 .eventType(EventType.CREATED)
                 .aggregateId("agg-id-" + eventId)
+                .aggregateType("BOOK_CATALOG")
+                .aggregateVersion(0L)
                 .payload("{}")
                 .outboxEventRecordStatus(status)
                 .retryCount(retryCount)

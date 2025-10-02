@@ -39,8 +39,10 @@ public class BookCatalogProjectionService {
         }
     }
 
+    // 너무 지저분한거같은데 이게 맞나
+    // 기존 트랜잭션에 합류
     private void upsert(BookCatalogChangedEvent e) {
-        var existing = projectionRepository.findByBookId(e.getBookId()).orElse(null);
+        BookCatalogProjection existing = projectionRepository.findByBookId(e.getBookId()).orElse(null);
 
         if (existing == null) {
             projectionRepository.save(BookCatalogProjection.from(e));
@@ -50,7 +52,7 @@ public class BookCatalogProjectionService {
         }
 
         try {
-            if (existing.applySnapshot(e)) {
+            if (existing.applySnapshot(e)) { // 버전 상위인지 체크
                 projectionRepository.save(existing);
                 log.debug("프로젝션 갱신 [eventId={}, bookId={}, version={}]",
                         e.getEventId(), e.getBookId(), e.getAggregateVersion());

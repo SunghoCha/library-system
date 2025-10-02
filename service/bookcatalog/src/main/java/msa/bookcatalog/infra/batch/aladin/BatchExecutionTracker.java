@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.batch;
+package msa.bookcatalog.infra.batch.aladin;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

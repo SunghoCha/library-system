@@ -68,32 +68,32 @@ public class BookCatalogProjection {
         this.lastEventAt = lastEventAt;
     }
 
-    public boolean applySnapshot(BookCatalogChangedEvent e) {
-        long incoming = e.getAggregateVersion();
+    public boolean applySnapshot(BookCatalogChangedEvent event) {
+        long incoming = event.getAggregateVersion();
         if (this.aggregateVersion != null && incoming <= this.aggregateVersion) return false;
 
-        this.title = e.getTitle();
-        this.author = e.getAuthor();
-        this.categoryId = e.getCategory().categoryId();
-        this.categoryName = e.getCategory().categoryName();
-        this.bookType = e.getBookType().bookType();
-        this.bookTypeName = e.getBookType().bookTypeName();
+        this.title = event.getTitle();
+        this.author = event.getAuthor();
+        this.categoryId = event.getCategory().categoryId();
+        this.categoryName = event.getCategory().categoryName();
+        this.bookType = event.getBookType().bookType();
+        this.bookTypeName = event.getBookType().bookTypeName();
         this.aggregateVersion = incoming;
-        this.lastEventAt = e.getOccurredAt();
+        this.lastEventAt = event.getOccurredAt();
         return true;
     }
 
-    public static BookCatalogProjection from(BookCatalogChangedEvent e) {
+    public static BookCatalogProjection from(BookCatalogChangedEvent event) {
         return BookCatalogProjection.builder()
-                .bookId(e.getBookId())
-                .title(e.getTitle())
-                .author(e.getAuthor())
-                .categoryId(e.getCategory().categoryId())
-                .categoryName(e.getCategory().categoryName())
-                .bookType(e.getBookType().bookType())
-                .bookTypeName(e.getBookType().bookTypeName())
-                .aggregateVersion(e.getAggregateVersion())
-                .lastEventAt(e.getOccurredAt())
+                .bookId(event.getBookId())
+                .title(event.getTitle())
+                .author(event.getAuthor())
+                .categoryId(event.getCategory().categoryId())
+                .categoryName(event.getCategory().categoryName())
+                .bookType(event.getBookType().bookType())
+                .bookTypeName(event.getBookType().bookTypeName())
+                .aggregateVersion(event.getAggregateVersion())
+                .lastEventAt(event.getOccurredAt())
                 .build();
     }
 }

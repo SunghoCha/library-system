@@ -1,4 +1,13 @@
 
+spring:
+  jpa:
+    hibernate:
+      # 추후 Flyway로 관리
+      ddl-auto: validate
+
+  sql:
+    init:
+      mode: never
 
 aladin:
   ttb:
