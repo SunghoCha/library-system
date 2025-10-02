@@ -35,8 +35,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-service/bookcatalog/.env
-service/bookloan/.env
-*/.env
-.env
