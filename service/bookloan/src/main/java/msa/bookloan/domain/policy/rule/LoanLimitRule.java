@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.repository.LoanRepository;
 import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
-import msa.bookloan.service.dto.LoanContext;
-import msa.bookloan.service.exception.LoanLimitExceededException;
+import msa.bookloan.application.service.dto.LoanContext;
+import msa.bookloan.application.service.exception.LoanLimitExceededException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

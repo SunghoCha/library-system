@@ -1,11 +1,11 @@
 package msa.bookloan.infra.inbox.repository;
 
+import msa.bookloan.infra.messaging.inbox.repository.BookCatalogProjectionEventRecordRepository;
+import msa.bookloan.infra.messaging.inbox.entity.InboxEventRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,13 +28,13 @@ class BookCatalogProjectionEventRecordRepositoryTest {
 
         // 1) 최초 INSERT
         projectionEventRecordRepository.upsertInbox(id1, eventId, aggId, aggVer, "UPDATED", "{}", "topicA", 0, 10L);
-        BookCatalogProjectionInboxEventRecord eventRecord = projectionEventRecordRepository.findByEventId(eventId).orElseThrow();
+        InboxEventRecord eventRecord = projectionEventRecordRepository.findByEventId(eventId).orElseThrow();
         assertThat(eventRecord.getSeenCount()).isEqualTo(1);
         assertThat(eventRecord.getId()).isEqualTo(id1);
 
         // 2) 다른 pk, 같은 eventId로 다시 → seen_count + 1
         projectionEventRecordRepository.upsertInbox(id2, eventId, aggId, aggVer, "UPDATED", "{}", "topicA", 0, 11L);
-        BookCatalogProjectionInboxEventRecord eventRecord2 = projectionEventRecordRepository.findByEventId(eventId).orElseThrow();
+        InboxEventRecord eventRecord2 = projectionEventRecordRepository.findByEventId(eventId).orElseThrow();
         assertThat(eventRecord2.getSeenCount()).isEqualTo(2);
         assertThat(eventRecord2.getId()).isEqualTo(id1); // 기존 pk값 유지
 

@@ -2,13 +2,11 @@ package msa.bookloan.domain.policy.rule;
 
 import lombok.RequiredArgsConstructor;
 import msa.bookloan.repository.LoanRepository;
-import msa.bookloan.domain.model.LoanStatus;
-import msa.bookloan.service.dto.LoanContext;
-import msa.bookloan.service.exception.LoanOverdueException;
+import msa.bookloan.application.service.dto.LoanContext;
+import msa.bookloan.application.service.exception.LoanOverdueException;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor

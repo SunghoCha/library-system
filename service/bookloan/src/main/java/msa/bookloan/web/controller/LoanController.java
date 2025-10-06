@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.service.LoanService;
+import msa.bookloan.application.service.LoanService;
 import msa.bookloan.web.controller.dto.LoanCreateRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

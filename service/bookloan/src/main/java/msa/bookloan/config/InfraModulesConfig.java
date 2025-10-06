@@ -1,7 +1,7 @@
 package msa.bookloan.config;
 
 
-import msa.bookloan.infra.kafka.config.KafkaModuleConfig;
+import msa.bookloan.infra.messaging.kafka.config.KafkaModuleConfig;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
