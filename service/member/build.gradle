@@ -1,16 +1,16 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.3'
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.springframework.boot' version '3.3.4'
+    id 'io.spring.dependency-management' version '1.1.5'
 }
 
 group = 'msa.service'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = '17'
 
-// springCloudVersion 설정은 Eureka Client 등을 사용할 때 필요하므로 일단 유지합니다.
+// springCloudVersion 설정은 Eureka Client 등을 사용할 때 필요하므로 일단 유지
 ext {
-    set('springCloudVersion', "2025.0.0")
+    set('springCloudVersion', "2023.0.2")
 }
 
 repositories {
@@ -45,6 +45,12 @@ dependencies {
     testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:mysql'
+
+    // Lombok은 항상 버전 핀
+    compileOnly "org.projectlombok:lombok:1.18.34"
+    annotationProcessor "org.projectlombok:lombok:1.18.34"
+    testCompileOnly "org.projectlombok:lombok:1.18.34"
+    testAnnotationProcessor "org.projectlombok:lombok:1.18.34"
 }
 
 // --- QueryDSL 설정 (기존과 동일) ---

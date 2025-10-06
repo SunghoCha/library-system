@@ -1,33 +1,23 @@
-server:
-  port: 9001
-
 spring:
-  config:
-    import: optional:file:.env[.properties]
   datasource:
     # jdbc:tc:mysql:<버전>///<DB이름> 형식
     url: jdbc:tc:mysql:8.4:///testdb
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  test:
+    database:
+      replace: NONE
   jpa:
     hibernate:
-      ddl-auto: create # 테스트 시작 시 스키마 자동 생성
+      ddl-auto: create
     properties:
       hibernate:
-        format_sql: true # SQL 로그 포맷팅
+        format_sql: true
     open-in-view: false
   flyway:
     enabled: false
 
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
 
-kafka:
-  topics:
-    book-catalog-changed: test-book-catalog-topic
-
-
-aladin:
-  ttb:
-    key: ${ALADIN_TTB_KEY}
-
-kakao:
-  api:
-    key: ${KAKAO_REST_API_KEY}

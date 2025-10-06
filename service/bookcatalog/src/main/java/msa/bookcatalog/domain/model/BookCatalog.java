@@ -2,7 +2,9 @@ package msa.bookcatalog.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
+import msa.common.domain.base.AbstractPersistableEntity;
 import msa.common.domain.base.BaseTimeEntity;
 import org.springframework.data.domain.Persistable;
 
@@ -50,9 +52,6 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
     @Version
     private Long version;
 
-    @Transient
-    private boolean isNew = true;
-
     @Builder
     public BookCatalog(Long id, String title, String author, LocalDate publishDate,
                        String isbn13, String publisher, String coverImageUrl, String description,
@@ -67,6 +66,25 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         this.description = description;
         this.category = category;
         this.bookType = bookType;
+    }
+
+    @Transient
+    private boolean isNew = true;
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @Override
+    public Long getId() {
+        return id;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
     }
 
     @Deprecated
@@ -162,22 +180,6 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         }
 
         return isChanged;
-    }
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @Override
-    public Long getId() {
-        return id;
-    }
-
-    @PostPersist
-    @PostLoad
-    void markNotNew() {
-        this.isNew = false;
     }
 
     @Getter

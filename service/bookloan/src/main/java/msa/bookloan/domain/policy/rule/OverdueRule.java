@@ -18,19 +18,13 @@ public class OverdueRule implements LoanValidationRule {
 
     @Override
     public void validate(LoanContext context) {
-        boolean isOverdue = loanRepository
-                .findByMemberIdAndLoanStatusIn(context.memberId(),
-                        List.of(LoanStatus.LOANED, LoanStatus.OVERDUE))
-                .stream()
-                .anyMatch(loan ->
-                        loan.getLoanStatus() == LoanStatus.OVERDUE
-                    || (loan.getLoanStatus() == LoanStatus.LOANED
-                        && loan.getDueDate()
-                                .isBefore(LocalDate.now()))
-                );
+        boolean hasOverdue = loanRepository.existsOverdueLoan(
+                context.memberId(),
+                LocalDate.now()
+        );
 
-        if (isOverdue) {
-            throw new LoanOverdueException();
+        if (hasOverdue) {
+            throw new LoanOverdueException(context.memberId());
         }
     }
 }

@@ -1,21 +1,19 @@
 package msa.bookloan.infra.inbox.repository;
 
-import msa.bookloan.config.KafkaConsumerConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest(
-        excludeFilters = {
-                @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = KafkaConsumerConfig.class),
-                @ComponentScan.Filter(type = FilterType.REGEX, pattern = "msa\\.bookloan\\.infra\\.kafka\\..*") // 리스너 등 패키지 통째 배제
-        }
-)
+@Testcontainers
+@DataJpaTest(properties = {
+        "app.kafka.enabled=false"
+})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // h2로 교체 금지
 class BookCatalogProjectionEventRecordRepositoryTest {
 

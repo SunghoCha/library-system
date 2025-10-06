@@ -1,3 +1,6 @@
+server:
+  port: 9001
+
 spring:
   datasource:
     url: jdbc:mysql://localhost:13307/catalogdb?sslMode=DISABLED&rewriteBatchedStatements=true&serverTimezone=Asia/Seoul

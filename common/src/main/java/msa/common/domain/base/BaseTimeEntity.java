@@ -11,8 +11,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Getter
-@EntityListeners(AuditingEntityListener.class)
 @MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
 public abstract class BaseTimeEntity {
 
     @CreatedDate
@@ -22,12 +22,4 @@ public abstract class BaseTimeEntity {
     @LastModifiedDate
     private LocalDateTime updateTime;
 
-    // JdbcTemplate 사용 시 수동으로 값을 설정할 수 있도록 setter 추가
-    protected void setCreatedTime(LocalDateTime createdTime) {
-        this.createdTime = createdTime;
-    }
-
-    protected void setUpdateTime(LocalDateTime updateTime) {
-        this.updateTime = updateTime;
-    }
 }

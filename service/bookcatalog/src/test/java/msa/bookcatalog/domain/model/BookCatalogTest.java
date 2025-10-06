@@ -25,21 +25,6 @@ class BookCatalogTest {
                 .build();
     }
 
-    private BookCatalog base() {
-        return BookCatalog.builder()
-                .id(10L)
-                .isbn13("9780000000001")
-                .title("Old Title")
-                .author("Old Author")
-                .publisher("Old Publisher")
-                .coverImageUrl("http://old/cover.jpg")
-                .description("Old Desc")
-                .publishDate(LocalDate.of(2020, 1, 1))
-                .category(BookCategory.NOVEL)
-                .bookType(BookType.STANDARD)
-                .build();
-    }
-
     @Test
     @DisplayName("변경이 전혀 없으면 applyEditor는 false를 반환하고 아무 필드도 바뀌지 않는다")
     void applyEditor_noChanges_returnsFalse() {
@@ -169,7 +154,7 @@ class BookCatalogTest {
     @DisplayName("여러 필드를 동시에 변경하면 applyEditor는 true이고 값들이 모두 갱신된다")
     void applyEditor_updatesMultipleFields() {
         // given
-        BookCatalog c = base();
+        BookCatalog c = baseCatalog();
 
         BookCatalog.BookCatalogEditor editor = c.toEditorBuilder()
                 .title("New Title")
@@ -201,7 +186,7 @@ class BookCatalogTest {
     @DisplayName("빈 문자열은 빌더에서 무시되므로 기존 값 유지. 변경 아님")
     void builder_ignoresBlank_keepOriginal() {
         // given
-        BookCatalog c = base();
+        BookCatalog c = baseCatalog();
         BookCatalog.BookCatalogEditor editor = c.toEditorBuilder()
                 .title("   ")
                 .publisher("")   // blank
@@ -271,7 +256,7 @@ class BookCatalogTest {
     @Test
     @DisplayName("isbn13은 에디터에 없으므로 applyEditor로는 변경되지 않는다")
     void isbnIsImmutableViaEditor() {
-        BookCatalog c = base();
+        BookCatalog c = baseCatalog();
         String before = c.getIsbn13();
 
         BookCatalog.BookCatalogEditor editor = c.toEditorBuilder()
@@ -288,7 +273,7 @@ class BookCatalogTest {
     @Test
     @DisplayName("publishDate만 바뀌어도 변경으로 처리된다")
     void changePublishDate_only() {
-        BookCatalog c = base();
+        BookCatalog c = baseCatalog();
 
         BookCatalog.BookCatalogEditor editor = c.toEditorBuilder()
                 .publishDate(LocalDate.of(2024, 5, 5))
@@ -303,7 +288,7 @@ class BookCatalogTest {
     @Test
     @DisplayName("bookType만 바뀌어도 변경으로 처리된다")
     void changeBookType_only() {
-        BookCatalog c = base();
+        BookCatalog c = baseCatalog();
 
         BookCatalog.BookCatalogEditor editor = c.toEditorBuilder()
                 .bookType(BookType.NEW_RELEASE)
@@ -314,4 +299,5 @@ class BookCatalogTest {
         assertThat(changed).isTrue();
         assertThat(c.getBookType()).isEqualTo(BookType.NEW_RELEASE);
     }
+
 }

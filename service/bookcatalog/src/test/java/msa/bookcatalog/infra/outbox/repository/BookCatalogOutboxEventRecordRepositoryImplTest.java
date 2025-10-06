@@ -1,8 +1,6 @@
 package msa.bookcatalog.infra.outbox.repository;
 
-import jakarta.persistence.EntityManager;
 import msa.bookcatalog.config.QueryDslConfig;
-import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -12,7 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
 
 import java.time.LocalDateTime;
 import java.util.List;

@@ -187,7 +187,7 @@ public class EventRecorder {
 
     // record의 topic, partition, offset 정보 기반으로 이벤트 아이디 생성하는 해시함수
     // 이벤트ID가 NULL인 경우 항상 같은 아이디를 만들어서 DLT도 중복체크가 가능하도록 함
-    // 이런 방식으로 진짜로 해야할지 확신 못하겠음
+    // 이런 방식으로 진짜로 해야할지 확신 못하겠음.. 이벤트id가 null일 경우에 다른 해결책이 떠오르지않아서 일단 이렇게 처리
     private long syntheticEventId(ConsumerRecord<?, ?> record) {
         long h = 1469598103934665603L; // FNV-1a base
         h ^= record.topic().hashCode();
