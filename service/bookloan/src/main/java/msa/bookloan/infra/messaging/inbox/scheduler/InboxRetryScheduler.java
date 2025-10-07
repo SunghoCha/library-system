@@ -3,7 +3,7 @@ package msa.bookloan.infra.messaging.inbox.scheduler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.infra.messaging.inbox.entity.InboxEventRecord;
-import msa.bookloan.infra.messaging.inbox.repository.BookCatalogProjectionEventRecordRepository;
+import msa.bookloan.infra.messaging.inbox.repository.InboxEventRecordRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +17,7 @@ import static msa.common.events.inbox.dto.InboxEventRecordStatus.*;
 public class InboxRetryScheduler {
 
     private static final int MAX_RETRY_COUNT = 3;
-    private final BookCatalogProjectionEventRecordRepository recordRepository;
+    private final InboxEventRecordRepository recordRepository;
     private final InboxRetryRecordProcessor retryRecordProcessor;
 
     @Scheduled(fixedDelayString = "${inbox.retry.delay:60000}")

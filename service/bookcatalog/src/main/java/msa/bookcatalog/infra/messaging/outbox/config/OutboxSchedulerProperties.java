@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.outbox.config;
+package msa.bookcatalog.infra.messaging.outbox.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

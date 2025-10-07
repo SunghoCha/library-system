@@ -2,8 +2,6 @@ package msa.bookloan.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
-import msa.common.domain.base.AbstractPersistableEntity;
 import msa.common.domain.base.BaseTimeEntity;
 import org.springframework.data.domain.Persistable;
 

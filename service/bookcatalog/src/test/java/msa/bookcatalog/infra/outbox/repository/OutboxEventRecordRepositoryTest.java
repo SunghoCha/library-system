@@ -1,9 +1,12 @@
 package msa.bookcatalog.infra.outbox.repository;
 
 import msa.bookcatalog.config.QueryDslConfig;
-import msa.bookcatalog.infra.outbox.OutboxEventSender;
-import msa.bookcatalog.infra.outbox.scheduler.BookCatalogOutboxRelayScheduler;
-import msa.bookcatalog.infra.outbox.service.OutboxClaimerService;
+import msa.bookcatalog.infra.messaging.outbox.OutboxEventSender;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.scheduler.OutboxRelayScheduler;
+import msa.bookcatalog.infra.messaging.outbox.service.OutboxClaimerService;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -30,17 +33,21 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.aladin.enabled=false",
         "app.scheduling.enabled=false"
 })
-class BookCatalogOutboxEventRecordRepositoryTest {
+class OutboxEventRecordRepositoryTest {
 
     @TestConfiguration
     static class MockConfig {
+        @Bean
+        @Primary
+        EventRecorder eventRecorder() { return Mockito.mock(EventRecorder.class); }
+
         @Bean
         @Primary
         OutboxEventSender outboxEventSender() { return Mockito.mock(OutboxEventSender.class); }
 
         @Bean
         @Primary
-        BookCatalogOutboxRelayScheduler bookCatalogOutboxRelayScheduler() { return Mockito.mock(BookCatalogOutboxRelayScheduler.class); }
+        OutboxRelayScheduler bookCatalogOutboxRelayScheduler() { return Mockito.mock(OutboxRelayScheduler.class); }
 
         @Bean
         @Primary
@@ -48,13 +55,13 @@ class BookCatalogOutboxEventRecordRepositoryTest {
     }
 
     @Autowired
-    private BookCatalogOutboxEventRecordRepository outboxRepository;
+    private OutboxEventRecordRepository outboxRepository;
 
     @Test
     @DisplayName("failAndIncrementIfCurrent: 주어진 조건에 맞으면 상태를 FAILED로 변경하고, 에러 메시지와 재시도 횟수를 갱신한다")
     void failAndIncrementIfCurrent_성공() {
         // given
-        BookCatalogOutboxEventRecord saved = outboxRepository.save(createRecord(20L, OutboxEventRecordStatus.PUBLISHING, 5));
+        OutboxEventRecord saved = outboxRepository.save(createRecord(20L, OutboxEventRecordStatus.PUBLISHING, 5));
         String errorMessage = "Kafka Publish Failed";
 
         // when
@@ -70,7 +77,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
         assertThat(updatedCount).isEqualTo(1);
 
         // DB에서 최신 상태를 다시 조회
-        BookCatalogOutboxEventRecord updatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
+        OutboxEventRecord updatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
 
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.FAILED);
         assertThat(updatedRecord.getLastError()).isEqualTo(errorMessage);
@@ -82,7 +89,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
     void failAndIncrementIfCurrent_실패_상태불일치() {
         // given
         // 상태가 NEW인 레코드를 저장. from 조건인 PUBLISHING과 다름
-        BookCatalogOutboxEventRecord saved = outboxRepository.save(createRecord(22L, OutboxEventRecordStatus.NEW, 5));
+        OutboxEventRecord saved = outboxRepository.save(createRecord(22L, OutboxEventRecordStatus.NEW, 5));
         String errorMessage = "Kafka Publish Failed";
 
         // when
@@ -97,7 +104,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
         assertThat(updatedCount).isEqualTo(0);
 
         // DB에서 레코드를 다시 조회하여, 값이 전혀 변경되지 않았는지 검증
-        BookCatalogOutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
+        OutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
         assertThat(notUpdatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.NEW); // 상태 그대로
         assertThat(notUpdatedRecord.getLastError()).isNull(); // 에러 메시지 없음
         assertThat(notUpdatedRecord.getRetryCount()).isEqualTo(5); // 재시도 횟수 그대로
@@ -107,7 +114,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
     @DisplayName("toDeadLetterIfCurrent: 주어진 조건에 맞으면 상태를 DEAD_LETTER로 변경하고 에러 메시지를 기록한다")
     void toDeadLetterIfCurrent_성공() {
         // given
-        BookCatalogOutboxEventRecord saved = outboxRepository.save(createRecord(21L, OutboxEventRecordStatus.FAILED, 10));
+        OutboxEventRecord saved = outboxRepository.save(createRecord(21L, OutboxEventRecordStatus.FAILED, 10));
         String errorMessage = "Retries exhausted";
 
         // when
@@ -120,7 +127,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
 
         // then
         assertThat(updatedCount).isEqualTo(1);
-        BookCatalogOutboxEventRecord updatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
+        OutboxEventRecord updatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.DEAD_LETTER);
         assertThat(updatedRecord.getLastError()).isEqualTo(errorMessage);
     }
@@ -130,7 +137,7 @@ class BookCatalogOutboxEventRecordRepositoryTest {
     void toDeadLetterIfCurrent_실패_상태불일치() {
         // given
         // 상태가 NEW인 레코드를 저장. from 조건인 [FAILED, PUBLISHING]에 포함되지 않음
-        BookCatalogOutboxEventRecord saved = outboxRepository.save(createRecord(23L, OutboxEventRecordStatus.NEW, 10));
+        OutboxEventRecord saved = outboxRepository.save(createRecord(23L, OutboxEventRecordStatus.NEW, 10));
         String errorMessage = "Retries exhausted";
 
         // when
@@ -143,13 +150,13 @@ class BookCatalogOutboxEventRecordRepositoryTest {
 
         // then
         assertThat(updatedCount).isEqualTo(0);
-        BookCatalogOutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
+        OutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(saved.getEventId()).get();
         assertThat(notUpdatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.NEW); // 상태 그대로
         assertThat(notUpdatedRecord.getLastError()).isNull(); // 에러 메시지 없음
     }
 
-    private BookCatalogOutboxEventRecord createRecord(Long eventId, OutboxEventRecordStatus status, int retryCount) {
-        return BookCatalogOutboxEventRecord.builder()
+    private OutboxEventRecord createRecord(Long eventId, OutboxEventRecordStatus status, int retryCount) {
+        return OutboxEventRecord.builder()
                 .id(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE) // 랜덤 ID
                 .eventId(eventId)
                 .eventType(EventType.CREATED)

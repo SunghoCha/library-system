@@ -2,9 +2,7 @@ package msa.bookcatalog.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
 import msa.bookcatalog.infra.aladin.dto.AladinBookItemDto;
-import msa.common.domain.base.AbstractPersistableEntity;
 import msa.common.domain.base.BaseTimeEntity;
 import org.springframework.data.domain.Persistable;
 

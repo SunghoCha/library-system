@@ -1,5 +1,6 @@
-package msa.bookcatalog.infra.outbox.repository;
+package msa.bookcatalog.infra.messaging.outbox.repository;
 
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -10,12 +11,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface BookCatalogOutboxEventRecordRepository extends JpaRepository<BookCatalogOutboxEventRecord, Long>, BookCatalogOutboxEventRecordRepositoryCustom {
-    Optional<BookCatalogOutboxEventRecord> findByEventId(Long eventId);
+public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRecord, Long>, OutboxEventRecordRepositoryCustom {
+    Optional<OutboxEventRecord> findByEventId(Long eventId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-                    update BookCatalogOutboxEventRecord r
+                    update OutboxEventRecord r
                     set r.outboxEventRecordStatus = :to
                     where r.eventId = :eventId
                     and r.outboxEventRecordStatus = :from
@@ -26,7 +27,7 @@ public interface BookCatalogOutboxEventRecordRepository extends JpaRepository<Bo
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-            update BookCatalogOutboxEventRecord r
+            update OutboxEventRecord r
             set r.outboxEventRecordStatus = :to,
                 r.lastError = :err,
                 r.retryCount = r.retryCount + 1
@@ -41,7 +42,7 @@ public interface BookCatalogOutboxEventRecordRepository extends JpaRepository<Bo
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-      update BookCatalogOutboxEventRecord r
+      update OutboxEventRecord r
          set r.outboxEventRecordStatus = :to,
              r.lastError = :err
        where r.eventId = :eventId
@@ -54,7 +55,7 @@ public interface BookCatalogOutboxEventRecordRepository extends JpaRepository<Bo
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-            update BookCatalogOutboxEventRecord r
+            update OutboxEventRecord r
             set r.outboxEventRecordStatus = msa.common.events.outbox.OutboxEventRecordStatus.PUBLISHING,
                 r.pickedAt = :pickedAt
             where r.eventId in :eventIds and r.outboxEventRecordStatus in :claimableStatuses

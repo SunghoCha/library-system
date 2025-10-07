@@ -3,8 +3,9 @@ package msa.bookcatalog.infra.outbox.recorder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
 import msa.common.events.EventType;
@@ -40,7 +41,7 @@ class EventRecorderTest {
     private Snowflake snowflake;
 
     @Mock
-    private BookCatalogOutboxEventRecordRepository eventRecordRepository;
+    private OutboxEventRecordRepository eventRecordRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -77,7 +78,7 @@ class EventRecorderTest {
         given(snowflake.nextId()).willReturn(expectedDbId);
 
         // ArgumentCaptor: 메소드에 전달된 인자를 캡처하여 검증할 때 사용
-        ArgumentCaptor<BookCatalogOutboxEventRecord> captor = ArgumentCaptor.forClass(BookCatalogOutboxEventRecord.class);
+        ArgumentCaptor<OutboxEventRecord> captor = ArgumentCaptor.forClass(OutboxEventRecord.class);
 
         // when
         eventRecorder.save(event);
@@ -87,7 +88,7 @@ class EventRecorderTest {
         verify(eventRecordRepository).save(captor.capture());
 
         // 2. save 메소드에 전달된 객체의 필드 값들을 검증
-        BookCatalogOutboxEventRecord savedRecord = captor.getValue();
+        OutboxEventRecord savedRecord = captor.getValue();
         assertThat(savedRecord.getId()).isEqualTo(expectedDbId);
         assertThat(savedRecord.getEventId()).isEqualTo(event.getEventId());
         assertThat(savedRecord.getAggregateId()).isEqualTo(String.valueOf(bookId));

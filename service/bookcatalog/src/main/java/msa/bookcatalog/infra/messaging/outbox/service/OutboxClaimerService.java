@@ -1,9 +1,9 @@
-package msa.bookcatalog.infra.outbox.service;
+package msa.bookcatalog.infra.messaging.outbox.service;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookcatalog.infra.outbox.config.OutboxSchedulerProperties;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.config.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,14 +19,14 @@ import java.util.stream.Collectors;
 public class OutboxClaimerService {
 
     private final OutboxSchedulerProperties properties;
-    private final BookCatalogOutboxEventRecordRepository outboxRepository;
+    private final OutboxEventRecordRepository outboxRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<BookCatalogOutboxEventRecord> claimEvents() {
+    public List<OutboxEventRecord> claimEvents() {
         LocalDateTime gracePeriodThreshold = LocalDateTime.now().minusMinutes(properties.gracePeriodMinutes());
         LocalDateTime staleThreshold = LocalDateTime.now().minusMinutes(properties.staleTimeoutMinutes());
 
-        List<BookCatalogOutboxEventRecord> eventsToRetry = outboxRepository.findEventsToRetryWithSkipLock(
+        List<OutboxEventRecord> eventsToRetry = outboxRepository.findEventsToRetryWithSkipLock(
                 properties.maxRetryCount(),
                 properties.batchSize(),
                 staleThreshold,
@@ -38,7 +38,7 @@ public class OutboxClaimerService {
         }
 
         List<Long> eventIds = eventsToRetry.stream()
-                .map(BookCatalogOutboxEventRecord::getEventId)
+                .map(OutboxEventRecord::getEventId)
                 .collect(Collectors.toList());
 
         outboxRepository.updateStatusToPublishing(eventIds,

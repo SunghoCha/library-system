@@ -1,6 +1,6 @@
 package msa.bookloan.infra.inbox.repository;
 
-import msa.bookloan.infra.messaging.inbox.repository.BookCatalogProjectionEventRecordRepository;
+import msa.bookloan.infra.messaging.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.infra.messaging.inbox.entity.InboxEventRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.kafka.enabled=false"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // h2로 교체 금지
-class BookCatalogProjectionEventRecordRepositoryTest {
+class InboxEventRecordRepositoryTest {
 
     @Autowired
-    private BookCatalogProjectionEventRecordRepository projectionEventRecordRepository;
+    private InboxEventRecordRepository projectionEventRecordRepository;
 
     @Test
     void upsert_increases_seenCount_on_duplicate_eventId() {

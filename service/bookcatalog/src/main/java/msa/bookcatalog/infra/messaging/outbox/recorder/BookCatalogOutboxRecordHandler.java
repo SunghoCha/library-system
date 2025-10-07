@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.outbox.recorder;
+package msa.bookcatalog.infra.messaging.outbox.recorder;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

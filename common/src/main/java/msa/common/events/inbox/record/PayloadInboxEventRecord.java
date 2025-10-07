@@ -1,10 +1,7 @@
 package msa.common.events.inbox.record;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.SuperBuilder;
 import msa.common.domain.base.BaseTimeEntity;
 import msa.common.events.EventType;
@@ -18,6 +15,7 @@ import java.time.LocalDateTime;
 @Getter
 @SuperBuilder
 @MappedSuperclass
+@ToString(exclude = {"payload","lastError"})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements Persistable<Long> {
 
@@ -42,7 +40,7 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "inbox_event_record_status", nullable = false, length = 50)
+    @Column(name = "status", nullable = false, length = 50)
     private InboxEventRecordStatus inboxEventRecordStatus;
 
     @Enumerated(EnumType.STRING)
@@ -52,9 +50,6 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Builder.Default
     @Column(name = "seen_count", nullable = false)
     private int seenCount = 1;
-
-    @Column(name = "first_seen_at", nullable = false, columnDefinition = "datetime(6)", updatable = false)
-    private LocalDateTime firstSeenAt;
 
     @Column(name = "last_seen_at", nullable = false, columnDefinition = "datetime(6)")
     private LocalDateTime lastSeenAt;
@@ -86,21 +81,7 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "last_error")
     private String lastError;
 
-    public PayloadInboxEventRecord(Long id, Long eventId, Long aggregateId, Long aggregateVersion,
-                                   EventType eventType, String payload,
-                                   InboxEventRecordStatus inboxEventRecordStatus,
-                                   ConsumerRecordMetadata consumerRecordMetadata) {
-        this.id = id;
-        this.eventId = eventId;
-        this.aggregateId = aggregateId;
-        this.aggregateVersion = aggregateVersion;
-        this.eventType = eventType;
-        this.payload = payload;
-        this.inboxEventRecordStatus = inboxEventRecordStatus;
-        this.consumerRecordMetadata = consumerRecordMetadata;
-    }
-
-    public void updateInboxEventRecordStatus(InboxEventRecordStatus inboxEventRecordStatus) {
+    public void updateStatus(InboxEventRecordStatus inboxEventRecordStatus) {
         this.inboxEventRecordStatus = inboxEventRecordStatus;
     }
 
@@ -108,12 +89,14 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
         retryCount++;
     }
 
-    @Transient
-    private boolean isNew = true;
+    public void incrementSeenCount() {
+        this.seenCount++;
+        this.lastSeenAt = LocalDateTime.now();
+    }
 
     @Override
     public boolean isNew() {
-        return isNew;
+        return getCreatedAt() == null;
     }
 
     @Override
@@ -121,16 +104,9 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
         return id;
     }
 
-    @PostLoad
-    @PostPersist
-    void markNotNew() {
-        this.isNew = false;
-    }
-
     @PrePersist
     protected void onCreateDefaults() {
         LocalDateTime now = LocalDateTime.now();
-        if (this.firstSeenAt == null) this.firstSeenAt = now;
         if (this.lastSeenAt == null) this.lastSeenAt = now;
         if (this.nextAttemptAt == null) this.nextAttemptAt = now;
     }

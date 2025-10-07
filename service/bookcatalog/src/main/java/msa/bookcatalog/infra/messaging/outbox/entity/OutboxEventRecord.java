@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.outbox.repository;
+package msa.bookcatalog.infra.messaging.outbox.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
@@ -13,14 +13,15 @@ import msa.common.events.outbox.record.PayloadOutboxEventRecord;
 @SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
-        name = "book_catalog_outbox_event_record",
+        name = "outbox_event",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uq_outbox_event_id", columnNames = {"event_id"})
         },
         indexes = {
-                @Index(name = "ix_claim", columnList = "outbox_event_record_status, occurred_at"),
-                @Index(name = "ix_agg_stream", columnList = "aggregate_type, aggregate_id, aggregate_version")
+                @Index(name = "ix_claim", columnList = "status, next_attempt_at"),
+                @Index(name = "ix_agg_stream", columnList = "aggregate_type, aggregate_id, aggregate_version"),
+                @Index(name="ix_created", columnList="created_at")
         }
 )
-public class BookCatalogOutboxEventRecord extends PayloadOutboxEventRecord {
+public class OutboxEventRecord extends PayloadOutboxEventRecord {
 }

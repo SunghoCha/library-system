@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.infra.messaging.inbox.recorder.InboxAppender;
-import msa.bookloan.infra.messaging.inbox.repository.BookCatalogProjectionEventRecordRepository;
+import msa.bookloan.infra.messaging.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.infra.messaging.inbox.entity.InboxEventRecord;
 import msa.bookloan.application.projection.BookCatalogProjectionProcessor;
 import msa.bookloan.application.service.exception.InboxEventRecordNotFoundException;
@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InboxRetryRecordProcessor {
 
     private final BookCatalogProjectionProcessor projectionProcessor;
-    private final BookCatalogProjectionEventRecordRepository eventRecordRepository;
+    private final InboxEventRecordRepository eventRecordRepository;
     private final ObjectMapper objectMapper;
     private final InboxAppender inboxAppender;
 

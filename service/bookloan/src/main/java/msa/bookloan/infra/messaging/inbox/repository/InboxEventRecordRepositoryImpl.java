@@ -12,8 +12,8 @@ import java.util.Collection;
 @Repository
 @Transactional
 @RequiredArgsConstructor
-public class BookCatalogProjectionEventRecordRepositoryImpl
-        implements BookCatalogProjectionInboxEventRecordRepositoryCustom {
+public class InboxEventRecordRepositoryImpl
+        implements InboxEventRecordRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
     private final QBookCatalogProjectionInboxEventRecord record =

@@ -1,6 +1,7 @@
 package msa.bookcatalog.infra.outbox.scheduler;
 
-import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.scheduler.OutboxRelayProcessor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,10 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class OutboxEventProcessorTest {
+class OutboxRelayProcessorTest {
 
     @InjectMocks
-    private OutboxEventProcessor outboxEventProcessor;
+    private OutboxRelayProcessor outboxRelayProcessor;
 
     @Mock
     private EventRecorder eventRecorder;
@@ -27,7 +28,7 @@ class OutboxEventProcessorTest {
         long eventId = 123L;
 
         // when
-        outboxEventProcessor.updateStatusAfterProcessing(eventId, null);
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, null);
 
         // then
         // 1. markAsPublished가 정확한 eventId로 1번 호출되었는지 검증
@@ -45,7 +46,7 @@ class OutboxEventProcessorTest {
         RuntimeException exception = new RuntimeException("Test Kafka Exception");
 
         // when
-        outboxEventProcessor.updateStatusAfterProcessing(eventId, exception);
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, exception);
 
         // then
         // 1. handleFailure가 정확한 eventId와 에러 메시지로 1번 호출되었는지 검증
@@ -66,7 +67,7 @@ class OutboxEventProcessorTest {
         // when & then
         // 메서드 실행 시, 내부의 try-catch 블록이 예외를 처리하여 밖으로 전파하지 않는지 검증
         assertDoesNotThrow(() -> {
-            outboxEventProcessor.updateStatusAfterProcessing(eventId, null);
+            outboxRelayProcessor.updateStatusAfterProcessing(eventId, null);
         });
 
         // 예외가 발생했더라도, markAsPublished 호출 시도 자체는 있었는지 검증

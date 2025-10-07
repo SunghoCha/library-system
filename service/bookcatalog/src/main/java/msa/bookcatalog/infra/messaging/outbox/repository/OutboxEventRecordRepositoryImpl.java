@@ -1,8 +1,10 @@
-package msa.bookcatalog.infra.outbox.repository;
+package msa.bookcatalog.infra.messaging.outbox.repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.entity.QOutboxEventRecord;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -12,14 +14,13 @@ import static msa.common.events.outbox.OutboxEventRecordStatus.*;
 
 @Repository
 @RequiredArgsConstructor
-public class BookCatalogOutboxEventRecordRepositoryImpl implements BookCatalogOutboxEventRecordRepositoryCustom {
+public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordRepositoryCustom {
 
+    private final QOutboxEventRecord record = QOutboxEventRecord.outboxEventRecord;
     private final JPAQueryFactory queryFactory;
-    private final QBookCatalogOutboxEventRecord record =
-            QBookCatalogOutboxEventRecord.bookCatalogOutboxEventRecord;
 
     @Override
-    public List<BookCatalogOutboxEventRecord> findEventsToRetryWithSkipLock(
+    public List<OutboxEventRecord> findEventsToRetryWithSkipLock(
             int maxRetry,
             int limit,
             LocalDateTime staleThreshold,
@@ -38,6 +39,7 @@ public class BookCatalogOutboxEventRecordRepositoryImpl implements BookCatalogOu
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .setHint("jakarta.persistence.lock.timeout", 0)
                 .fetch();
+
     }
 
 

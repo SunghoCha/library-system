@@ -1,6 +1,8 @@
 package msa.bookcatalog.infra.outbox.repository;
 
 import msa.bookcatalog.config.QueryDslConfig;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -10,10 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,10 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.scheduling.enabled=false"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class BookCatalogOutboxEventRecordRepositoryImplTest {
+class OutboxEventRecordRepositoryImplTest {
 
     @Autowired
-    private BookCatalogOutboxEventRecordRepository outboxRepository;
+    private OutboxEventRecordRepository outboxRepository;
 
     @Test
     @DisplayName("findEventsToRetryWithSkipLock: 복잡한 조건에 맞는 재시도 대상 이벤트들을 정확히 조회한다")
@@ -38,20 +36,20 @@ class BookCatalogOutboxEventRecordRepositoryImplTest {
         // given: 다양한 상태의 테스트 데이터들을 실제 MySQL DB에 미리 저장
         outboxRepository.save(createRecord(1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now().minusMinutes(5)));
         outboxRepository.save(createRecord(2L, OutboxEventRecordStatus.FAILED, 2, LocalDateTime.now().minusDays(1)));
-        BookCatalogOutboxEventRecord publishingAndStale = createRecord(3L, OutboxEventRecordStatus.PUBLISHING, 1, LocalDateTime.now().minusDays(1));
+        OutboxEventRecord publishingAndStale = createRecord(3L, OutboxEventRecordStatus.PUBLISHING, 1, LocalDateTime.now().minusDays(1));
         publishingAndStale.setPickedAt(LocalDateTime.now().minusMinutes(10));
         outboxRepository.save(publishingAndStale);
 
         // --- 선택되면 안 되는 데이터 ---
         outboxRepository.save(createRecord(4L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now()));
         outboxRepository.save(createRecord(5L, OutboxEventRecordStatus.FAILED, 5, LocalDateTime.now().minusDays(1)));
-        BookCatalogOutboxEventRecord publishingAndFresh = createRecord(6L, OutboxEventRecordStatus.PUBLISHING, 1, LocalDateTime.now().minusDays(1));
+        OutboxEventRecord publishingAndFresh = createRecord(6L, OutboxEventRecordStatus.PUBLISHING, 1, LocalDateTime.now().minusDays(1));
         publishingAndFresh.setPickedAt(LocalDateTime.now());
         outboxRepository.save(publishingAndFresh);
         outboxRepository.save(createRecord(7L, OutboxEventRecordStatus.PUBLISHED, 1, LocalDateTime.now().minusDays(1)));
 
         // when
-        List<BookCatalogOutboxEventRecord> results = outboxRepository.findEventsToRetryWithSkipLock(
+        List<OutboxEventRecord> results = outboxRepository.findEventsToRetryWithSkipLock(
                 5, 10,
                 LocalDateTime.now().minusMinutes(5),
                 LocalDateTime.now().minusMinutes(1)
@@ -60,12 +58,12 @@ class BookCatalogOutboxEventRecordRepositoryImplTest {
         // then
         assertThat(results).hasSize(3);
         assertThat(results)
-                .extracting(BookCatalogOutboxEventRecord::getEventId)
+                .extracting(OutboxEventRecord::getEventId)
                 .containsExactlyInAnyOrder(1L, 2L, 3L);
     }
 
-    private BookCatalogOutboxEventRecord createRecord(Long eventId, OutboxEventRecordStatus status, int retryCount, LocalDateTime occurredAt) {
-        return BookCatalogOutboxEventRecord.builder()
+    private OutboxEventRecord createRecord(Long eventId, OutboxEventRecordStatus status, int retryCount, LocalDateTime occurredAt) {
+        return OutboxEventRecord.builder()
                 .id(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE) // 랜덤 ID
                 .eventId(eventId)
                 .eventType(EventType.CREATED)

@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface BookCatalogProjectionEventRecordRepository extends JpaRepository<InboxEventRecord, Long>, BookCatalogProjectionInboxEventRecordRepositoryCustom {
+public interface InboxEventRecordRepository extends JpaRepository<InboxEventRecord, Long>, InboxEventRecordRepositoryCustom {
     boolean existsByEventId(Long eventId);
 
     Optional<InboxEventRecord> findByEventId(Long eventId);

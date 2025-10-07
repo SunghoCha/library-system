@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.outbox;
+package msa.bookcatalog.infra.messaging.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class BookCatalogExternalEventPublisher {
+public class ExternalEventPublisher {
 
     private final OutboxEventSender outboxEventSender;
 

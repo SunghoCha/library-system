@@ -4,7 +4,7 @@ import msa.common.events.inbox.dto.InboxEventRecordStatus;
 
 import java.util.Collection;
 
-public interface BookCatalogProjectionInboxEventRecordRepositoryCustom {
+public interface InboxEventRecordRepositoryCustom {
     Long updateStatusIfPending(Long eventId,
                                InboxEventRecordStatus newStatus,
                                Collection<InboxEventRecordStatus> oldStatuses);

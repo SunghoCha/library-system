@@ -1,10 +1,10 @@
-package msa.bookcatalog.infra.outbox.recorder;
+package msa.bookcatalog.infra.messaging.outbox.recorder;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
 import msa.common.events.outbox.OutboxEventRecordStatus;
@@ -28,13 +28,13 @@ public class EventRecorder {
 
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
-    private final BookCatalogOutboxEventRecordRepository eventRecordRepository;
+    private final OutboxEventRecordRepository eventRecordRepository;
     private final String topic;
 
     public EventRecorder(
             Snowflake snowflake,
             ObjectMapper objectMapper,
-            BookCatalogOutboxEventRecordRepository eventRecordRepository,
+            OutboxEventRecordRepository eventRecordRepository,
             @Value("${app.kafka.topics.catalog-changed-topic}") String topic
     ) {
         this.snowflake = snowflake;
@@ -43,7 +43,7 @@ public class EventRecorder {
         this.topic = topic; // 주입받은 값으로 초기화
     }
 
-    public BookCatalogOutboxEventRecord toRecord(BookCatalogChangedEvent event) {
+    public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
         String payload = serializeToPayload(event);
 
         OutboxRouting routing = OutboxRouting.builder()
@@ -51,7 +51,7 @@ public class EventRecorder {
                 .partitionKey(String.valueOf(event.getAggregateId()))
                 .build();
 
-        return BookCatalogOutboxEventRecord.builder()
+        return OutboxEventRecord.builder()
                 .id(snowflake.nextId())
                 .eventId(event.getEventId())
                 .eventType(event.getEventType())
@@ -67,7 +67,7 @@ public class EventRecorder {
 
     @Transactional
     public void save(BookCatalogChangedEvent event) {
-        BookCatalogOutboxEventRecord outboxEventRecord = toRecord(event);
+        OutboxEventRecord outboxEventRecord = toRecord(event);
 
         eventRecordRepository.save(outboxEventRecord);
         log.debug("OutboxEventRecord saved: eventId=[{}], dbId=[{}]", event.getEventId(), outboxEventRecord.getId());
@@ -78,7 +78,7 @@ public class EventRecorder {
         if (events == null || events.isEmpty()) {
             return;
         }
-        List<BookCatalogOutboxEventRecord> records = events.stream()
+        List<OutboxEventRecord> records = events.stream()
                 .map(this::toRecord)
                 .toList();
 

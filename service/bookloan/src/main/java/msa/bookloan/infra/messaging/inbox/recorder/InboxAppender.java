@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookloan.infra.messaging.inbox.repository.BookCatalogProjectionEventRecordRepository;
+import msa.bookloan.infra.messaging.inbox.repository.InboxEventRecordRepository;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
@@ -28,7 +28,7 @@ public class InboxAppender {
 
     private static final int MAX_ATTEMPTS = 3;
 
-    private final BookCatalogProjectionEventRecordRepository eventRecordRepository;
+    private final InboxEventRecordRepository eventRecordRepository;
     private final ObjectMapper objectMapper;
     private final Snowflake snowflake;
 
