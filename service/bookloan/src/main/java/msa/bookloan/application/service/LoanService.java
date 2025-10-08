@@ -3,10 +3,10 @@ package msa.bookloan.application.service;
 import lombok.RequiredArgsConstructor;
 import msa.bookloan.domain.policy.LoanTermPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
-import msa.bookloan.infra.persistence.projection.BookCatalogProjectionRepository;
-import msa.bookloan.infra.redis.DistributedLock;
-import msa.bookloan.repository.LoanRepository;
-import msa.bookloan.web.controller.dto.LoanCreateRequest;
+import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+import msa.bookloan.application.port.out.lock.DistributedLock;
+import msa.bookloan.adapter.out.persistence.loan.LoanRepository;
+import msa.bookloan.adapter.in.web.controller.dto.LoanCreateRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

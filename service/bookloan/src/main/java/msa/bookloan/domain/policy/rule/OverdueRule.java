@@ -1,7 +1,7 @@
 package msa.bookloan.domain.policy.rule;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.repository.LoanRepository;
+import msa.bookloan.adapter.out.persistence.loan.LoanRepository;
 import msa.bookloan.application.service.dto.LoanContext;
 import msa.bookloan.application.service.exception.LoanOverdueException;
 import org.springframework.stereotype.Component;

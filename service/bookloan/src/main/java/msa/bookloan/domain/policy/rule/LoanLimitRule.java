@@ -1,7 +1,7 @@
 package msa.bookloan.domain.policy.rule;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.repository.LoanRepository;
+import msa.bookloan.adapter.out.persistence.loan.LoanRepository;
 import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
 import msa.bookloan.application.service.dto.LoanContext;

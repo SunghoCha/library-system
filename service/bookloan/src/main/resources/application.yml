@@ -15,7 +15,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update # 추후 변경
+      ddl-auto: create # 추후 변경
     properties:
       hibernate:
         format_sql: true

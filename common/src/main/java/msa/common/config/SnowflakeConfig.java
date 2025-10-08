@@ -14,7 +14,7 @@ public class SnowflakeConfig {
 
     @Bean
     public InstanceIdentity instanceIdentity(
-            @Value("${snowflake.node-id}") long nodeId) {
+            @Value("${snowflake.node-id:1}") long nodeId) {
         return new DefaultInstanceIdentity(nodeId);
     }
 
