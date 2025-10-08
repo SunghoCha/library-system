@@ -13,12 +13,11 @@ import msa.common.events.outbox.record.PayloadOutboxEventRecord;
 @SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
-        name = "outbox_event",
+        name = "outbox_event_record",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uq_outbox_event_id", columnNames = {"event_id"})
         },
         indexes = {
-                @Index(name = "ix_claim", columnList = "status, next_attempt_at"),
                 @Index(name = "ix_agg_stream", columnList = "aggregate_type, aggregate_id, aggregate_version"),
                 @Index(name="ix_created", columnList="created_at")
         }

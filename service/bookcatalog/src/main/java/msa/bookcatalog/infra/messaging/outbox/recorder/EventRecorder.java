@@ -7,17 +7,14 @@ import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
-import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataAccessException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
@@ -86,49 +83,49 @@ public class EventRecorder {
         log.debug("OutboxEventRecord {}건 저장 완료.", records.size());
     }
 
-    @Retryable(
-            retryFor = DataAccessException.class,
-            maxAttempts = 5,
-            backoff = @Backoff(delay = 200)
-    )
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markAsPublished(Long eventId) {
-        int updated = eventRecordRepository.updateStatusIfCurrent(
-                eventId, OutboxEventRecordStatus.PUBLISHING, OutboxEventRecordStatus.PUBLISHED);
+    public int markPublishedByEventId(Long eventId,
+                                      String workerId,
+                                      LocalDateTime claimedAt) {
+        int updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+
         if (updated == 0) {
-            log.debug("[Outbox] 발행 처리 스킵: 이미 처리되었거나 PUBLISHING 상태가 아님 (eventId={})", eventId);
+            log.info("[Outbox] 발행 처리 스킵: 펜싱 또는 이미 처리됨 (eventId={}, workerId={}, claimedAt={})",
+                    eventId, workerId, claimedAt);
         } else {
             log.info("[Outbox] 발행 완료 (eventId={})", eventId);
         }
+        return updated;
     }
 
-    @Retryable(retryFor = DataAccessException.class, maxAttempts = 5, backoff = @Backoff(delay = 200))
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markAsDeadLetter(Long eventId, String error) {
-        int updated = eventRecordRepository.toDeadLetterIfCurrent(
-                eventId,
-                List.of(OutboxEventRecordStatus.FAILED, OutboxEventRecordStatus.PUBLISHING),
-                OutboxEventRecordStatus.DEAD_LETTER,
-                error
-        );
+    public int markFailedByEventId(Long eventId,
+                                   String workerId,
+                                   LocalDateTime claimedAt,
+                                   String reason) {
+        int updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
 
         if (updated == 0) {
-            log.debug("[Outbox] DL 전이 스킵: 현재 상태가 FAILED/PUBLISHING 아님 (eventId={})", eventId);
+            log.info("[Outbox] 실패 처리 스킵: 펜싱 또는 회수됨 (eventId={}, workerId={}, claimedAt={})",
+                    eventId, workerId, claimedAt);
         } else {
-            log.error("[Outbox] 데드레터 전이 (eventId={}, reason={})", eventId, error);
+            log.warn("[Outbox] 발행 실패 (eventId={}, 이유={})", eventId, reason);
         }
+        return updated;
     }
 
-    @Retryable(retryFor = DataAccessException.class, maxAttempts = 3, backoff = @Backoff(delay = 200))
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void handleFailure(Long eventId, String error) {
-        int updated = eventRecordRepository.failAndIncrementIfCurrent(
-                eventId, OutboxEventRecordStatus.PUBLISHING, OutboxEventRecordStatus.FAILED, error);
+    public int markDeadLetter(Long eventId, String error) {
+        int updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+
         if (updated == 0) {
-            log.debug("[Outbox] 실패 스킵: 이미 처리되었거나 PUBLISHING 아님 (eventId={})", eventId);
+            log.info("[Outbox] 데드레터 전이 스킵: 현재 상태가 FAILED 아님 (eventId={})", eventId);
         } else {
-            log.warn("[Outbox] 발행 실패 (eventId={}, reason={})", eventId, error);
+            log.error("[Outbox] 데드레터로 전이 (eventId={}, 이유={})", eventId, error);
         }
+
+        return updated;
     }
 
     private String serializeToPayload(BookCatalogChangedEvent event) {
@@ -138,6 +135,7 @@ public class EventRecorder {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
         }
+
     }
 
 }

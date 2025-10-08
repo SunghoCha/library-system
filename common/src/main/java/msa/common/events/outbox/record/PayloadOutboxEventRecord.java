@@ -51,14 +51,13 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     @Column(nullable = false)
     private int retryCount = 0;
 
+    @Setter
     @Column(name = "worker_id", length = 64)
     private String workerId;
 
+    @Setter
     @Column(name = "lease_until", columnDefinition = "datetime(6)")
     private LocalDateTime leaseUntil;
-
-    @Column(name = "next_attempt_at", columnDefinition = "datetime(6)")
-    private LocalDateTime nextAttemptAt;
 
     @Setter
     @Column(name = "picked_at", columnDefinition = "datetime(6)")
@@ -90,7 +89,6 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     protected void onCreateDefaults() {
         LocalDateTime now = LocalDateTime.now();
         if (this.occurredAt == null) this.occurredAt = now;
-        if (this.nextAttemptAt == null) this.nextAttemptAt = now;
     }
 
 }

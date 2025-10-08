@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
-@Component
+//@Component
 public class AcknowledgeEventListener {
 
     // TODO : 필요없어서 삭제해도 될 듯. 오프셋 커밋 방식 변경했음

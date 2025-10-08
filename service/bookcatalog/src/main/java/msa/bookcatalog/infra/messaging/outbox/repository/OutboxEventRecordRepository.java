@@ -8,63 +8,161 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRecord, Long>, OutboxEventRecordRepositoryCustom {
     Optional<OutboxEventRecord> findByEventId(Long eventId);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-                    update OutboxEventRecord r
-                    set r.outboxEventRecordStatus = :to
-                    where r.eventId = :eventId
-                    and r.outboxEventRecordStatus = :from
-            """)
-    int updateStatusIfCurrent(@Param("eventId") Long eventId,
-                              @Param("from") OutboxEventRecordStatus from,
-                              @Param("to") OutboxEventRecordStatus to);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            update OutboxEventRecord r
-            set r.outboxEventRecordStatus = :to,
-                r.lastError = :err,
-                r.retryCount = r.retryCount + 1
-            where r. eventId = :eventId
-            and r.outboxEventRecordStatus = :from
-            """)
-    int failAndIncrementIfCurrent(@Param("eventId") Long eventId,
-                                  @Param("from") OutboxEventRecordStatus from,
-                                  @Param("to") OutboxEventRecordStatus to,
-                                  @Param("err") String err);
-
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-      update OutboxEventRecord r
-         set r.outboxEventRecordStatus = :to,
-             r.lastError = :err
-       where r.eventId = :eventId
-         and r.outboxEventRecordStatus in :from
-    """)
-    int toDeadLetterIfCurrent(@Param("eventId") Long eventId,
-                              @Param("from") List<OutboxEventRecordStatus> from,
-                              @Param("to")   OutboxEventRecordStatus to,
-                              @Param("err")  String err);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            update OutboxEventRecord r
-            set r.outboxEventRecordStatus = msa.common.events.outbox.OutboxEventRecordStatus.PUBLISHING,
-                r.pickedAt = :pickedAt
-            where r.eventId in :eventIds and r.outboxEventRecordStatus in :claimableStatuses
-            """)
-    void updateStatusToPublishing(@Param("eventIds") List<Long> eventIds,
-                                  @Param("pickedAt") LocalDateTime pickedAt,
-                                  @Param("claimableStatuses") List<OutboxEventRecordStatus> claimableStatuses
+    @Query(value = """
+            SELECT id
+            FROM outbox_event_record
+            WHERE
+              (
+                status = 'NEW'
+                AND occurred_at < :grace
+              )
+              OR
+              (
+                status = 'FAILED'
+                AND retry_count < :maxRetry
+              )
+              OR
+              (
+                status = 'PUBLISHING'
+                AND (lease_until IS NULL OR lease_until < :now OR picked_at < :stale)
+              )
+            ORDER BY occurred_at ASC, id ASC
+            LIMIT :lim
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<Long> lockClaimableIds(
+            @Param("lim") int limit,
+            @Param("maxRetry") int maxRetry,
+            @Param("now") LocalDateTime now,
+            @Param("grace") LocalDateTime graceThreshold,
+            @Param("stale") LocalDateTime staleThreshold
     );
 
+    // 2) 상태 마킹
+    @Modifying(flushAutomatically = false, clearAutomatically = false)
+    @Query(value = """
+            UPDATE outbox_event_record
+            SET
+              status = 'PUBLISHING',
+              worker_id = :workerId,
+              picked_at = :now,
+              lease_until = DATE_ADD(:now, INTERVAL :leaseSec SECOND)
+            WHERE id IN (:ids)
+              AND status IN ('NEW','FAILED','PUBLISHING')
+            """, nativeQuery = true)
+    int markPublishing(
+            @Param("ids") Collection<Long> ids,
+            @Param("workerId") String workerId,
+            @Param("now") LocalDateTime now,
+            @Param("leaseSec") int leaseSeconds
+    );
+
+    // 가져오기 (정렬 포함)
+    @Query("SELECT r FROM OutboxEventRecord r WHERE r.id IN :ids ORDER BY r.occurredAt ASC, r.id ASC")
+    List<OutboxEventRecord> findAllByIdInOrderByOccurredAt(@Param("ids") Collection<Long> ids);
+
+    // 성공 마킹
+    @Modifying
+    @Query(value = """
+            UPDATE outbox_event_record
+            SET status = 'PUBLISHED',
+                worker_id = NULL,
+                lease_until = NULL,
+                picked_at = NULL
+            WHERE id IN (:ids)
+              AND status = 'PUBLISHING'
+              AND worker_id = :workerId
+              AND picked_at = :claimedAt
+            """, nativeQuery = true)
+    int markPublished(@Param("ids") Collection<Long> ids,
+                      @Param("workerId") String workerId,
+                      @Param("claimedAt") LocalDateTime claimedAt);
+
+    // 실패 마킹 (+ backoff)
+    @Modifying
+    @Query(value = """
+            UPDATE outbox_event_record
+            SET status = 'FAILED',
+                retry_count = retry_count + 1,
+                worker_id = NULL,
+                lease_until = NULL,
+                picked_at = NULL,
+                last_error = :lastError
+            WHERE id IN (:ids)
+              AND status = 'PUBLISHING'
+              AND worker_id = :workerId
+              AND picked_at = :claimedAt
+            """, nativeQuery = true)
+    int markFailed(
+            @Param("ids") Collection<Long> ids,
+            @Param("workerId") String workerId,
+            @Param("claimedAt") LocalDateTime claimedAt,
+            @Param("lastError") String lastError
+    );
+
+    @Modifying
+    @Query(value = """
+            UPDATE outbox_event_record
+            SET status = 'DEAD_LETTER',
+                worker_id = NULL,
+                lease_until = NULL,
+                picked_at = NULL,
+                last_error = :reason
+            WHERE event_id = :eventId
+              AND status = 'FAILED'
+            """, nativeQuery = true)
+    int markDeadFromFailed(@Param("eventId") Long eventId,
+                           @Param("reason") String reason);
+
+    @Modifying
+    @Query(value = """
+              UPDATE outbox_event_record
+              SET status='PUBLISHED', worker_id=NULL, lease_until=NULL, picked_at=NULL
+              WHERE event_id=:eventId
+                AND status='PUBLISHING'
+                AND worker_id=:workerId
+                AND picked_at=:claimedAt
+            """, nativeQuery = true)
+    int markPublishedByEventId(@Param("eventId") Long eventId,
+                               @Param("workerId") String workerId,
+                               @Param("claimedAt") LocalDateTime claimedAt);
+
+    @Modifying
+    @Query(value = """
+          UPDATE outbox_event_record
+          SET status='FAILED', retry_count=retry_count+1,
+              worker_id=NULL, lease_until=NULL, picked_at=NULL, last_error=:lastError
+          WHERE event_id=:eventId
+            AND status='PUBLISHING'
+            AND worker_id=:workerId
+            AND picked_at=:claimedAt
+        """, nativeQuery = true)
+    int markFailedByEventId(@Param("eventId") Long eventId,
+                            @Param("workerId") String workerId,
+                            @Param("claimedAt") LocalDateTime claimedAt,
+                            @Param("lastError") String lastError);
+
+    // 퍼블리셔 선점용
+    @Modifying
+    @Query(value = """
+      UPDATE outbox_event_record
+      SET status='PUBLISHING',
+          worker_id=:workerId,
+          picked_at=:now,
+          lease_until=DATE_ADD(:now, INTERVAL :leaseSec SECOND)
+      WHERE event_id=:eventId AND status='NEW'
+      """, nativeQuery = true)
+    int tryClaimFromNew(@Param("eventId") Long eventId,
+                        @Param("workerId") String workerId,
+                        @Param("now") LocalDateTime now,
+                        @Param("leaseSec") int leaseSeconds);
 
 
 }

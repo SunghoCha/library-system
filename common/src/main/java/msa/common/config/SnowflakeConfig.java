@@ -1,5 +1,8 @@
-package msa.common.snowflake;
+package msa.common.config;
 
+import msa.common.snowflake.DefaultInstanceIdentity;
+import msa.common.snowflake.InstanceIdentity;
+import msa.common.snowflake.Snowflake;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

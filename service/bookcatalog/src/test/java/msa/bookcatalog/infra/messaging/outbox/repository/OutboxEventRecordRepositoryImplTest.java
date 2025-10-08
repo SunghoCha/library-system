@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.outbox.repository;
+package msa.bookcatalog.infra.messaging.outbox.repository;
 
 import msa.bookcatalog.config.QueryDslConfig;
 import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
