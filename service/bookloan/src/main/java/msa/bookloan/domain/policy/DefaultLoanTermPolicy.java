@@ -1,5 +1,6 @@
 package msa.bookloan.domain.policy;
 
+import msa.bookloan.domain.model.BookType;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;

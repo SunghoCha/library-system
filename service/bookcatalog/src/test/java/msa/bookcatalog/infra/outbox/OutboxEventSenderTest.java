@@ -1,8 +1,9 @@
 package msa.bookcatalog.infra.outbox;
 
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecord;
-import msa.bookcatalog.infra.outbox.repository.BookCatalogOutboxEventRecordRepository;
-import msa.bookcatalog.infra.outbox.scheduler.OutboxEventProcessor;
+import msa.bookcatalog.infra.messaging.outbox.OutboxEventSender;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.scheduler.OutboxRelayProcessor;
 import msa.bookcatalog.service.exception.OutboxEventRecordNotFoundException;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -35,10 +36,10 @@ class OutboxEventSenderTest {
     private KafkaTemplate<String, String> kafkaTemplate;
 
     @Mock
-    private OutboxEventProcessor outboxEventProcessor;
+    private OutboxRelayProcessor outboxRelayProcessor;
 
     @Mock
-    private BookCatalogOutboxEventRecordRepository outboxRepository;
+    private OutboxEventRecordRepository outboxRepository;
 
     @Mock
     private CompletableFuture<SendResult<String, String>> mockFuture;
@@ -53,7 +54,7 @@ class OutboxEventSenderTest {
         // given
         long eventId = 123L;
         BookCatalogChangedEvent event = createTestEvent(eventId);
-        BookCatalogOutboxEventRecord record = createTestRecord(eventId);
+        OutboxEventRecord record = createTestRecord(eventId);
 
         // Repository가 테스트용 레코드를 반환하도록 설정
         when(outboxRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
@@ -74,7 +75,7 @@ class OutboxEventSenderTest {
         callbackCaptor.getValue().accept(null, null); // 성공 콜백 실행 (result=null, ex=null)
 
         // 4. 성공 콜백이 실행된 후, Processor가 올바르게 호출되었는지 검증
-        verify(outboxEventProcessor).updateStatusAfterProcessing(eventId, null);
+        verify(outboxRelayProcessor).updateStatusAfterProcessing(eventId, null);
     }
 
     @Test
@@ -100,7 +101,7 @@ class OutboxEventSenderTest {
         // given
         long eventId = 456L;
         BookCatalogChangedEvent event = createTestEvent(eventId);
-        BookCatalogOutboxEventRecord record = createTestRecord(eventId);
+        OutboxEventRecord record = createTestRecord(eventId);
         // 테스트용 가짜 예외 생성
         RuntimeException kafkaException = new RuntimeException("Kafka connection failed");
 
@@ -121,7 +122,7 @@ class OutboxEventSenderTest {
         callbackCaptor.getValue().accept(null, kafkaException);
 
         // 3. 실패 콜백이 실행된 후, Processor가 '예외 객체'와 함께 올바르게 호출되었는지 검증
-        verify(outboxEventProcessor).updateStatusAfterProcessing(eventId, kafkaException);
+        verify(outboxRelayProcessor).updateStatusAfterProcessing(eventId, kafkaException);
     }
 
     @Test
@@ -129,7 +130,7 @@ class OutboxEventSenderTest {
     void resend_success() {
         // given
         long eventId = 111L;
-        BookCatalogOutboxEventRecord record = createTestRecord(eventId);
+        OutboxEventRecord record = createTestRecord(eventId);
         when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(mockFuture);
 
         // when
@@ -141,7 +142,7 @@ class OutboxEventSenderTest {
         verify(mockFuture).whenComplete(callbackCaptor.capture());
         callbackCaptor.getValue().accept(null, null);
 
-        verify(outboxEventProcessor).updateStatusAfterProcessing(eventId, null);
+        verify(outboxRelayProcessor).updateStatusAfterProcessing(eventId, null);
     }
 
     @Test
@@ -149,7 +150,7 @@ class OutboxEventSenderTest {
     void resend_kafkaFailure() {
         // given
         long eventId = 222L;
-        BookCatalogOutboxEventRecord record = createTestRecord(eventId);
+        OutboxEventRecord record = createTestRecord(eventId);
         RuntimeException kafkaException = new RuntimeException("Kafka connection failed");
 
         when(kafkaTemplate.send(anyString(), anyString(), anyString())).thenReturn(mockFuture);
@@ -161,7 +162,7 @@ class OutboxEventSenderTest {
         verify(mockFuture).whenComplete(callbackCaptor.capture());
         callbackCaptor.getValue().accept(null, kafkaException);
 
-        verify(outboxEventProcessor).updateStatusAfterProcessing(eventId, kafkaException);
+        verify(outboxRelayProcessor).updateStatusAfterProcessing(eventId, kafkaException);
     }
 
     @Test
@@ -170,7 +171,7 @@ class OutboxEventSenderTest {
         // given
         long eventId = 333L;
         // routing 정보가 없는 레코드 생성
-        BookCatalogOutboxEventRecord recordWithNullRouting = BookCatalogOutboxEventRecord.builder()
+        OutboxEventRecord recordWithNullRouting = OutboxEventRecord.builder()
                 .eventId(eventId)
                 .payload("{\"message\":\"test\"}")
                 .routing(null) // routing 필드를 null로 설정
@@ -186,8 +187,8 @@ class OutboxEventSenderTest {
         return BookCatalogChangedEvent.builder().eventId(eventId).bookId(eventId).build();
     }
 
-    private BookCatalogOutboxEventRecord createTestRecord(Long eventId) {
-        return BookCatalogOutboxEventRecord.builder()
+    private OutboxEventRecord createTestRecord(Long eventId) {
+        return OutboxEventRecord.builder()
                 .eventId(eventId)
                 .payload("{\"message\":\"test payload\"}")
                 .routing(OutboxRouting.builder()

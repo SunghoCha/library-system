@@ -1,0 +1,3 @@
+
+# Common Root Password
+MYSQL_ROOT_PASSWORD=rootpassword

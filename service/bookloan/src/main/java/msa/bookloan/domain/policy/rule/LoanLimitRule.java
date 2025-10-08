@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.repository.LoanRepository;
 import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
-import msa.bookloan.service.dto.LoanContext;
-import msa.bookloan.service.exception.LoanLimitExceededException;
+import msa.bookloan.application.service.dto.LoanContext;
+import msa.bookloan.application.service.exception.LoanLimitExceededException;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,7 +20,7 @@ public class LoanLimitRule implements LoanValidationRule {
     @Override
     public void validate(LoanContext context) {
         int currentlyLoanedCount = loanRepository.countByMemberIdAndLoanStatusIn(context.memberId(),
-                List.of(LoanStatus.LOANED, LoanStatus.OVERDUE));
+                List.of(LoanStatus.LOANED));
         int requestLoanedCount = context.bookIds().size();
         int maxAllowedLoans = loanLimitPolicy.maxLoansFor(context.memberGrade());
 

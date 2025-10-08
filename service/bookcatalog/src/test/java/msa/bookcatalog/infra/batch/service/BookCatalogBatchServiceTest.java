@@ -5,7 +5,7 @@ import msa.bookcatalog.domain.model.BookCategory;
 import msa.bookcatalog.domain.model.BookType;
 import msa.bookcatalog.infra.batch.aladin.BookCatalogEventMapper;
 import msa.bookcatalog.infra.batch.aladin.service.BookCatalogBatchService;
-import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
 import msa.bookcatalog.repository.BookCatalogRepository;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;

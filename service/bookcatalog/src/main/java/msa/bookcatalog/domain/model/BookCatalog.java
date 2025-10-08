@@ -50,9 +50,6 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
     @Version
     private Long version;
 
-    @Transient
-    private boolean isNew = true;
-
     @Builder
     public BookCatalog(Long id, String title, String author, LocalDate publishDate,
                        String isbn13, String publisher, String coverImageUrl, String description,
@@ -67,6 +64,25 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         this.description = description;
         this.category = category;
         this.bookType = bookType;
+    }
+
+    @Transient
+    private boolean isNew = true;
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @Override
+    public Long getId() {
+        return id;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
     }
 
     @Deprecated
@@ -162,22 +178,6 @@ public class BookCatalog extends BaseTimeEntity implements Persistable<Long> {
         }
 
         return isChanged;
-    }
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @Override
-    public Long getId() {
-        return id;
-    }
-
-    @PostPersist
-    @PostLoad
-    void markNotNew() {
-        this.isNew = false;
     }
 
     @Getter

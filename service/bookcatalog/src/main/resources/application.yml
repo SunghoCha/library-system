@@ -1,5 +1,5 @@
 server:
-  port: 9001
+  port: 8080
 
 spring:
   application:
@@ -11,6 +11,7 @@ spring:
   # .env 파일 import 설정
   config:
     import: optional:file:.env[.properties]
+
 
   jpa:
     hibernate:
@@ -51,8 +52,6 @@ app:
     scheduler:
       max-retry-count: 5
       batch-size: 100
-      grace-period-minutes: 1
-      stale-timeout-minutes: 5
 
   kafka:
     topics:

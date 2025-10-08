@@ -1,7 +1,10 @@
+server:
+  port: 9000
+
 spring:
   datasource:
 
-    url: jdbc:mysql://localhost:13306/appdb?useSSL=false...
+    url: jdbc:mysql://localhost:13306/appdb?sslMode=DISABLED&rewriteBatchedStatements=true&serverTimezone=Asia/Seoul
 
     username: ${MYSQL_LOAN_USER}
     password: ${MYSQL_LOAN_PASSWORD}

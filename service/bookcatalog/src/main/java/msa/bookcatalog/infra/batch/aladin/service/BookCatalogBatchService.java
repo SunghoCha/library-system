@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.bookcatalog.infra.batch.aladin.BookCatalogEventMapper;
-import msa.bookcatalog.infra.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
 import msa.bookcatalog.repository.BookCatalogRepository;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;

@@ -1,0 +1,59 @@
+package msa.bookcatalog.infra.messaging.outbox;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
+import msa.bookcatalog.infra.messaging.outbox.scheduler.OutboxRelayProcessor;
+import msa.bookcatalog.service.exception.OutboxEventRecordNotFoundException;
+import msa.common.events.bookcatalog.BookCatalogChangedEvent;
+import msa.common.events.outbox.dto.OutboxRouting;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OutboxEventSender {
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final OutboxRelayProcessor outboxRelayProcessor;
+    private final OutboxEventRecordRepository outboxRepository;
+
+    public void send(BookCatalogChangedEvent event) {
+        Long eventId = event.getEventId();
+        OutboxEventRecord record = outboxRepository.findByEventId(eventId)
+                .orElseThrow(OutboxEventRecordNotFoundException::new);
+
+        OutboxRouting routing = record.getRouting();
+        if (routing == null) {
+            throw new IllegalStateException("OutboxRouting is null for eventId=" + record.getEventId());
+        }
+        sendAsync(routing.getTopic(), routing.getPartitionKey(), record.getPayload(), eventId);
+    }
+
+    public void resend(OutboxEventRecord record) {
+        OutboxRouting routing = record.getRouting();
+        if (routing == null) {
+            throw new IllegalStateException("OutboxRouting is null for eventId=" + record.getEventId());
+        }
+        String topic  = routing.getTopic();
+        String key    = routing.getPartitionKey();
+        String value  = record.getPayload();
+        Long eventId  = record.getEventId();
+
+        sendAsync(topic, key, value, eventId);
+    }
+
+    private void sendAsync(String topic, String key, String payload, Long eventId) {
+        log.info("카프카 발행 시도. topic={}, key={}, eventId={}", topic, key, eventId);
+        try {
+            kafkaTemplate.send(topic, key, payload)
+                    .whenComplete((result, ex) -> {
+                        outboxRelayProcessor.updateStatusAfterProcessing(eventId, ex);});
+        } catch (Exception e) {
+            outboxRelayProcessor.updateStatusAfterProcessing(eventId, e);
+        }
+    }
+
+}
