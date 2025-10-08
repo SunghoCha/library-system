@@ -46,7 +46,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
     );
 
     // 2) 상태 마킹
-    @Modifying(flushAutomatically = false, clearAutomatically = false)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE outbox_event_record
             SET
@@ -69,7 +69,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
     List<OutboxEventRecord> findAllByIdInOrderByOccurredAt(@Param("ids") Collection<Long> ids);
 
     // 성공 마킹
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE outbox_event_record
             SET status = 'PUBLISHED',
@@ -86,7 +86,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
                       @Param("claimedAt") LocalDateTime claimedAt);
 
     // 실패 마킹 (+ backoff)
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE outbox_event_record
             SET status = 'FAILED',
@@ -107,7 +107,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
             @Param("lastError") String lastError
     );
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             UPDATE outbox_event_record
             SET status = 'DEAD_LETTER',
@@ -121,7 +121,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
     int markDeadFromFailed(@Param("eventId") Long eventId,
                            @Param("reason") String reason);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
               UPDATE outbox_event_record
               SET status='PUBLISHED', worker_id=NULL, lease_until=NULL, picked_at=NULL
@@ -134,7 +134,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
                                @Param("workerId") String workerId,
                                @Param("claimedAt") LocalDateTime claimedAt);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
           UPDATE outbox_event_record
           SET status='FAILED', retry_count=retry_count+1,
@@ -150,7 +150,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
                             @Param("lastError") String lastError);
 
     // 퍼블리셔 선점용
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
       UPDATE outbox_event_record
       SET status='PUBLISHING',

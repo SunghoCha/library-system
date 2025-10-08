@@ -75,14 +75,19 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     })
     private OutboxRouting routing;
 
-    @Override
-    public boolean isNew() {
-        return getCreatedAt() == null;
-    }
+    @Transient
+    @Builder.Default
+    private boolean isNew = true;
 
     @Override
-    public Long getId() {
-        return id;
+    public boolean isNew() {
+        return this.isNew;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
     }
 
     @PrePersist

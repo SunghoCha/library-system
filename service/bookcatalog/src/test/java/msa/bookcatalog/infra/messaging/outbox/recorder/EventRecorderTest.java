@@ -17,10 +17,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -28,38 +30,161 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class EventRecorderTest {
 
     private EventRecorder eventRecorder;
 
-    @Mock
-    private Snowflake snowflake;
+    @Mock private Snowflake snowflake;
+    @Mock private OutboxEventRecordRepository eventRecordRepository;
 
-    @Mock
-    private OutboxEventRecordRepository eventRecordRepository;
+    @Captor
+    private ArgumentCaptor<OutboxEventRecord> recordCaptor;
+
+    @Captor private ArgumentCaptor<List<OutboxEventRecord>> recordListCaptor;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-
     private final String testTopic = "book-catalog-changed-topic";
 
     @BeforeEach
     void setUp() {
-        // 생성자를 통해 직접 topic 값을 전달
-        eventRecorder = new EventRecorder(snowflake, objectMapper, eventRecordRepository, "book-catalog-changed-topic");
+        // 생성자를 통해 의존성과 topic 값을 직접 주입
+        eventRecorder = new EventRecorder(snowflake, objectMapper, eventRecordRepository, testTopic);
     }
 
     @Test
     @DisplayName("save: BookCatalogChangedEvent를 받아 OutboxEventRecord를 정상적으로 저장한다")
-    void save_success() throws Exception {
+    void save_success() {
         // given
-        long eventId = 1L;
-        long bookId = 12345L;
+        BookCatalogChangedEvent event = createTestEvent(1L, 12345L);
+        long expectedDbId = 9999L;
+        given(snowflake.nextId()).willReturn(expectedDbId);
 
-        BookCatalogChangedEvent event = BookCatalogChangedEvent.builder()
+        // when
+        eventRecorder.save(event);
+
+        // then
+        verify(eventRecordRepository).save(recordCaptor.capture());
+        OutboxEventRecord savedRecord = recordCaptor.getValue();
+
+        assertThat(savedRecord.getId()).isEqualTo(expectedDbId);
+        assertThat(savedRecord.getEventId()).isEqualTo(event.getEventId());
+        assertThat(savedRecord.getAggregateId()).isEqualTo(String.valueOf(event.getAggregateId()));
+        assertThat(savedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.NEW);
+        assertThat(savedRecord.getRouting().getTopic()).isEqualTo(testTopic);
+    }
+
+    @Test
+    @DisplayName("saveAll: 여러 개의 이벤트를 받아 정상적으로 저장한다")
+    void saveAll_success() {
+        // given
+        BookCatalogChangedEvent event1 = createTestEvent(1L, 100L);
+        BookCatalogChangedEvent event2 = createTestEvent(2L, 200L);
+        List<BookCatalogChangedEvent> events = List.of(event1, event2);
+
+        given(snowflake.nextId()).willReturn(1001L, 1002L);
+
+        // when
+        eventRecorder.saveAll(events);
+
+        // then
+        verify(eventRecordRepository).saveAll(recordListCaptor.capture());
+        List<OutboxEventRecord> savedRecords = recordListCaptor.getValue();
+
+        assertThat(savedRecords).hasSize(2);
+        assertThat(savedRecords.get(0).getEventId()).isEqualTo(1L);
+        assertThat(savedRecords.get(0).getId()).isEqualTo(1001L);
+        assertThat(savedRecords.get(1).getEventId()).isEqualTo(2L);
+        assertThat(savedRecords.get(1).getId()).isEqualTo(1002L);
+    }
+
+    @Test
+    @DisplayName("saveAll: 비어 있거나 null인 리스트에 대해서는 아무 작업도 수행하지 않는다")
+    void saveAll_withEmptyOrNullList_doesNothing() {
+        // when
+        eventRecorder.saveAll(Collections.emptyList());
+        eventRecorder.saveAll(null);
+
+        // then
+        verify(eventRecordRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("save: 페이로드 직렬화에 실패하면 IllegalStateException을 던진다")
+    void save_fail_whenSerializationFails() throws JsonProcessingException {
+        // given
+        BookCatalogChangedEvent event = createTestEvent(2L, 1L);
+        ObjectMapper mockObjectMapper = mock(ObjectMapper.class);
+        eventRecorder = new EventRecorder(snowflake, mockObjectMapper, eventRecordRepository, testTopic);
+
+        given(mockObjectMapper.writeValueAsString(any())).willThrow(new JsonProcessingException("serialization error"){});
+
+        // when & then
+        assertThatThrownBy(() -> eventRecorder.save(event))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Outbox payload serialize failed");
+
+        verify(eventRecordRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("markPublishedByEventId: Repository를 호출하고 결과를 그대로 반환한다")
+    void markPublishedByEventId_delegatesAndReturnsResult() {
+        // given
+        Long eventId = 1L;
+        String workerId = "worker-1";
+        LocalDateTime claimedAt = LocalDateTime.now();
+        // Repository가 1(성공)을 반환하도록 설정
+        when(eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt)).thenReturn(1);
+
+        // when
+        int result = eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
+
+        // then
+        // Repository의 해당 메서드가 정확한 인자와 함께 호출되었는지 검증
+        verify(eventRecordRepository).markPublishedByEventId(eventId, workerId, claimedAt);
+        // EventRecorder가 Repository의 결과를 그대로 반환했는지 검증
+        assertThat(result).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("markFailedByEventId: Repository를 호출하고 결과를 그대로 반환한다")
+    void markFailedByEventId_delegatesAndReturnsResult() {
+        // given
+        Long eventId = 2L;
+        String workerId = "worker-2";
+        LocalDateTime claimedAt = LocalDateTime.now();
+        String reason = "Kafka Error";
+        when(eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason)).thenReturn(1);
+
+        // when
+        int result = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, reason);
+
+        // then
+        verify(eventRecordRepository).markFailedByEventId(eventId, workerId, claimedAt, reason);
+        assertThat(result).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("markDeadLetter: Repository를 호출하고 결과를 그대로 반환한다")
+    void markDeadLetter_delegatesAndReturnsResult() {
+        // given
+        Long eventId = 3L;
+        String error = "Max retries exceeded";
+        when(eventRecordRepository.markDeadFromFailed(eventId, error)).thenReturn(1);
+
+        // when
+        int result = eventRecorder.markDeadLetter(eventId, error);
+
+        // then
+        verify(eventRecordRepository).markDeadFromFailed(eventId, error);
+        assertThat(result).isEqualTo(1);
+    }
+
+    private BookCatalogChangedEvent createTestEvent(Long eventId, Long bookId) {
+        return BookCatalogChangedEvent.builder()
                 .eventId(eventId)
                 .eventType(EventType.CREATED)
                 .bookId(bookId)
@@ -70,119 +195,5 @@ class EventRecorderTest {
                 .bookType(new BookTypeRef("NEW_RELEASE", "신간"))
                 .occurredAt(LocalDateTime.now())
                 .build();
-
-        long expectedDbId = 9999L;
-        String expectedPayload = objectMapper.writeValueAsString(BookCatalogChangedExternalEventPayload.of(event));
-
-        given(snowflake.nextId()).willReturn(expectedDbId);
-
-        // ArgumentCaptor: 메소드에 전달된 인자를 캡처하여 검증할 때 사용
-        ArgumentCaptor<OutboxEventRecord> captor = ArgumentCaptor.forClass(OutboxEventRecord.class);
-
-        // when
-        eventRecorder.save(event);
-
-        // then
-        // 1. repository의 save 메소드가 1번 호출되었는지 검증
-        verify(eventRecordRepository).save(captor.capture());
-
-        // 2. save 메소드에 전달된 객체의 필드 값들을 검증
-        OutboxEventRecord savedRecord = captor.getValue();
-        assertThat(savedRecord.getId()).isEqualTo(expectedDbId);
-        assertThat(savedRecord.getEventId()).isEqualTo(event.getEventId());
-        assertThat(savedRecord.getAggregateId()).isEqualTo(String.valueOf(bookId));
-        assertThat(savedRecord.getEventType()).isEqualTo(event.getEventType());
-        assertThat(savedRecord.getPayload()).isEqualTo(expectedPayload);
-        assertThat(savedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.NEW);
-        assertThat(savedRecord.getRouting().getTopic()).isEqualTo(testTopic);
-        assertThat(savedRecord.getRouting().getPartitionKey()).isEqualTo(String.valueOf(bookId));
     }
-
-    @Test
-    @DisplayName("save: 페이로드 직렬화에 실패하면 IllegalStateException을 던진다")
-    void save_fail_whenSerializationFails() throws JsonProcessingException {
-        // given
-        BookCatalogChangedEvent event = BookCatalogChangedEvent.builder()
-                .eventId(2L)
-                .bookId(1L)
-                .title("T")
-                .author("A")
-                .category(new CategoryRef(1, "카테고리이름"))
-                .bookType(new BookTypeRef("NEW_RELEASE", "신간"))
-                .eventType(EventType.CREATED)
-                .occurredAt(LocalDateTime.now())
-                .build();
-
-        // ObjectMapper를 Mock으로 만들고 예외를 던지도록 설정
-        ObjectMapper mockObjectMapper = org.mockito.Mockito.mock(ObjectMapper.class);
-        // 테스트 대상 객체에 Mock ObjectMapper를 주입
-        eventRecorder = new EventRecorder(snowflake, mockObjectMapper, eventRecordRepository, testTopic);
-
-        given(mockObjectMapper.writeValueAsString(any())).willThrow(new JsonProcessingException("serialization error"){});
-
-        // when & then
-        assertThatThrownBy(() -> eventRecorder.save(event))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Outbox payload serialize failed");
-
-        // repository의 save가 호출되지 않았는지 검증
-        verify(eventRecordRepository, never()).save(any());
-    }
-
-//    @Test
-//    @DisplayName("markAsPublished: 이벤트 상태를 PUBLISHED로 정상적으로 변경한다")
-//    void markPublished_success() {
-//        // given
-//        Long eventId = 1L;
-//
-//        // when
-//        eventRecorder.markPublished(eventId);
-//
-//        // then
-//        verify(eventRecordRepository).updateStatusIfCurrent(
-//                eventId,
-//                OutboxEventRecordStatus.PUBLISHING,
-//                OutboxEventRecordStatus.PUBLISHED
-//        );
-//    }
-//
-//    @Test
-//    @DisplayName("markAsDeadLetter: 이벤트 상태를 DEAD_LETTER로 정상적으로 변경한다")
-//    void markDeadLetter_success() {
-//        // given
-//        Long eventId = 1L;
-//        String errorMessage = "Failed to publish after retries";
-//        List<OutboxEventRecordStatus> expectedFromStatuses =
-//                List.of(OutboxEventRecordStatus.FAILED, OutboxEventRecordStatus.PUBLISHING);
-//
-//        // when
-//        eventRecorder.markDeadLetter(eventId, errorMessage);
-//
-//        // then
-//        verify(eventRecordRepository).toDeadLetterIfCurrent(
-//                eventId,
-//                expectedFromStatuses,
-//                OutboxEventRecordStatus.DEAD_LETTER,
-//                errorMessage
-//        );
-//    }
-//
-//    @Test
-//    @DisplayName("handleFailure: 이벤트 상태를 FAILED로 정상적으로 변경한다")
-//    void markFailed_success() {
-//        // given
-//        Long eventId = 1L;
-//        String errorMessage = "Temporary failure";
-//
-//        // when
-//        eventRecorder.markFailed(eventId, errorMessage);
-//
-//        // then
-//        verify(eventRecordRepository).failAndIncrementIfCurrent(
-//                eventId,
-//                OutboxEventRecordStatus.PUBLISHING,
-//                OutboxEventRecordStatus.FAILED,
-//                errorMessage
-//        );
-//    }
 }

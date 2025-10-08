@@ -1,12 +1,18 @@
 package msa.bookcatalog.infra.messaging.outbox.scheduler;
 
+import msa.bookcatalog.infra.messaging.outbox.config.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.infra.messaging.outbox.recorder.EventRecorder;
+import msa.bookcatalog.infra.messaging.outbox.repository.OutboxEventRecordRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
@@ -18,58 +24,115 @@ class OutboxRelayProcessorTest {
     private OutboxRelayProcessor outboxRelayProcessor;
 
     @Mock
+    private OutboxEventRecordRepository outboxEventRecordRepository;
+
+    @Mock
     private EventRecorder eventRecorder;
 
-//    @Test
-//    @DisplayName("발행 성공 시 (예외가 null일 때), markAsPublished를 호출한다")
-//    void updateStatusAfterProcessing_whenSuccess_callsMarkAsPublished() {
-//        // given
-//        long eventId = 123L;
-//
-//        // when
-//        outboxRelayProcessor.updateStatusAfterProcessing(eventId, null);
-//
-//        // then
-//        // 1. markAsPublished가 정확한 eventId로 1번 호출되었는지 검증
-//        verify(eventRecorder).markPublished(eventId);
-//
-//        // 2. handleFailure는 절대 호출되지 않았는지 검증
-//        verify(eventRecorder, never()).markFailed(anyLong(), anyString());
-//    }
-//
-//    @Test
-//    @DisplayName("발행 실패 시 (예외가 있을 때), handleFailure를 호출한다")
-//    void updateStatusAfterProcessing_whenFailure_callsHandleFailure() {
-//        // given
-//        long eventId = 456L;
-//        RuntimeException exception = new RuntimeException("Test Kafka Exception");
-//
-//        // when
-//        outboxRelayProcessor.updateStatusAfterProcessing(eventId, exception);
-//
-//        // then
-//        // 1. handleFailure가 정확한 eventId와 에러 메시지로 1번 호출되었는지 검증
-//        verify(eventRecorder).markFailed(eventId, exception.getMessage());
-//
-//        // 2. markAsPublished는 절대 호출되지 않았는지 검증
-//        verify(eventRecorder, never()).markPublished(anyLong());
-//    }
-//
-//    @Test
-//    @DisplayName("상태 업데이트 중 예외 발생 시, 에러를 로깅하고 예외를 전파하지 않는다")
-//    void updateStatusAfterProcessing_whenInternalError_doesNotThrow() {
-//        // given
-//        long eventId = 789L;
-//        // Mock 설정: eventRecorder.markAsPublished가 호출되면 예외를 던지도록 설정
-//        doThrow(new RuntimeException("DB is down")).when(eventRecorder).markPublished(eventId);
-//
-//        // when & then
-//        // 메서드 실행 시, 내부의 try-catch 블록이 예외를 처리하여 밖으로 전파하지 않는지 검증
-//        assertDoesNotThrow(() -> {
-//            outboxRelayProcessor.updateStatusAfterProcessing(eventId, null);
-//        });
-//
-//        // 예외가 발생했더라도, markAsPublished 호출 시도 자체는 있었는지 검증
-//        verify(eventRecorder).markPublished(eventId);
-//    }
+    @Mock
+    private OutboxSchedulerProperties props;
+
+    @Test
+    @DisplayName("성공 시나리오: 예외(ex)가 null이면 이벤트를 'PUBLISHED'로 마킹한다")
+    void updateStatusAfterProcessing_success() {
+        // given
+        Long eventId = 1L;
+        String workerId = "worker-1";
+        LocalDateTime claimedAt = LocalDateTime.now();
+
+        // when
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, null);
+
+        // then
+        // markPublishedByEventId가 정확한 인자와 함께 한 번 호출되었는지 검증
+        verify(eventRecorder).markPublishedByEventId(eventId, workerId, claimedAt);
+        // 다른 의존성은 전혀 호출되지 않았는지 검증
+        verifyNoInteractions(outboxEventRecordRepository, props);
+    }
+
+    @Test
+    @DisplayName("실패 시나리오: 재시도 횟수가 최대치 미만이면 'FAILED'로만 마킹한다")
+    void updateStatusAfterProcessing_failure_underMaxRetry() {
+        // given
+        Long eventId = 2L;
+        String workerId = "worker-1";
+        LocalDateTime claimedAt = LocalDateTime.now();
+        RuntimeException exception = new RuntimeException("Kafka Error");
+
+        // 현재 재시도 횟수가 1인 레코드를 반환하도록 설정
+        OutboxEventRecord record = createTestRecord(eventId, 1);
+        when(outboxEventRecordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+
+        // 최대 재시도 횟수를 3으로 설정
+        when(props.maxRetryCount()).thenReturn(3);
+        // markFailedByEventId 호출 시 1(성공)을 반환하도록 설정
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1);
+
+        // when
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);
+
+        // then
+        // FAILED 마킹은 호출되었는지 검증
+        verify(eventRecorder).markFailedByEventId(eventId, workerId, claimedAt, exception.toString());
+        // DEAD LETTER 마킹은 호출되지 않았는지 검증
+        verify(eventRecorder, never()).markDeadLetter(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("실패 시나리오: 재시도 횟수가 최대치에 도달하면 'FAILED' 후 'DEAD_LETTER'로 마킹한다")
+    void updateStatusAfterProcessing_failure_reachesMaxRetry() {
+        // given
+        Long eventId = 3L;
+        String workerId = "worker-1";
+        LocalDateTime claimedAt = LocalDateTime.now();
+        RuntimeException exception = new RuntimeException("Kafka Error");
+
+        // 현재 재시도 횟수가 2인 레코드를 반환 (다음 시도는 3번째가 됨)
+        OutboxEventRecord record = createTestRecord(eventId, 2);
+        when(outboxEventRecordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+
+        // 최대 재시도 횟수를 3으로 설정
+        when(props.maxRetryCount()).thenReturn(3);
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1);
+
+        // when
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);
+
+        // then
+        // FAILED 마킹이 먼저 호출되었는지 검증
+        verify(eventRecorder).markFailedByEventId(eventId, workerId, claimedAt, exception.toString());
+        // 그 후 DEAD LETTER 마킹도 호출되었는지 검증
+        verify(eventRecorder).markDeadLetter(eq(eventId), anyString());
+    }
+
+    @Test
+    @DisplayName("실패 엣지 케이스: 재시도 횟수가 최대치에 도달해도 FAILED 업데이트가 실패하면 DEAD_LETTER로 마킹하지 않는다")
+    void updateStatusAfterProcessing_failure_reachesMaxRetryButUpdateFails() {
+        // given
+        Long eventId = 4L;
+        String workerId = "worker-1";
+        LocalDateTime claimedAt = LocalDateTime.now();
+        RuntimeException exception = new RuntimeException("Kafka Error");
+
+        OutboxEventRecord record = createTestRecord(eventId, 2);
+        when(outboxEventRecordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+        //when(props.maxRetryCount()).thenReturn(3);
+        // FAILED 마킹 시 0(실패)을 반환하도록 설정
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(0);
+
+        // when
+        outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);
+
+        // then
+        verify(eventRecorder).markFailedByEventId(eventId, workerId, claimedAt, exception.toString());
+        // FAILED 업데이트가 실패했으므로(updated > 0 조건 false), DEAD LETTER는 호출되지 않아야 함
+        verify(eventRecorder, never()).markDeadLetter(anyLong(), anyString());
+    }
+
+    private OutboxEventRecord createTestRecord(Long eventId, int retryCount) {
+        return OutboxEventRecord.builder()
+                .eventId(eventId)
+                .retryCount(retryCount)
+                .build();
+    }
 }

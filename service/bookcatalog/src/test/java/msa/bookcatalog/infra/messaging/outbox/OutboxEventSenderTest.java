@@ -89,6 +89,54 @@ class OutboxEventSenderTest {
         verify(outboxRelayProcessor).updateStatusAfterProcessing(eq(eventId), eq(TEST_WORKER_ID), any(LocalDateTime.class), isNull());
     }
 
+    @Test
+    @DisplayName("send(): 선점 실패 시, Kafka 발행 없이 조용히 종료된다")
+    void send_claimFailed() {
+        // given
+        long eventId = 2L;
+        BookCatalogChangedEvent event = createTestEvent(eventId);
+        OutboxEventRecord record = createTestRecord(eventId, true);
+
+        when(outboxRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+        when(identity.workerId()).thenReturn(TEST_WORKER_ID);
+        // 선점 실패 (false 반환)
+        when(claimer.tryClaim(anyLong(), anyString(), any(LocalDateTime.class), anyInt())).thenReturn(false);
+
+        // when
+        outboxEventSender.send(event);
+
+        // then
+        // 선점 시도는 했지만, Kafka 발행은 절대 호출되지 않아야 함
+        verify(claimer).tryClaim(anyLong(), anyString(), any(LocalDateTime.class), anyInt());
+        verify(kafkaTemplate, never()).send(anyString(), anyString(), anyString());
+        verify(outboxRelayProcessor, never()).updateStatusAfterProcessing(anyLong(), anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("send(): Outbox 레코드를 찾지 못하면 예외를 던진다")
+    void send_recordNotFound() {
+        // given
+        when(outboxRepository.findByEventId(anyLong())).thenReturn(Optional.empty());
+
+        // when & then
+        assertThrows(OutboxEventRecordNotFoundException.class, () -> {
+            outboxEventSender.send(createTestEvent(99L));
+        });
+    }
+
+    @Test
+    @DisplayName("send(): 레코드의 Routing 정보가 null이면 예외를 던진다")
+    void send_routingIsNull() {
+        // given
+        OutboxEventRecord recordWithNullRouting = createTestRecord(3L, false);
+        when(outboxRepository.findByEventId(3L)).thenReturn(Optional.of(recordWithNullRouting));
+
+        // when & then
+        assertThrows(IllegalStateException.class, () -> {
+            outboxEventSender.send(createTestEvent(3L));
+        });
+    }
+
     private BookCatalogChangedEvent createTestEvent(Long eventId) {
         return BookCatalogChangedEvent.builder().eventId(eventId).bookId(eventId).build();
     }

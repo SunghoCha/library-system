@@ -1,5 +1,6 @@
 package msa.bookcatalog.infra.messaging.outbox.repository;
 
+import jakarta.persistence.EntityManager;
 import msa.bookcatalog.config.QueryDslConfig;
 import msa.bookcatalog.infra.messaging.outbox.OutboxEventSender;
 import msa.bookcatalog.infra.messaging.outbox.entity.OutboxEventRecord;
@@ -21,6 +22,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,8 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DataJpaTest(properties = {
         "app.aladin.enabled=false",
-        "app.scheduling.enabled=false"
+        "app.scheduling.enabled=false",
 })
+@ActiveProfiles("test")
 class OutboxEventRecordRepositoryTest {
 
     @TestConfiguration
@@ -58,6 +61,9 @@ class OutboxEventRecordRepositoryTest {
     @Autowired
     private OutboxEventRecordRepository outboxRepository;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @BeforeEach
     void setUp() {
         outboxRepository.deleteAll();
@@ -71,20 +77,20 @@ class OutboxEventRecordRepositoryTest {
         int maxRetry = 3;
 
         // 1. 발행 대상: NEW 상태이고 grace time이 지난 이벤트
-        OutboxEventRecord newEvent = createRecord(1L, OutboxEventRecordStatus.NEW, 0, now.minusMinutes(10));
+        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, now.minusMinutes(10));
         // 2. 발행 대상: FAILED 상태이고 재시도 횟수가 남은 이벤트
-        OutboxEventRecord failedEvent = createRecord(2L, OutboxEventRecordStatus.FAILED, maxRetry - 1, now.minusMinutes(9));
+        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, maxRetry - 1, now.minusMinutes(9));
         // 3. 발행 대상: PUBLISHING 상태이고 lease가 만료된 이벤트
-        OutboxEventRecord staleEvent = createPublishingRecord(3L, "stale-worker", now.minusMinutes(5), now.minusMinutes(1));
+        OutboxEventRecord staleEvent = createPublishingRecord(300L,3L, "stale-worker", now.minusMinutes(5), now.minusMinutes(1));
 
         // 4. 발행 제외 대상: NEW 상태이지만 grace time이 지나지 않음
-        OutboxEventRecord tooNewEvent = createRecord(4L, OutboxEventRecordStatus.NEW, 0, now);
+        OutboxEventRecord tooNewEvent = createRecord(400L,4L, OutboxEventRecordStatus.NEW, 0, now);
         // 5. 발행 제외 대상: FAILED 상태이지만 재시도 횟수 초과
-        OutboxEventRecord maxRetryEvent = createRecord(5L, OutboxEventRecordStatus.FAILED, maxRetry, now.minusMinutes(8));
+        OutboxEventRecord maxRetryEvent = createRecord(500L,5L, OutboxEventRecordStatus.FAILED, maxRetry, now.minusMinutes(8));
         // 6. 발행 제외 대상: PUBLISHING 상태이고 lease가 유효함
-        OutboxEventRecord lockedEvent = createPublishingRecord(6L, "active-worker", now, now.plusMinutes(5));
+        OutboxEventRecord lockedEvent = createPublishingRecord(600L,6L, "active-worker", now, now.plusMinutes(5));
         // 7. 발행 제외 대상: 이미 성공한 이벤트
-        OutboxEventRecord publishedEvent = createRecord(7L, OutboxEventRecordStatus.PUBLISHED, 0, now.minusMinutes(7));
+        OutboxEventRecord publishedEvent = createRecord(700L,7L, OutboxEventRecordStatus.PUBLISHED, 0, now.minusMinutes(7));
 
         outboxRepository.saveAll(List.of(newEvent, failedEvent, staleEvent, tooNewEvent, maxRetryEvent, lockedEvent, publishedEvent));
 
@@ -107,8 +113,8 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("markPublishing: 여러 ID의 상태를 PUBLISHING으로 업데이트한다")
     void markPublishing_shouldUpdateStatusToPublishing() {
         // given
-        OutboxEventRecord newEvent = createRecord(1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
-        OutboxEventRecord failedEvent = createRecord(2L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
         outboxRepository.saveAll(List.of(newEvent, failedEvent));
 
         String workerId = "test-worker";
@@ -134,7 +140,7 @@ class OutboxEventRecordRepositoryTest {
         // given
         String workerId = "test-worker";
         LocalDateTime claimedAt = LocalDateTime.now();
-        OutboxEventRecord publishingEvent = createPublishingRecord(1L, workerId, claimedAt, claimedAt.plusSeconds(60));
+        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
         outboxRepository.save(publishingEvent);
 
         // when
@@ -155,7 +161,7 @@ class OutboxEventRecordRepositoryTest {
         // given
         String workerId = "test-worker";
         LocalDateTime claimedAt = LocalDateTime.now();
-        OutboxEventRecord publishingEvent = createPublishingRecord(1L, workerId, claimedAt, claimedAt.plusSeconds(60));
+        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
         outboxRepository.save(publishingEvent);
         int initialRetryCount = publishingEvent.getRetryCount();
 
@@ -178,7 +184,7 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("markDeadFromFailed: FAILED 상태의 이벤트를 DEAD_LETTER로 업데이트한다")
     void markDeadFromFailed_shouldUpdateStatusToDeadLetter() {
         // given
-        OutboxEventRecord failedEvent = createRecord(1L, OutboxEventRecordStatus.FAILED, 3, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 3, LocalDateTime.now());
         outboxRepository.save(failedEvent);
 
         // when
@@ -196,7 +202,7 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태의 이벤트를 선점하여 PUBLISHING으로 변경한다")
     void tryClaimFromNew_shouldClaimNewEvent() {
         // given
-        OutboxEventRecord newEvent = createRecord(1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L, 1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
         outboxRepository.save(newEvent);
 
         String workerId = "claim-worker";
@@ -217,7 +223,7 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태가 아닌 이벤트는 선점할 수 없다")
     void tryClaimFromNew_shouldNotClaimNonNewEvent() {
         // given
-        OutboxEventRecord failedEvent = createRecord(1L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
         outboxRepository.save(failedEvent);
 
         // when
@@ -230,8 +236,9 @@ class OutboxEventRecordRepositoryTest {
     }
 
 
-    private OutboxEventRecord createRecord(Long eventId, OutboxEventRecordStatus status, int retryCount, LocalDateTime occurredAt) {
+    private OutboxEventRecord createRecord(Long id, Long eventId, OutboxEventRecordStatus status, int retryCount, LocalDateTime occurredAt) {
         return OutboxEventRecord.builder()
+                .id(id)
                 .eventId(eventId)
                 .eventType(EventType.CREATED)
                 .aggregateId("agg-id-" + eventId)
@@ -245,8 +252,8 @@ class OutboxEventRecordRepositoryTest {
                 .build();
     }
 
-    private OutboxEventRecord createPublishingRecord(Long eventId, String workerId, LocalDateTime pickedAt, LocalDateTime leaseUntil) {
-        OutboxEventRecord record = createRecord(eventId, OutboxEventRecordStatus.PUBLISHING, 0, pickedAt.minusSeconds(10));
+    private OutboxEventRecord createPublishingRecord(Long id, Long eventId, String workerId, LocalDateTime pickedAt, LocalDateTime leaseUntil) {
+        OutboxEventRecord record = createRecord(id, eventId, OutboxEventRecordStatus.PUBLISHING, 0, pickedAt.minusSeconds(10));
         record.setWorkerId(workerId);
         record.setPickedAt(pickedAt);
         record.setLeaseUntil(leaseUntil);
