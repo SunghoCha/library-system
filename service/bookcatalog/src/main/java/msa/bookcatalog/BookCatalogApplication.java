@@ -1,13 +1,11 @@
 package msa.bookcatalog;
 
-import msa.bookcatalog.config.InfraModulesConfig;
+import msa.bookcatalog.infra.config.InfraModulesConfig;
 import msa.common.config.CommonModuleConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 
 @SpringBootApplication

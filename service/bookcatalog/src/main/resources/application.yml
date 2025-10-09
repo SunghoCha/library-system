@@ -42,7 +42,7 @@ management:
 
 logging:
   level:
-    msa.bookcatalog.infra.aladin.AladinClient: DEBUG
+    msa.bookcatalog.infra.aladin.msa.bookcatalog.adapter.out.client.aladin.AladinClient: DEBUG
 
 
 # 커스텀 설정

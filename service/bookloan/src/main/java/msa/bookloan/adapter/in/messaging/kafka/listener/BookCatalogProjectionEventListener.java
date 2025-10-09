@@ -3,8 +3,10 @@ package msa.bookloan.adapter.in.messaging.kafka.listener;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import msa.bookloan.adapter.in.messaging.kafka.util.InboxSourceResolver;
 import msa.bookloan.adapter.in.messaging.kafka.util.validator.EventPayloadValidator;
 import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
+import msa.common.domain.model.InboxSource;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
 import msa.common.exception.FailureCategory;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -23,6 +25,7 @@ public class BookCatalogProjectionEventListener {
     private final ApplicationEventPublisher eventPublisher;
     private final InboxAppender inboxAppender;
     private final EventPayloadValidator payloadValidator;
+    private final InboxSourceResolver inboxSourceResolver;
 
     @Transactional
     @KafkaListener(
@@ -34,12 +37,14 @@ public class BookCatalogProjectionEventListener {
         log.debug("카프카 레코드 수신: topic={}, partition={}, offset={}",
                 record.topic(), record.partition(), record.offset());
 
+        InboxSource source = inboxSourceResolver.resolveFromTopic(record.topic());
+
         BookCatalogChangedExternalEventPayload payload = record.value();
 
         if (payload == null) {
             log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
                     record.topic(), record.partition(), record.offset());
-            inboxAppender.saveDeadLetter(record, FailureCategory.VALIDATION_FAIL);
+            inboxAppender.saveDeadLetter(record, source, FailureCategory.VALIDATION_FAIL);
             return;
         }
 
@@ -48,11 +53,11 @@ public class BookCatalogProjectionEventListener {
         } catch (ConstraintViolationException ex) {
             log.info("페이로드 검증 실패: {} [eventId={}, topic={}, partition={}, offset={}]",
                     summarize(ex), payload.getEventId(), record.topic(), record.partition(), record.offset());
-            inboxAppender.saveDeadLetter(record, FailureCategory.VALIDATION_FAIL);
+            inboxAppender.saveDeadLetter(record, source, FailureCategory.VALIDATION_FAIL);
             return;
         }
 
-        boolean isNew = inboxAppender.saveOrBumpEventRecord(record);
+        boolean isNew = inboxAppender.saveOrBumpEventRecord(record, source);
         if (isNew) {
             log.info("도메인 이벤트 발행: eventId={}, type={}, version={}",
                     payload.getEventId(), payload.getEventType(), payload.getAggregateVersion());

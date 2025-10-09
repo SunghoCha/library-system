@@ -25,7 +25,6 @@ import static org.springframework.kafka.listener.ContainerProperties.AckMode;
 
 @Configuration
 @ConditionalOnClass(KafkaTemplate.class)
-@ConditionalOnProperty(prefix = "spring.kafka", name = "bootstrap-servers")
 public class KafkaConsumerConfig {
 
     @Bean
@@ -41,10 +40,6 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-
-        // 타입 고정 역직렬화 → trustedPackages 필요 없음
-        // (아래 실제 Deserializer 인스턴스에서도 타입 고정)
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "msa.common.events");
 
         return new DefaultKafkaConsumerFactory<>(
                 props,

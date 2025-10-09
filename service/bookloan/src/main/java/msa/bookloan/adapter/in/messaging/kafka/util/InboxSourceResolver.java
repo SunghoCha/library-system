@@ -1,6 +1,6 @@
 package msa.bookloan.adapter.in.messaging.kafka.util;
 
-import msa.bookloan.adapter.out.persistence.inbox.entity.InboxSource;
+import msa.common.domain.model.InboxSource;
 import org.springframework.stereotype.Component;
 
 @Component

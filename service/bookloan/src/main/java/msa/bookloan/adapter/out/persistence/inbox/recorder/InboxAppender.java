@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
+import msa.common.domain.model.InboxSource;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
@@ -98,8 +99,9 @@ public class InboxAppender {
                 .build();
     }
 
+    public boolean saveOrBumpEventRecord(
+            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record, InboxSource source) {
 
-    public boolean saveOrBumpEventRecord(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record) {
         BookCatalogChangedExternalEventPayload payload = record.value();
         long eventId = toLong(payload.getEventId());
         String eventType = payload.getEventType().name();
@@ -110,7 +112,7 @@ public class InboxAppender {
         } catch (JsonProcessingException e) {
             log.info("Inbox serialize fail: eventId={} topic={} partition={} offset={} error={}",
                     eventId, record.topic(), record.partition(), record.offset(), e.getMessage());
-            saveDeadLetter(record, FailureCategory.SERIALIZE_FAIL);
+            saveDeadLetter(record, source, FailureCategory.SERIALIZE_FAIL);
             return false;
         }
 
@@ -121,6 +123,7 @@ public class InboxAppender {
                 toLong(payload.getAggregateVersion()),
                 eventType,
                 serializedPayload,
+                source.name(),
                 record.topic(),
                 record.partition(),
                 record.offset()
@@ -131,7 +134,10 @@ public class InboxAppender {
         return isNew;
     }
 
-    private static void logInsertOrDuplicated(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record, boolean isNew, long eventId, String eventType) {
+    private static void logInsertOrDuplicated(
+            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record,
+            boolean isNew, long eventId, String eventType) {
+
         if (isNew) {
             log.debug("Inbox INSERT: eventId={} type={} topic={} partition={} offset={}",
                     eventId, eventType, record.topic(), record.partition(), record.offset());
@@ -141,7 +147,10 @@ public class InboxAppender {
         }
     }
 
-    public void saveDeadLetter(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record, FailureCategory failureCategory) {
+    public void saveDeadLetter(
+            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record,
+            InboxSource source, FailureCategory failureCategory) {
+
         BookCatalogChangedExternalEventPayload payload = record.value();
 
         long eventId = -1L;
@@ -171,6 +180,7 @@ public class InboxAppender {
                 Long.parseLong(payload.getAggregateId()),
                 Long.parseLong(payload.getAggregateVersion()),
                 eventType,
+                source.name(),
                 record.topic(),
                 record.partition(),
                 record.offset(),

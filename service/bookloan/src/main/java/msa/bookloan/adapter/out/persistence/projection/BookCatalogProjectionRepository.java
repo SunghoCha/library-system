@@ -1,5 +1,6 @@
 package msa.bookloan.adapter.out.persistence.projection;
 
+import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

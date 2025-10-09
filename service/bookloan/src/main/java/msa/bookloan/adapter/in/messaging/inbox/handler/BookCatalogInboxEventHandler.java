@@ -20,6 +20,7 @@ public class BookCatalogInboxEventHandler {
     private final BookCatalogProjectionProcessor bookCatalogProjectionProcessor;
     private final InboxAppender inboxAppender;
 
+    // TODO : adaptor in -> out으로 가는 구조라 나중에 여유되면 리팩토링...
     @Async("inboxExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
