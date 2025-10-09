@@ -3,10 +3,10 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:13306/appdb?useSSL=false...
-
-    #username: ${MYSQL_INVENTORY_USER}
-    #password: ${MYSQL_INVENTORY_PASSWORD}
+    url: jdbc:mysql://localhost:13308/inventorydb?sslMode=DISABLED&rewriteBatchedStatements=true&serverTimezone=Asia/Seoul
+    username: ${MYSQL_INVENTORY_USER}
+    password: ${MYSQL_INVENTORY_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   flyway:
     enabled: false

@@ -1,11 +1,11 @@
 server:
-  port: 9003
+  port: 9004
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:13309/memberdb?sslMode=DISABLED&rewriteBatchedStatements=true&serverTimezone=Asia/Seoul
-    username: ${MYSQL_MEMBER_USER}
-    password: ${MYSQL_MEMBER_PASSWORD}
+    url: jdbc:mysql://localhost:13305/paymentdb?sslMode=DISABLED&rewriteBatchedStatements=true&serverTimezone=Asia/Seoul
+    username: ${MYSQL_PAYMENT_USER}
+    password: ${MYSQL_PAYMENT_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: false

@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    # jdbc:tc:mysql:<버전>///<DB이름> 형식
+    url: jdbc:tc:mysql:8.4:///testdb
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  test:
+    database:
+      replace: NONE
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+

@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: inventory-service
+    name: payment-service
   
   profiles:
     active: local
@@ -28,10 +28,10 @@ spring:
 
 
 # 커스텀 설정
-app:
-  kafka:
-    topics:
-      catalog-changed-topic: book-catalog-changed
-    groups:
-      catalog-replica-group: bookloan-category-changed-replica
+#app:
+#  kafka:
+#    topics:
+#      catalog-changed-topic:
+#    groups:
+#      catalog-replica-group:
 
