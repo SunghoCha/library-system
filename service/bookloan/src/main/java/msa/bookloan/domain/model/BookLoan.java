@@ -23,6 +23,10 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 24, nullable = false)
+    private LoanProcessStatus processStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24) // NULL 허용 (LOANED 때 채움)
     private LoanStatus loanStatus;
 
     @Column(nullable = false)
@@ -39,15 +43,34 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
 
     @Builder
     public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,
-                    LocalDate dueDate, LocalDate returnDate) {
+                    LoanProcessStatus processStatus, LocalDate dueDate, LocalDate returnDate) {
         this.id = id;
         this.memberId = memberId;
         this.bookId = bookId;
         this.loanStatus = loanStatus;
+        this.processStatus = processStatus;
         this.loanDate = loanDate;
         this.dueDate = dueDate;
         this.returnDate = returnDate;
     }
+
+    public static BookLoan createNew(Long id, Long memberId, Long bookId) {
+        return BookLoan.builder()
+                .id(id)
+                .memberId(memberId)
+                .bookId(bookId)
+                .processStatus(LoanProcessStatus.RECEIVED)
+                .loanStatus(null)
+                .loanDate(null)
+                .dueDate(null)
+                .returnDate(null)
+                .build();
+    }
+
+
+
+
+    // Persistable 구현
 
     @Transient
     private boolean isNew = true;
@@ -67,4 +90,5 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
     void markNotNew() {
         this.isNew = false;
     }
+
 }

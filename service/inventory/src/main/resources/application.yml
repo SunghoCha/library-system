@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: book-inventory-service
+    name: inventory-service
   
   profiles:
     active: local

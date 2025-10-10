@@ -1,0 +1,148 @@
+package msa.bookcatalog.adapter.out.persistence.outbox;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
+import msa.common.events.bookcatalog.BookCatalogChangedEvent;
+import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
+import msa.common.events.outbox.OutboxRoutingResolver;
+import msa.common.events.outbox.dto.OutboxRouting;
+import msa.common.snowflake.Snowflake;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class EventRecorder {
+
+    private final Snowflake snowflake;
+    private final ObjectMapper objectMapper;
+    private final OutboxEventRecordRepository eventRecordRepository;
+    private final OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
+
+    @Transactional
+    public void save(BookCatalogChangedEvent event) {
+        OutboxEventRecord record = toRecord(event);
+        try {
+            eventRecordRepository.save(record);
+            log.debug("OutboxEventRecord 저장 완료 : eventId=[{}], dbId=[{}]", event.getEventId(), record.getId());
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.info("[Outbox] 중복 이벤트 스킵(eventId={})", event.getEventId());
+        }
+
+    }
+
+    @Transactional
+    public void saveAll(List<BookCatalogChangedEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+
+        Set<Long> eventIdsToSave = events.stream()
+                .map(BookCatalogChangedEvent::getEventId)
+                .collect(Collectors.toSet());
+
+        Set<Long> existingEventIds = eventRecordRepository.findExistingEventIdsByEventIdIn(eventIdsToSave);
+
+        List<OutboxEventRecord> newRecords = events.stream()
+                .filter(event -> !existingEventIds.contains(event.getEventId()))
+                .collect(Collectors.toSet()) // eventId로 이퀄스해시코드 구현해서 중복 제거
+                .stream()
+                .map(this::toRecord)
+                .toList();
+
+        if (newRecords.isEmpty()) {
+            log.info("[Outbox] 저장할 새로운 이벤트가 없습니다. (전체 {}건 중 중복 {}건)", events.size(), existingEventIds.size());
+            return;
+        }
+
+        eventRecordRepository.saveAll(newRecords); // 현재 단일 리더 스케줄러 저장방식이라 동시성 문제는 없을듯
+        log.debug("OutboxEventRecord {}건 저장 완료. (중복 {}건 스킵)", newRecords.size(), existingEventIds.size());
+    }
+
+    public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
+        String payload = serializeToPayload(event);
+
+        OutboxRouting routing = routingResolver.resolve(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+            throw new IllegalStateException("Routing is invalid: " + event);
+        }
+
+        return OutboxEventRecord.builder()
+                .id(snowflake.nextId())
+                .eventId(event.getEventId())
+                .eventType(event.getEventType())
+                .aggregateId(String.valueOf(event.getAggregateId()))
+                .aggregateType(event.getAggregateType())
+                .aggregateVersion(event.getAggregateVersion())
+                .payload(payload)
+                .occurredAt(event.getOccurredAt())
+                .outboxEventRecordStatus(NEW)
+                .routing(routing)
+                .build();
+    }
+
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
+        int updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+
+        if (updated == 0) {
+            log.info("[Outbox] 발행 처리 스킵: 펜싱 또는 이미 처리됨 (eventId={}, workerId={}, claimedAt={})",
+                    eventId, workerId, claimedAt);
+        } else {
+            log.info("[Outbox] 발행 완료 (eventId={})", eventId);
+        }
+        return updated;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
+        int updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+
+        if (updated == 0) {
+            log.info("[Outbox] 실패 처리 스킵: 펜싱 또는 회수됨 (eventId={}, workerId={}, claimedAt={})",
+                    eventId, workerId, claimedAt);
+        } else {
+            log.warn("[Outbox] 발행 실패 (eventId={}, 이유={})", eventId, reason);
+        }
+        return updated;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int markDeadLetter(Long eventId, String error) {
+        int updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+
+        if (updated == 0) {
+            log.info("[Outbox] 데드레터 전이 스킵: 현재 상태가 FAILED 아님 (eventId={})", eventId);
+        } else {
+            log.error("[Outbox] 데드레터로 전이 (eventId={}, 이유={})", eventId, error);
+        }
+
+        return updated;
+    }
+
+    private String serializeToPayload(BookCatalogChangedEvent event) {
+        try {
+            BookCatalogChangedExternalEventPayload payload = BookCatalogChangedExternalEventPayload.of(event);
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
+        }
+
+    }
+
+}

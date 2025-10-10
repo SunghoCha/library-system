@@ -1,24 +1,20 @@
 package msa.bookcatalog;
 
+import msa.bookcatalog.infra.config.InfraModulesConfig;
+import msa.common.config.CommonModuleConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
+@Import({
+        InfraModulesConfig.class,
+        CommonModuleConfig.class
+})
 @EntityScan(basePackages = {"msa.bookcatalog", "msa.common"})
-@ComponentScan(
-        basePackages = {"msa.common", "msa.bookcatalog"},
-        excludeFilters = @ComponentScan.Filter(
-                type = FilterType.REGEX,
-                pattern = "msa\\.bookcatalog\\.infra\\.aladin\\..*|msa\\.bookcatalog\\.infra\\.batch\\.aladin\\..*"
-        )
-)
-@Import(msa.bookcatalog.infra.aladin.config.AladinModuleConfig.class)
 public class BookCatalogApplication {
     public static void main(String[] args) {
         SpringApplication.run(BookCatalogApplication.class, args);

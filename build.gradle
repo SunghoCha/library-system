@@ -21,8 +21,10 @@ subprojects  {
     }
 
     dependencies {
-        compileOnly 'org.projectlombok:lombok'
-        annotationProcessor 'org.projectlombok:lombok'
+        compileOnly "org.projectlombok:lombok:1.18.34"
+        annotationProcessor "org.projectlombok:lombok:1.18.34"
+        testCompileOnly "org.projectlombok:lombok:1.18.34"
+        testAnnotationProcessor "org.projectlombok:lombok:1.18.34"
 
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
         annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
@@ -33,3 +35,4 @@ subprojects  {
     }
 
 }
+
