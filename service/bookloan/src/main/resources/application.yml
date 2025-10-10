@@ -34,8 +34,9 @@ spring:
 # 커스텀 설정
 app:
   kafka:
-    topics:
-      catalog-changed-topic: book-catalog-changed
-    groups:
-      catalog-replica-group: bookloan-category-changed-replica
-
+    source-token: book-loan
+    topic-loan-requested: book-loan.requested
+    topic-loan-returned:  book-loan.returned
+    topic-catalog-changed: book-catalog.changed
+    group-loan-requested: bookloan.loan-requested
+    group-catalog-replica: bookloan-category-changed-replica

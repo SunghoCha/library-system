@@ -1,4 +1,7 @@
 package msa.bookloan.application.port.out.response;
 
-public class BlacklistResult {
+public record BlacklistResult(
+        boolean isBlacklisted,
+        String reason
+) {
 }

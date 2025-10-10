@@ -1,7 +1,7 @@
 package msa.bookloan.domain.policy.rule;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.adapter.out.persistence.loan.LoanRepository;
+import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.application.service.dto.LoanContext;
 import msa.bookloan.application.service.exception.LoanOverdueException;
 import org.springframework.stereotype.Component;
@@ -12,11 +12,11 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class OverdueRule implements LoanValidationRule {
 
-    private final LoanRepository loanRepository;
+    private final BookLoanRepository bookLoanRepository;
 
     @Override
     public void validate(LoanContext context) {
-        boolean hasOverdue = loanRepository.existsOverdueLoan(
+        boolean hasOverdue = bookLoanRepository.existsOverdueLoan(
                 context.memberId(),
                 LocalDate.now()
         );

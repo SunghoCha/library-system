@@ -40,3 +40,6 @@ service/bookcatalog/.env
 service/bookloan/.env
 **/.env
 .envtest
+
+**/src/main/generated/
+**/src/main/querydsl/

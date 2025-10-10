@@ -1,7 +1,7 @@
 package msa.bookloan.domain.policy.rule;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.adapter.out.persistence.loan.LoanRepository;
+import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
 import msa.bookloan.application.service.dto.LoanContext;
@@ -14,12 +14,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class LoanLimitRule implements LoanValidationRule {
 
-    private final LoanRepository loanRepository;
+    private final BookLoanRepository bookLoanRepository;
     private final LoanLimitPolicy loanLimitPolicy;
 
     @Override
     public void validate(LoanContext context) {
-        int currentlyLoanedCount = loanRepository.countByMemberIdAndLoanStatusIn(context.memberId(),
+        int currentlyLoanedCount = bookLoanRepository.countByMemberIdAndLoanStatusIn(context.memberId(),
                 List.of(LoanStatus.LOANED));
         int requestLoanedCount = context.bookIds().size();
         int maxAllowedLoans = loanLimitPolicy.maxLoansFor(context.memberGrade());

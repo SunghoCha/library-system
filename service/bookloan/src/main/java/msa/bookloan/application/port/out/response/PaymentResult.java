@@ -1,4 +1,7 @@
 package msa.bookloan.application.port.out.response;
 
-public class PaymentResult {
+public record PaymentResult(
+        boolean success,
+        Long paymentId
+) {
 }

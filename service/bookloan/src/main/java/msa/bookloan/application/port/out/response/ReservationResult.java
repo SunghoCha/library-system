@@ -1,4 +1,7 @@
 package msa.bookloan.application.port.out.response;
 
-public class ReservationResult {
+public record ReservationResult(
+        boolean success,
+        Long reservationId // 재고 예약 ID
+) {
 }

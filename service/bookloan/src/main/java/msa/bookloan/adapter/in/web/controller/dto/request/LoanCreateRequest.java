@@ -1,4 +1,4 @@
-package msa.bookloan.adapter.in.web.controller.dto;
+package msa.bookloan.adapter.in.web.controller.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 

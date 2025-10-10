@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.util.List;
 
-public interface LoanRepository extends JpaRepository<BookLoan, Long> {
+public interface BookLoanRepository extends JpaRepository<BookLoan, Long> {
 
     boolean existsByMemberIdAndLoanStatus(Long memberId, LoanStatus status);
     int countByMemberId(Long memberId);
