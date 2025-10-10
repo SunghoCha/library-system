@@ -3,7 +3,7 @@ package msa.bookcatalog.adapter.out.persistence.outbox;
 import lombok.RequiredArgsConstructor;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.common.snowflake.InstanceIdentity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,7 +17,7 @@ import java.util.List;
 public class OutboxClaimerService {
 
     private final InstanceIdentity instanceIdentity;
-    private final OutboxSchedulerProperties properties;
+    private final OutboxSchedulerProps properties;
     private final OutboxEventRecordRepository outboxRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -47,15 +47,14 @@ logging:
 
 # 커스텀 설정
 app:
-  # Outbox 패턴 관련 설정
   outbox:
     scheduler:
       max-retry-count: 5
       batch-size: 100
-
   kafka:
-    topics:
-      catalog-changed-topic: book-catalog-changed
+    source-token: book-catalog
+    topic-catalog-changed: book-catalog.changed
+    group-outbox-relay: bookcatalog.outbox-relay
 
   # 외부 API 키 설정 (환경 변수로 주입)
   aladin:

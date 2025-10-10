@@ -1,6 +1,6 @@
 package msa.bookcatalog.adapter.out.messaging.outbox;
 
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
@@ -30,7 +30,7 @@ class OutboxRelayProcessorTest {
     private EventRecorder eventRecorder;
 
     @Mock
-    private OutboxSchedulerProperties props;
+    private OutboxSchedulerProps props;
 
     @Test
     @DisplayName("성공 시나리오: 예외(ex)가 null이면 이벤트를 'PUBLISHED'로 마킹한다")

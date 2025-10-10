@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "app.aladin.ttb")
-public class AladinProperties {
+public class AladinProps {
 
     private String key;
     private String version = "20131101";

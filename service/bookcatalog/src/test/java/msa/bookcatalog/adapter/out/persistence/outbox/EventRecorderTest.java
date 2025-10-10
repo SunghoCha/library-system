@@ -10,6 +10,8 @@ import msa.common.domain.model.CategoryRef;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.outbox.OutboxEventRecordStatus;
+import msa.common.events.outbox.OutboxRoutingResolver;
+import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +40,7 @@ class EventRecorderTest {
 
     @Mock private Snowflake snowflake;
     @Mock private OutboxEventRecordRepository eventRecordRepository;
+    @Mock private OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
 
     @Captor
     private ArgumentCaptor<OutboxEventRecord> recordCaptor;
@@ -50,7 +53,7 @@ class EventRecorderTest {
     @BeforeEach
     void setUp() {
         // 생성자를 통해 의존성과 topic 값을 직접 주입
-        eventRecorder = new EventRecorder(snowflake, objectMapper, eventRecordRepository, testTopic);
+        eventRecorder = new EventRecorder(snowflake, objectMapper, eventRecordRepository, routingResolver);
     }
 
     @Test
@@ -60,6 +63,9 @@ class EventRecorderTest {
         BookCatalogChangedEvent event = createTestEvent(1L, 12345L);
         long expectedDbId = 9999L;
         given(snowflake.nextId()).willReturn(expectedDbId);
+
+        OutboxRouting expectedRouting = new OutboxRouting(testTopic, String.valueOf(event.getAggregateId()));
+        given(routingResolver.resolve(any(BookCatalogChangedEvent.class))).willReturn(expectedRouting);
 
         // when
         eventRecorder.save(event);
@@ -85,6 +91,10 @@ class EventRecorderTest {
 
         given(snowflake.nextId()).willReturn(1001L, 1002L);
 
+        OutboxRouting routing1 = new OutboxRouting(testTopic, String.valueOf(event1.getAggregateId()));
+        OutboxRouting routing2 = new OutboxRouting(testTopic, String.valueOf(event2.getAggregateId()));
+        given(routingResolver.resolve(event1)).willReturn(routing1);
+        given(routingResolver.resolve(event2)).willReturn(routing2);
         // when
         eventRecorder.saveAll(events);
 
@@ -116,7 +126,7 @@ class EventRecorderTest {
         // given
         BookCatalogChangedEvent event = createTestEvent(2L, 1L);
         ObjectMapper mockObjectMapper = mock(ObjectMapper.class);
-        eventRecorder = new EventRecorder(snowflake, mockObjectMapper, eventRecordRepository, testTopic);
+        eventRecorder = new EventRecorder(snowflake, mockObjectMapper, eventRecordRepository, routingResolver);
 
         given(mockObjectMapper.writeValueAsString(any())).willThrow(new JsonProcessingException("serialization error"){});
 

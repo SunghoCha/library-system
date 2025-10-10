@@ -2,7 +2,7 @@ package msa.bookcatalog.adapter.out.client.aladin;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.infra.config.properties.AladinProperties;
+import msa.bookcatalog.infra.config.properties.AladinProps;
 import msa.bookcatalog.adapter.out.client.aladin.dto.AladinBookListResponse;
 import msa.bookcatalog.adapter.out.client.aladin.dto.AladinSearchRequest;
 import msa.bookcatalog.adapter.out.client.aladin.model.ListQueryType;
@@ -17,7 +17,7 @@ import java.util.Objects;
 public class AladinService {
 
     private final AladinClient aladinClient;
-    private final AladinProperties properties;
+    private final AladinProps properties;
 
     public AladinBookListResponse getBookList(ListQueryType listQueryType) {
         return fetchBookList(listQueryType, null, null);

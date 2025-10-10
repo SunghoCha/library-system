@@ -2,11 +2,13 @@ package msa.bookcatalog.adapter.out.persistence.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
+import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,37 +18,68 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class EventRecorder {
 
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
-    private final String topic;
+    private final OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
 
-    public EventRecorder(
-            Snowflake snowflake,
-            ObjectMapper objectMapper,
-            OutboxEventRecordRepository eventRecordRepository,
-            @Value("${app.kafka.topics.catalog-changed-topic}") String topic
-    ) {
-        this.snowflake = snowflake;
-        this.objectMapper = objectMapper;
-        this.eventRecordRepository = eventRecordRepository;
-        this.topic = topic; // 주입받은 값으로 초기화
+    @Transactional
+    public void save(BookCatalogChangedEvent event) {
+        OutboxEventRecord record = toRecord(event);
+        try {
+            eventRecordRepository.save(record);
+            log.debug("OutboxEventRecord 저장 완료 : eventId=[{}], dbId=[{}]", event.getEventId(), record.getId());
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.info("[Outbox] 중복 이벤트 스킵(eventId={})", event.getEventId());
+        }
+
+    }
+
+    @Transactional
+    public void saveAll(List<BookCatalogChangedEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return;
+        }
+
+        Set<Long> eventIdsToSave = events.stream()
+                .map(BookCatalogChangedEvent::getEventId)
+                .collect(Collectors.toSet());
+
+        Set<Long> existingEventIds = eventRecordRepository.findExistingEventIdsByEventIdIn(eventIdsToSave);
+
+        List<OutboxEventRecord> newRecords = events.stream()
+                .filter(event -> !existingEventIds.contains(event.getEventId()))
+                .collect(Collectors.toSet()) // eventId로 이퀄스해시코드 구현해서 중복 제거
+                .stream()
+                .map(this::toRecord)
+                .toList();
+
+        if (newRecords.isEmpty()) {
+            log.info("[Outbox] 저장할 새로운 이벤트가 없습니다. (전체 {}건 중 중복 {}건)", events.size(), existingEventIds.size());
+            return;
+        }
+
+        eventRecordRepository.saveAll(newRecords); // 현재 단일 리더 스케줄러 저장방식이라 동시성 문제는 없을듯
+        log.debug("OutboxEventRecord {}건 저장 완료. (중복 {}건 스킵)", newRecords.size(), existingEventIds.size());
     }
 
     public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = OutboxRouting.builder()
-                .topic(topic)
-                .partitionKey(String.valueOf(event.getAggregateId()))
-                .build();
+        OutboxRouting routing = routingResolver.resolve(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+            throw new IllegalStateException("Routing is invalid: " + event);
+        }
 
         return OutboxEventRecord.builder()
                 .id(snowflake.nextId())
@@ -62,32 +95,9 @@ public class EventRecorder {
                 .build();
     }
 
-    @Transactional
-    public void save(BookCatalogChangedEvent event) {
-        OutboxEventRecord outboxEventRecord = toRecord(event);
-
-        eventRecordRepository.save(outboxEventRecord);
-        log.debug("OutboxEventRecord saved: eventId=[{}], dbId=[{}]", event.getEventId(), outboxEventRecord.getId());
-    }
-
-    @Transactional
-    public void saveAll(List<BookCatalogChangedEvent> events) {
-        if (events == null || events.isEmpty()) {
-            return;
-        }
-        List<OutboxEventRecord> records = events.stream()
-                .map(this::toRecord)
-                .toList();
-
-        eventRecordRepository.saveAll(records);
-        log.debug("OutboxEventRecord {}건 저장 완료.", records.size());
-    }
-
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markPublishedByEventId(Long eventId,
-                                      String workerId,
-                                      LocalDateTime claimedAt) {
+    public int markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
         int updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
 
         if (updated == 0) {
@@ -100,10 +110,7 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markFailedByEventId(Long eventId,
-                                   String workerId,
-                                   LocalDateTime claimedAt,
-                                   String reason) {
+    public int markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
         int updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
 
         if (updated == 0) {

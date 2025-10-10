@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class OutboxRelayProcessor {
 
     private final EventRecorder eventRecorder;
-    private final OutboxSchedulerProperties props;
+    private final OutboxSchedulerProps props;
     private final OutboxEventRecordRepository outboxEventRecordRepository;
 
     public void updateStatusAfterProcessing(Long eventId,

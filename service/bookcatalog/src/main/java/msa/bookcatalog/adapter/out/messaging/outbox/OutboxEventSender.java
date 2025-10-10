@@ -2,7 +2,7 @@ package msa.bookcatalog.adapter.out.messaging.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNotFoundException;
@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 public class OutboxEventSender {
 
     private final InstanceIdentity identity;
-    private final OutboxSchedulerProperties props;
+    private final OutboxSchedulerProps props;
     private final OutboxRelayProcessor outboxRelayProcessor;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final OutboxEventRecordRepository outboxRepository;

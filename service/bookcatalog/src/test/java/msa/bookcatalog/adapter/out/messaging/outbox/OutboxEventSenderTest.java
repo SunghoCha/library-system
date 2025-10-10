@@ -1,6 +1,6 @@
 package msa.bookcatalog.adapter.out.messaging.outbox;
 
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProperties;
+import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNotFoundException;
@@ -35,7 +35,7 @@ class OutboxEventSenderTest {
 
     @Mock private InstanceIdentity identity;
 
-    @Mock private OutboxSchedulerProperties props;
+    @Mock private OutboxSchedulerProps props;
 
     @Mock private ImmediateClaimer claimer;
 
