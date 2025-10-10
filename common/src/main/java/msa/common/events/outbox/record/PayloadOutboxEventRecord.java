@@ -21,20 +21,20 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     @Column(name = "id", updatable = false, nullable = false)
     private Long id;
 
-    @Column(name = "event_id", nullable = false, unique = true)
+    @Column(name = "event_id", nullable = false)
     private Long eventId;
 
-    @Column(name = "aggregate_type", nullable = false, length = 64)
+    @Column(name = "aggregate_type", nullable = false)
     private String aggregateType;
 
-    @Column(name = "aggregate_id",   nullable = false, length = 191)
+    @Column(name = "aggregate_id",   nullable = false)
     private String aggregateId;
 
     @Column(name = "aggregate_version", nullable = false)
     private Long aggregateVersion;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false)
     private EventType eventType;
 
     @Column(name = "payload", columnDefinition = "json")
@@ -44,7 +44,7 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     private LocalDateTime occurredAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false)
     private OutboxEventRecordStatus outboxEventRecordStatus;
 
     @Builder.Default
@@ -52,7 +52,7 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     private int retryCount = 0;
 
     @Setter
-    @Column(name = "worker_id", length = 64)
+    @Column(name = "worker_id")
     private String workerId;
 
     @Setter

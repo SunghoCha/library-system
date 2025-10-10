@@ -1,12 +1,11 @@
 package msa.bookloan.infra.config.kafka;
 
-import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
+import msa.common.events.bookcatalog.BookCatalogChangedPayload;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
@@ -29,7 +28,7 @@ public class KafkaConsumerConfig {
 
     @Bean
     @ConditionalOnBean(KafkaProperties.class)
-    public ConsumerFactory<String, BookCatalogChangedExternalEventPayload> consumerFactory(
+    public ConsumerFactory<String, BookCatalogChangedPayload> consumerFactory(
             KafkaProperties kafkaProperties,
             ObjectProvider<SslBundles> sslBundlesProvider
     ) {
@@ -44,18 +43,18 @@ public class KafkaConsumerConfig {
         return new DefaultKafkaConsumerFactory<>(
                 props,
                 new StringDeserializer(),
-                new JsonDeserializer<>(BookCatalogChangedExternalEventPayload.class, false)
+                new JsonDeserializer<>(BookCatalogChangedPayload.class, false)
         );
     }
 
     @Bean(name = "bookCatalogListenerFactory")
     @ConditionalOnBean(ConsumerFactory.class)
-    public ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedExternalEventPayload>
+    public ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedPayload>
     kafkaListenerContainerFactory(
-            ConsumerFactory<String, BookCatalogChangedExternalEventPayload> consumerFactory,
+            ConsumerFactory<String, BookCatalogChangedPayload> consumerFactory,
             DefaultErrorHandler errorHandler) {
 
-        ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedExternalEventPayload> factory =
+        ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedPayload> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
 
         factory.setConsumerFactory(consumerFactory);

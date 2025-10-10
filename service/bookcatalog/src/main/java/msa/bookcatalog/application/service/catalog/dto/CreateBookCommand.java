@@ -1,9 +1,5 @@
 package msa.bookcatalog.application.service.catalog.dto;
 
-import msa.bookcatalog.domain.model.BookCatalog;
-import msa.common.events.EventType;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
-
 import java.time.LocalDate;
 
 public record CreateBookCommand (

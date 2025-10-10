@@ -29,22 +29,22 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "aggregate_id", nullable = false, updatable = false)
     private Long aggregateId;
 
-    @Column(name = "aggregate_version", nullable = false, updatable = false)
-    private long aggregateVersion;
+    @Column(name = "aggregate_version", updatable = false) // 사가의 경우 없어도 될 듯
+    private Long aggregateVersion;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "event_type", length = 50, nullable = false)
+    @Column(name = "event_type", nullable = false)
     private EventType eventType;
 
     @Column(name = "payload", columnDefinition = "json")
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 50)
+    @Column(name = "status", nullable = false)
     private InboxEventRecordStatus inboxEventRecordStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "failure_category", length = 32)
+    @Column(name = "failure_category")
     private FailureCategory failureCategory;
 
     @Builder.Default
@@ -63,7 +63,7 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "next_attempt_at", columnDefinition = "datetime(6)")
     private LocalDateTime nextAttemptAt;
 
-    @Column(name = "worker_id", length = 64)
+    @Column(name = "worker_id")
     private String workerId;
 
     @Column(name = "lease_until", columnDefinition = "datetime(6)")

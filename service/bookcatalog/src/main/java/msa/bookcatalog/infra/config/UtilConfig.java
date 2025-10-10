@@ -12,7 +12,6 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 public class UtilConfig {
 
     @Bean
-    //@ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper objectMapper(ObjectProvider<Jackson2ObjectMapperBuilder> provider) {
         Jackson2ObjectMapperBuilder b = provider.getIfAvailable(Jackson2ObjectMapperBuilder::new);
         return b.build();

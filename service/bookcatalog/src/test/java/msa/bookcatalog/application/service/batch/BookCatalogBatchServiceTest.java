@@ -1,13 +1,13 @@
 package msa.bookcatalog.application.service.batch;
 
+import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
+import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.bookcatalog.domain.model.BookCategory;
 import msa.bookcatalog.domain.model.BookType;
-import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
-import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
-import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.common.events.EventType;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,20 +110,20 @@ class BookCatalogBatchServiceTest {
         service.processBookCatalogChunk(chunk);
 
         // then
-        // 1) 신규만 saveAll에 태워졌는지 확인
+        // 신규만 saveAll에 태워졌는지 확인
         verify(bookCatalogRepository).saveAll(saveCaptor.capture());
         List<BookCatalog> savedList = saveCaptor.getValue();
         assertThat(savedList).hasSize(1);
         assertThat(savedList.get(0).getIsbn13()).isEqualTo("9780000000002"); // 신규만
 
-        // 2) flush는 항상 호출
+        //  flush는 항상 호출
         verify(bookCatalogRepository).flush();
 
-        // 3) 이벤트 매퍼 호출 검증
+        // 이벤트 매퍼 호출 검증
         verify(bookCatalogEventMapper).toEventFrom(eq(existing), eq(EventType.UPDATED));
         verify(bookCatalogEventMapper).toEventFrom(eq(createIncoming), eq(EventType.CREATED));
 
-        // 4) 이벤트 저장 한 번 호출 (개수는 매퍼 호출 수와 동일)
+        // 이벤트 저장 한 번 호출 (개수는 매퍼 호출 수와 동일)
         verify(eventRecorder, times(1)).saveAll(anyList());
         verifyNoMoreInteractions(eventRecorder);
     }

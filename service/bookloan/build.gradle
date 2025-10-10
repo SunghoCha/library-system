@@ -41,7 +41,6 @@ dependencies {
     testImplementation "org.testcontainers:jdbc"
     testImplementation "org.testcontainers:junit-jupiter"
 
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     // QueryDSL JPA Jakarta
     implementation       'com.querydsl:querydsl-jpa:5.0.0:jakarta'

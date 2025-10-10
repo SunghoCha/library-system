@@ -8,12 +8,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class KafkaProps {
     private String sourceToken;
 
-    // topics
-    private String topicLoanRequested;
-    private String topicLoanReturned;
+    // commands
+    private String topicMemberCheck;
+    private String topicInventoryReserve;
+
+    // single reply channel
+    private String topicSagaReplies;
+
+    // catalog
     private String topicCatalogChanged;
 
     // groups
-    private String groupLoanRequested;
+    private String groupSagaReplies;
     private String groupCatalogReplica;
 }

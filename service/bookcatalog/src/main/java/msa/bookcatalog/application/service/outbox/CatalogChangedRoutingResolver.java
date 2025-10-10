@@ -1,8 +1,8 @@
 package msa.bookcatalog.application.service.outbox;
 
 import lombok.RequiredArgsConstructor;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.infra.config.properties.KafkaProps;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.springframework.stereotype.Component;

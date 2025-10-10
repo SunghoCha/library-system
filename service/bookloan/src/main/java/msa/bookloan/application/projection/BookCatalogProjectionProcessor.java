@@ -4,10 +4,10 @@ import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
-import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
 import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
+import msa.bookloan.application.event.BookCatalogChangedEvent;
 import msa.common.events.EventType;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,28 +41,29 @@ public class BookCatalogProjectionProcessor {
 
     // 너무 지저분한거같은데 이게 맞나
     // 기존 트랜잭션에 합류
-    private void upsert(BookCatalogChangedEvent e) {
-        BookCatalogProjection existing = projectionRepository.findByBookId(e.getBookId()).orElse(null);
+    // 순서꼬임 방지하기 위해 버전 체크
+    private void upsert(BookCatalogChangedEvent event) {
+        BookCatalogProjection existing = projectionRepository.findByBookId(event.getBookId()).orElse(null);
 
         if (existing == null) {
-            projectionRepository.save(BookCatalogProjection.from(e));
+            projectionRepository.save(BookCatalogProjection.from(event));
             log.debug("프로젝션 생성 [eventId={}, bookId={}, version={}]",
-                    e.getEventId(), e.getBookId(), e.getAggregateVersion());
+                    event.getEventId(), event.getBookId(), event.getAggregateVersion());
             return;
         }
 
         try {
-            if (existing.applySnapshot(e)) { // 버전 상위인지 체크
+            if (existing.applySnapshot(event)) { // 버전 상위인지 체크
                 projectionRepository.save(existing);
                 log.debug("프로젝션 갱신 [eventId={}, bookId={}, version={}]",
-                        e.getEventId(), e.getBookId(), e.getAggregateVersion());
+                        event.getEventId(), event.getBookId(), event.getAggregateVersion());
             } else {
                 log.debug("프로젝션 스킵 [eventId={}, bookId={}, version={}]",
-                        e.getEventId(), e.getBookId(), e.getAggregateVersion());
+                        event.getEventId(), event.getBookId(), event.getAggregateVersion());
             }
         } catch (ObjectOptimisticLockingFailureException | OptimisticLockException ex) {
             log.info("프로젝션 갱신 충돌 스킵 [eventId={}, bookId={}, version={}]",
-                    e.getEventId(), e.getBookId(), e.getAggregateVersion());
+                    event.getEventId(), event.getBookId(), event.getAggregateVersion());
         }
     }
 

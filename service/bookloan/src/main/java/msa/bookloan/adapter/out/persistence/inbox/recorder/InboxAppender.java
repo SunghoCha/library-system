@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
+import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.common.domain.model.InboxSource;
+import msa.common.events.EventType;
+import msa.common.events.bookcatalog.BookCatalogChangedPayload;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
-import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
 import msa.common.exception.FailureCategory;
 import msa.common.snowflake.Snowflake;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -52,9 +54,9 @@ public class InboxAppender {
     public void recordSuccess(Long eventId) {
         Long updated = markAsProcessed(eventId);
         if (updated == 1) {
-            log.info("Published event {}", eventId);
+            log.info("이벤트 발행 성공 {}", eventId);
         } else {
-            log.debug("Already published or not eligible: {}", eventId);
+            log.debug("이미 발행되었거나 유효하지 않음: {}", eventId);
         }
     }
 
@@ -91,7 +93,7 @@ public class InboxAppender {
         return eventRecordRepository.existsByEventId(eventId);
     }
 
-    private ConsumerRecordMetadata createConsumerRecordMetadata(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record) {
+    private ConsumerRecordMetadata createConsumerRecordMetadata(ConsumerRecord<String, BookCatalogChangedPayload> record) {
         return ConsumerRecordMetadata.builder()
                 .topic(record.topic())
                 .partition(record.partition())
@@ -99,12 +101,12 @@ public class InboxAppender {
                 .build();
     }
 
-    public boolean saveOrBumpEventRecord(
-            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record, InboxSource source) {
+    public boolean upsertEventRecord(
+            ConsumerRecord<String, BookCatalogChangedPayload> record, InboxSource source) {
 
-        BookCatalogChangedExternalEventPayload payload = record.value();
-        long eventId = toLong(payload.getEventId());
-        String eventType = payload.getEventType().name();
+        BookCatalogChangedPayload payload = record.value();
+        long eventId = toLong(payload.eventId());
+        String eventType = payload.eventType();
 
         final String serializedPayload;
         try {
@@ -112,15 +114,15 @@ public class InboxAppender {
         } catch (JsonProcessingException e) {
             log.info("Inbox serialize fail: eventId={} topic={} partition={} offset={} error={}",
                     eventId, record.topic(), record.partition(), record.offset(), e.getMessage());
-            saveDeadLetter(record, source, FailureCategory.SERIALIZE_FAIL);
-            return false;
+            throw new IllegalStateException("Inbox serialize fail(catalog)", e);
         }
 
+        // 업서트
         int affected = eventRecordRepository.upsertInbox(
                 snowflake.nextId(),
                 eventId,
-                toLong(payload.getAggregateId()),
-                toLong(payload.getAggregateVersion()),
+                toLong(payload.aggregateId()),
+                payload.aggregateVersion(),
                 eventType,
                 serializedPayload,
                 source.name(),
@@ -128,84 +130,52 @@ public class InboxAppender {
                 record.partition(),
                 record.offset()
         );
-        boolean isNew = (affected == 1);  // MySQL: 1=INSERT, 2=UPDATE(duplicate -> seen_count++(중복 발생 횟수))
+        boolean isNew = (affected == 1);  // MySQL에서 1=INSERT, 2=UPDATE(duplicate -> seen_count++(중복 발생 횟수))
+        log.debug("Inbox UPSERT[catalog]: affected={}, eventId={} type={} topic={} partition={} offset={}",
+                affected, eventId, eventType, record.topic(), record.partition(), record.offset());
 
-        logInsertOrDuplicated(record, isNew, eventId, eventType);
         return isNew;
     }
 
-    private static void logInsertOrDuplicated(
-            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record,
-            boolean isNew, long eventId, String eventType) {
+    public boolean upsertSagaRecord(
+            ConsumerRecord<String, SagaReplyEnvelope> record, InboxSource source) {
 
-        if (isNew) {
-            log.debug("Inbox INSERT: eventId={} type={} topic={} partition={} offset={}",
-                    eventId, eventType, record.topic(), record.partition(), record.offset());
-        } else {
-            log.info("Inbox DUPLICATED: eventId={} type={} topic={} partition={} offset={} ",
-                    eventId, eventType, record.topic(), record.partition(), record.offset());
-        }
-    }
+        SagaReplyEnvelope payload = record.value();
+        long eventId = Long.parseLong(payload.eventId());
+        String eventType = EventType.SAGA_REPLY.name();
+        long aggregateId = Long.parseLong(payload.aggregateId());
+        Long aggregateVersion = payload.sourceAggregateVersion();
 
-    public void saveDeadLetter(
-            ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record,
-            InboxSource source, FailureCategory failureCategory) {
-
-        BookCatalogChangedExternalEventPayload payload = record.value();
-
-        long eventId = -1L;
-        if (payload != null) {
-            try {
-                eventId = Long.parseLong(payload.getEventId());
-            } catch (NumberFormatException e) {
-                // 예외 던지지않고 그대로 삼킴
-            }
-        }
-        if (eventId <= 0L) {
-            eventId = syntheticEventId(record);
+        final String serializedPayload;
+        try {
+            serializedPayload = objectMapper.writeValueAsString(payload);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.info("Inbox serialize fail[replies]: sagaId={} topic={} partition={} offset={} error={}",
+                    payload.sagaId(), record.topic(), record.partition(), record.offset(), e.getMessage());
+            throw new IllegalStateException("Inbox serialize fail(replies)", e);
         }
 
-        String eventType = (payload != null && payload.getEventType() != null)
-                ? payload.getEventType().name()
-                : null;
-
-        log.info("DeadLetter: category={} eventId={} topic={} partition={} offset={}",
-                failureCategory.name(),
-                (payload != null ? payload.getEventId() : "null"),
-                record.topic(), record.partition(), record.offset());
-
-        eventRecordRepository.upsertDeadLetter(
+        int affected = eventRecordRepository.upsertInbox(
                 snowflake.nextId(),
                 eventId,
-                Long.parseLong(payload.getAggregateId()),
-                Long.parseLong(payload.getAggregateVersion()),
+                aggregateId,
+                aggregateVersion, // aggregateVersion 없음 (사가에서 필요없어보임)
                 eventType,
+                serializedPayload,
                 source.name(),
                 record.topic(),
                 record.partition(),
-                record.offset(),
-                null,
-                failureCategory.name()
+                record.offset()
         );
+        boolean isNew = (affected == 1);
+        log.debug("Inbox UPSERT[replies]: affected={}, eventId={} type={} topic={} partition={} offset={}",
+                affected, eventId, eventType, record.topic(), record.partition(), record.offset());
+
+        return isNew;
     }
 
     private static long toLong(String s) {
         return Long.parseLong(s.trim());
-    }
-
-    // record의 topic, partition, offset 정보 기반으로 이벤트 아이디 생성하는 해시함수
-    // 이벤트ID가 NULL인 경우 항상 같은 아이디를 만들어서 DLT도 중복체크가 가능하도록 함
-    // 이런 방식으로 진짜로 해야할지 확신 못하겠음.. 이벤트id가 null일 경우에 다른 해결책이 떠오르지않아서 일단 이렇게 처리
-    private long syntheticEventId(ConsumerRecord<?, ?> record) {
-        long h = 1469598103934665603L; // FNV-1a base
-        h ^= record.topic().hashCode();
-        h *= 1099511628211L;
-        h ^= record.partition();
-        h *= 1099511628211L;
-        long off = record.offset();
-        h ^= (off ^ (off >>> 32));
-        h *= 1099511628211L;
-        return (h == Long.MIN_VALUE) ? 0L : Math.abs(h);
     }
 
     private static void logStatusUpdate(Long eventId, InboxEventRecordStatus status) {

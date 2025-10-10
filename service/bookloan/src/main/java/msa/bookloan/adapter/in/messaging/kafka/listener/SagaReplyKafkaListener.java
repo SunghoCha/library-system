@@ -1,0 +1,88 @@
+package msa.bookloan.adapter.in.messaging.kafka.listener;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.ConstraintViolationException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import msa.bookloan.adapter.in.messaging.kafka.util.InboxSourceResolver;
+import msa.bookloan.adapter.in.messaging.kafka.util.ReplyPayloadTranslator;
+import msa.bookloan.adapter.in.messaging.kafka.util.validator.EventPayloadValidator;
+import msa.bookloan.adapter.out.persistence.inbox.recorder.DeadLetterAppender;
+import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
+import msa.bookloan.application.event.SagaReplyEnvelope;
+import msa.common.domain.model.InboxSource;
+import msa.common.exception.FailureCategory;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataAccessException;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class SagaReplyKafkaListener {
+
+    private final InboxAppender inboxAppender;
+    private final InboxSourceResolver inboxSourceResolver;
+    private final ApplicationEventPublisher eventPublisher;
+    private final DeadLetterAppender deadLetterAppender;
+
+    private final EventPayloadValidator payloadValidator;
+    private final ReplyPayloadTranslator payloadTranslator;
+
+    @KafkaListener(
+            topics = "${app.kafka.topic-saga-replies}",
+            groupId = "${app.kafka.group-saga-replies}"
+    )
+    @Transactional
+    public void onSagaReply(ConsumerRecord<String, SagaReplyEnvelope> record) {
+        log.debug("카프카 레코드 수신: topic={}, partition={}, offset={}",
+                record.topic(), record.partition(), record.offset());
+
+        InboxSource source = inboxSourceResolver.resolveFromTopic(record.topic());
+        SagaReplyEnvelope payload = record.value();
+
+        if (payload == null) {
+            log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
+                    record.topic(), record.partition(), record.offset());
+            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, "payload is null");
+            return;
+        }
+
+        try {
+            payloadValidator.validateOrThrow(payload);
+        } catch (ConstraintViolationException e) {
+            String msg = summarize(e);
+            log.info("페이로드 검증 실패: {} [eventId={}, topic={}, partition={}, offset={}]",
+                    msg, payload.eventId(), record.topic(), record.partition(), record.offset());
+            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, msg);
+            return;
+        }
+
+        boolean isNew;
+        try {
+            isNew = inboxAppender.upsertSagaRecord(record, source);
+        } catch (IllegalStateException e) { // 직렬화,매핑 실패 (재시도 무의미)
+            deadLetterAppender.save(record, source, FailureCategory.SERIALIZE_FAIL, e.getMessage());
+            return;
+        }
+
+        if (isNew) {
+            log.info("[Replies] 내부 이벤트 발행: sagaId={}, type={}, eventId={}",
+                    payload.sagaId(), payload.replyType(), payload.eventId());
+            eventPublisher.publishEvent(payloadTranslator.toInternalEvent(payload));
+        } else {
+            log.debug("[Replies] 중복/재처리 스킵: sagaId={}, type={}, eventId={}",
+                    payload.sagaId(), payload.replyType(), payload.eventId());
+        }
+    }
+
+    private static String summarize(ConstraintViolationException ex) {
+        return ex.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .findFirst()
+                .orElse("violations");
+    }
+}

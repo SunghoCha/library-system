@@ -9,6 +9,7 @@ public record LoanRequestedInternalEvent(
         Long memberId,
         Long bookId,
         Long eventId,
+        Long aggregateVersion,
         LocalDateTime occurredAt
-) {
+        ) {
 }

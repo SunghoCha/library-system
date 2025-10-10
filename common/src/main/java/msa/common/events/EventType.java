@@ -4,5 +4,6 @@ public enum EventType {
     CREATED,
     UPDATED,
     DELETED,
-    UPSERTED
+    SAGA_REPLY,
+    UNKNOWN
 }

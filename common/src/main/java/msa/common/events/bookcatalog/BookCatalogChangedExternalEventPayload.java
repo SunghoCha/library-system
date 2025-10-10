@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Getter
+@Deprecated
 public class BookCatalogChangedExternalEventPayload implements DomainEventPayload {
 
     @NotBlank
@@ -68,7 +69,7 @@ public class BookCatalogChangedExternalEventPayload implements DomainEventPayloa
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
     }
 
-    public static BookCatalogChangedExternalEventPayload of(BookCatalogChangedEvent event) {
+    public static BookCatalogChangedExternalEventPayload of(BookCatalogChangedEventV1 event) {
         return BookCatalogChangedExternalEventPayload.builder()
                 .eventId(String.valueOf(event.getEventId()))
                 .eventType(event.getEventType())
@@ -83,8 +84,8 @@ public class BookCatalogChangedExternalEventPayload implements DomainEventPayloa
                 .build();
     }
 
-    public BookCatalogChangedEvent toEvent() {
-        return BookCatalogChangedEvent.builder()
+    public BookCatalogChangedEventV1 toEvent() {
+        return BookCatalogChangedEventV1.builder()
                 .eventId(Long.parseLong(eventId))
                 .eventType(eventType)
                 .bookId(Long.parseLong(bookId))

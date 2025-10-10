@@ -1,8 +1,5 @@
 package msa.bookloan.domain.validator;
 
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
-import org.springframework.stereotype.Component;
-
 //@Component
 //public class BookCategoryValidator {
 //

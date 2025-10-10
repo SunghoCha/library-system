@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
 import msa.common.events.EventType;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -25,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

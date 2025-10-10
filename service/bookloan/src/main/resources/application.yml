@@ -35,8 +35,17 @@ spring:
 app:
   kafka:
     source-token: book-loan
-    topic-loan-requested: book-loan.requested
-    topic-loan-returned:  book-loan.returned
+
+    # catalog
     topic-catalog-changed: book-catalog.changed
-    group-loan-requested: bookloan.loan-requested
+
+    # commands
+    topic-member-check: member.check
+    topic-inventory-reserve: inventory.reserve
+
+    # single reply channel
+    topic-saga-replies: loan.saga.replies
+
+    # groups
+    group-saga-replies: bookloan-saga-replies
     group-catalog-replica: bookloan-category-changed-replica
