@@ -14,7 +14,7 @@ public record SagaReplyEnvelope(
         @NotNull @Pattern(regexp = "^[0-9]+$") String eventId,
         @NotBlank @Pattern(regexp = "^[0-9]+$") String sagaId,
         @NotBlank String replyType,
-        @Pattern(regexp = "^[0-9]+$") String causationEventId,
+        @Pattern(regexp = "^[0-9]+$") String causationCommandId,
         @NotBlank @Pattern(regexp = "^[0-9]+$") String aggregateId,
         Long sourceAggregateVersion,
         @NotNull JsonNode payload

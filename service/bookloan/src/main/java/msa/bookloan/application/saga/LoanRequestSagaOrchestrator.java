@@ -7,16 +7,19 @@ import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
 import msa.bookloan.application.saga.command.CheckMemberCommand;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
 import msa.bookloan.application.saga.command.ReserveInventoryCommand;
-import msa.bookloan.application.saga.reply.InventoryReserveFailedInternalEvent;
-import msa.bookloan.application.saga.reply.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
+import msa.bookloan.domain.saga.SagaStatus;
 import msa.common.snowflake.Snowflake;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -30,29 +33,34 @@ public class LoanRequestSagaOrchestrator {
     // 사가 시작 - 멤버 확인 커맨드만 발행
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void start(LoanRequestedInternalEvent event) {
-        // TODO : 동시성 방지 로직 필요한가?
-        if (sagaRepository.existsBySagaId(event.sagaId())) {
+
+        boolean created = startSagaRowIfAbsent(event);
+        if (!created) {
             log.debug("[Saga] 이미 시작된 사가입니다. sagaId={}", event.sagaId());
             return;
         }
-
-        // TODO : 경합 없을 것 같아서 try-catch 삭제할 수도 있음
-        LoanSaga saga = LoanSaga.startNew(
-                event.sagaId(),
-                event.loanId(),
-                event.memberId(),
-                event.bookId(),
-                event.aggregateVersion(),
-                event.eventId()
-        );
-        saga.markProcessing(LoanSagaStep.MEMBER_CHECKING);
-        sagaRepository.save(saga);
 
         // 아웃박스에 멤버커맨드 저장하면 폴링해서 메시지 발행
         CheckMemberCommand memberCommand = createMemberCommand(event);
         commandOutboxRecorder.save(memberCommand);
         log.info("[Saga] 멤버 확인 커맨드 발행 준비: sagaId={}, memberId={}", event.sagaId(), event.memberId());
 
+    }
+
+    private boolean startSagaRowIfAbsent(LoanRequestedInternalEvent event) {
+        LocalDateTime deadline = LocalDateTime.now().plus(SagaTimeouts.STEP_TIMEOUT);
+
+        return sagaRepository.insertIfAbsent(
+                event.sagaId(),
+                event.loanId(),
+                event.memberId(),
+                event.bookId(),
+                event.aggregateVersion(),
+                event.eventId(),
+                SagaStatus.PROCESSING.name(),
+                LoanSagaStep.MEMBER_CHECKING.name(),
+                deadline
+        );
     }
 
     // 멤버 확인 리플라이 수신 - 통과 시 재고 예약 커맨드 발행

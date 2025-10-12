@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import msa.common.domain.base.BaseTimeEntity;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Getter
@@ -55,11 +56,18 @@ public class LoanSaga extends BaseTimeEntity {
     @Column(name = "lease_until")
     private LocalDateTime leaseUntil;
 
+    @Column(name = "step_started_at")
+    private LocalDateTime stepStartedAt; // 나중에 운영단계에서 필요할듯 당장은 쓸 일 없어보임
+
+    @Column(name = "step_deadline_at")
+    private LocalDateTime stepDeadlineAt; //
+
     @Builder
     public LoanSaga(String sagaId, Long loanId, Long memberId, Long bookId,
                     Long aggregateVersion, Long triggerEventId, SagaStatus status,
                     LoanSagaStep currentStep, String lastError, String workerId,
-                    LocalDateTime leaseUntil) {
+                    LocalDateTime leaseUntil, LocalDateTime stepStartedAt,
+                    LocalDateTime stepDeadlineAt) {
         this.sagaId = sagaId;
         this.loanId = loanId;
         this.memberId = memberId;
@@ -71,6 +79,8 @@ public class LoanSaga extends BaseTimeEntity {
         this.lastError = lastError;
         this.workerId = workerId;
         this.leaseUntil = leaseUntil;
+        this.stepStartedAt = stepStartedAt;
+        this.stepDeadlineAt = stepDeadlineAt;
     }
 
     public static LoanSaga startNew(String sagaId,
@@ -79,6 +89,7 @@ public class LoanSaga extends BaseTimeEntity {
                                     Long bookId,
                                     Long aggregateVersion,
                                     Long triggerEventId) {
+        LocalDateTime now = LocalDateTime.now();
         return LoanSaga.builder()
                 .sagaId(sagaId)
                 .loanId(loanId)
@@ -88,21 +99,41 @@ public class LoanSaga extends BaseTimeEntity {
                 .triggerEventId(triggerEventId)
                 .status(SagaStatus.STARTED)
                 .currentStep(LoanSagaStep.INIT)
+                .stepStartedAt(now)       // INIT 스텝 시작 시각
+                .stepDeadlineAt(null) // 사가 진행하면서 계속 갱신
                 .build();
     }
 
+    @Deprecated
     public void markProcessing(LoanSagaStep step) {
         this.currentStep = step;
         this.status = SagaStatus.PROCESSING;
+        this.stepStartedAt = LocalDateTime.now();
+        this.stepDeadlineAt = null;
+    }
+
+    public void markProcessing(LoanSagaStep step, Duration timeout) {
+        this.currentStep = step;
+        this.status = SagaStatus.PROCESSING;
+        LocalDateTime now = LocalDateTime.now();
+        this.stepStartedAt = now;
+        this.stepDeadlineAt = now.plus(timeout);
     }
 
     public void markCompleted() {
         this.currentStep = LoanSagaStep.FINISHED;
         this.status = SagaStatus.COMPLETED;
+        this.stepDeadlineAt = null;
     }
 
     public void markFailed(String reason) {
         this.status = SagaStatus.FAILED;
         this.lastError = reason;
+        this.stepDeadlineAt = null;
     }
+
+    public boolean isTerminal() {
+        return this.status == SagaStatus.COMPLETED || this.status == SagaStatus.FAILED;
+    }
+
 }

@@ -1,6 +1,5 @@
 package msa.bookloan.adapter.in.messaging.kafka.listener;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +13,6 @@ import msa.common.domain.model.InboxSource;
 import msa.common.exception.FailureCategory;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataAccessException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +42,7 @@ public class SagaReplyKafkaListener {
         InboxSource source = inboxSourceResolver.resolveFromTopic(record.topic());
         SagaReplyEnvelope payload = record.value();
 
+        // 페이로드 null체크
         if (payload == null) {
             log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
                     record.topic(), record.partition(), record.offset());
@@ -51,6 +50,7 @@ public class SagaReplyKafkaListener {
             return;
         }
 
+        // 유효성 검증
         try {
             payloadValidator.validateOrThrow(payload);
         } catch (ConstraintViolationException e) {
@@ -61,6 +61,7 @@ public class SagaReplyKafkaListener {
             return;
         }
 
+        // 업서트로 아웃박스 저장
         boolean isNew;
         try {
             isNew = inboxAppender.upsertSagaRecord(record, source);
@@ -69,6 +70,7 @@ public class SagaReplyKafkaListener {
             return;
         }
 
+        // 스프링 내부 이벤트 발행
         if (isNew) {
             log.info("[Replies] 내부 이벤트 발행: sagaId={}, type={}, eventId={}",
                     payload.sagaId(), payload.replyType(), payload.eventId());

@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import msa.bookloan.application.event.ReplyType;
 import msa.bookloan.application.event.SagaReplyEnvelope;
-import msa.bookloan.application.saga.command.InventoryReserveFailedPayload;
-import msa.bookloan.application.saga.command.InventoryReservedPayload;
-import msa.bookloan.application.saga.command.MemberCheckedPayload;
-import msa.bookloan.application.saga.reply.InventoryReserveFailedInternalEvent;
-import msa.bookloan.application.saga.reply.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedPayload;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedPayload;
+import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,7 +21,7 @@ public class ReplyPayloadTranslator {
     public Object toInternalEvent(SagaReplyEnvelope envelope) {
         ReplyType replyType = ReplyType.from(envelope.replyType());
         Long eventId = Long.parseLong(envelope.eventId());
-        Long causationEventId = toLongOrNull(envelope.causationEventId());
+        Long causationCommandId = toLongOrNull(envelope.causationCommandId());
         Long sourceAggregateVersion = envelope.sourceAggregateVersion();
 
         switch (replyType) {
@@ -31,7 +31,7 @@ public class ReplyPayloadTranslator {
                 return new MemberCheckedInternalEvent(
                         eventId,
                         envelope.sagaId(),
-                        causationEventId,
+                        causationCommandId,
                         sourceAggregateVersion,
                         payload
                 );
@@ -42,7 +42,7 @@ public class ReplyPayloadTranslator {
                 return new InventoryReservedInternalEvent(
                         eventId,
                         envelope.sagaId(),
-                        causationEventId,
+                        causationCommandId,
                         sourceAggregateVersion,
                         payload
                 );
@@ -54,7 +54,7 @@ public class ReplyPayloadTranslator {
                 return new InventoryReserveFailedInternalEvent(
                         eventId,
                         envelope.sagaId(),
-                        causationEventId,
+                        causationCommandId,
                         sourceAggregateVersion,
                         payload
                 );

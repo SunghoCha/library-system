@@ -1,11 +1,9 @@
-package msa.bookloan.application.saga.reply;
-
-import msa.bookloan.application.saga.command.MemberCheckedPayload;
+package msa.bookloan.application.saga.reply.member;
 
 public record MemberCheckedInternalEvent(
         Long eventId,
         String sagaId,
-        Long causationEventId,
+        Long causationCommandId,
         Long sourceAggregateVersion,
         MemberCheckedPayload payload
 ) {}

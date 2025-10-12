@@ -18,9 +18,12 @@ import msa.common.events.outbox.record.PayloadOutboxEventRecord;
                 @UniqueConstraint(name = "uq_outbox_event_id", columnNames = {"event_id"})
         },
         indexes = {
-                @Index(name = "ix_status_created", columnList = "status, created_at"),                     // 추가
-                @Index(name = "ix_agg_stream",     columnList = "aggregate_type, aggregate_id, aggregate_version"),
-                @Index(name = "ix_created",        columnList = "created_at")                             // 선택: 유지하거나 제거
+                // new, failed용
+                @Index(name = "ix_status_occurred_id", columnList = "status, occurred_at, id"),                     // 추가
+                // 사가 조회용
+                @Index(name = "ix_outbox_aggtype_aggid",     columnList = "aggregate_type, aggregate_id"),
+                // publishing 좀비 회수용
+                @Index(name = "ix_status_picked_lease_id",        columnList = "status, picked_at, lease_until, id")                             // 선택: 유지하거나 제거
         }
 )
 public class OutboxEventRecord extends PayloadOutboxEventRecord {

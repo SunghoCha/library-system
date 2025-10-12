@@ -1,11 +1,9 @@
-package msa.bookloan.application.saga.reply;
-
-import msa.bookloan.application.saga.command.InventoryReservedPayload;
+package msa.bookloan.application.saga.reply.inventory;
 
 public record InventoryReservedInternalEvent(
         Long eventId,
         String sagaId,
-        Long causationEventId,
+        Long causationCommandId,
         Long sourceAggregateVersion,
         InventoryReservedPayload payload
 ) {}
