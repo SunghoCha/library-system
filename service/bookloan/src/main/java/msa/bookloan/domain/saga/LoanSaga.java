@@ -1,10 +1,7 @@
 package msa.bookloan.domain.saga;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import msa.common.domain.base.BaseTimeEntity;
 
 import java.time.Duration;
@@ -32,8 +29,9 @@ public class LoanSaga extends BaseTimeEntity {
     private Long aggregateVersion;         // @Version 값(BookLoan 엔티티)
 
     @Column(name = "trigger_event_id", nullable = false)
-    private Long triggerEventId;           // 사가 시작시킨 내부 이벤트id 추적용
+    private Long triggerEventId;           // 사가를 시작시킨 최초 이벤트의 id
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20, nullable = false)
     private SagaStatus status;
@@ -59,6 +57,7 @@ public class LoanSaga extends BaseTimeEntity {
     @Column(name = "step_started_at")
     private LocalDateTime stepStartedAt; // 나중에 운영단계에서 필요할듯 당장은 쓸 일 없어보임
 
+    @Setter
     @Column(name = "step_deadline_at")
     private LocalDateTime stepDeadlineAt; //
 
@@ -97,7 +96,7 @@ public class LoanSaga extends BaseTimeEntity {
                 .bookId(bookId)
                 .aggregateVersion(aggregateVersion)
                 .triggerEventId(triggerEventId)
-                .status(SagaStatus.STARTED)
+                .status(SagaStatus.PROCESSING)
                 .currentStep(LoanSagaStep.INIT)
                 .stepStartedAt(now)       // INIT 스텝 시작 시각
                 .stepDeadlineAt(null) // 사가 진행하면서 계속 갱신
@@ -133,7 +132,19 @@ public class LoanSaga extends BaseTimeEntity {
     }
 
     public boolean isTerminal() {
-        return this.status == SagaStatus.COMPLETED || this.status == SagaStatus.FAILED;
+        return this.status == SagaStatus.COMPLETED
+                || this.status == SagaStatus.FAILED
+                || this.status == SagaStatus.CANCELLED
+                || this.status == SagaStatus.TIMED_OUT;
     }
 
+    public boolean isAfterPivot() {
+        // 현 설계: ShippingScheduled가 커밋되면 FINISHED로 전이됨 -> 그 시점이 pivot 통과
+        // 지금은 피벗트랜잭션이 마지막인데 나중엔 바뀔수도 있음
+        return this.currentStep == LoanSagaStep.FINISHED;
+    }
+
+    public boolean canAcceptCancel() {
+        return !isTerminal() && !isAfterPivot();
+    }
 }

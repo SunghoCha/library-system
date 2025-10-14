@@ -77,7 +77,7 @@ public class EventRecorder {
     public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = routingResolver.resolve(event);
+        OutboxRouting routing = routingResolver.doResolve(event);
         if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Routing is invalid: " + event);
         }

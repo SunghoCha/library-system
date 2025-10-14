@@ -1,4 +1,6 @@
-package msa.bookloan.application.saga.reply.member;
+package msa.bookloan.application.saga.reply.point;
+
+import msa.bookloan.application.saga.reply.SagaReplyEvent;
 
 public record PointChargeFailedInternalEvent(
         Long eventId,
@@ -6,4 +8,4 @@ public record PointChargeFailedInternalEvent(
         Long causationCommandId,
         Long sourceAggregateVersion,
         PointChargeFailedPayload payload
-) {}
+) implements SagaReplyEvent {}

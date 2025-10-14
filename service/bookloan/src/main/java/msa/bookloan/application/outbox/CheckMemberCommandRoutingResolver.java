@@ -9,15 +9,20 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class LoanCommandRoutingResolver implements OutboxRoutingResolver<CheckMemberCommand> {
+public class CheckMemberCommandRoutingResolver implements OutboxRoutingResolver<CheckMemberCommand> {
 
     private final KafkaProps kafkaProps;
 
     @Override
-    public OutboxRouting resolve(CheckMemberCommand event) {
+    public Class<CheckMemberCommand> payloadType() {
+        return CheckMemberCommand.class;
+    }
+
+    @Override
+    public OutboxRouting doResolve(CheckMemberCommand command) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicMemberCheck())
-                .partitionKey(event.sagaId())
+                .partitionKey(command.sagaId())
                 .build();
     }
 }

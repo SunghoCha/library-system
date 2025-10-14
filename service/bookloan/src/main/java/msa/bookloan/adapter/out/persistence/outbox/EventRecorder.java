@@ -43,7 +43,7 @@ public class EventRecorder {
     private OutboxEventRecord toRecord(LoanRequestedInternalEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = routingResolver.resolve(event);
+        OutboxRouting routing = routingResolver.doResolve(event);
         if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Invalid routing for event: " + event);
         }

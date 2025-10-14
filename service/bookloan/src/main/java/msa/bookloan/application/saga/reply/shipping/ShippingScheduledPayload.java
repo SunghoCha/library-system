@@ -1,4 +1,4 @@
-package msa.bookloan.application.saga.reply.inventory;
+package msa.bookloan.application.saga.reply.shipping;
 
 public record ShippingScheduledPayload(
         Long shipmentId,

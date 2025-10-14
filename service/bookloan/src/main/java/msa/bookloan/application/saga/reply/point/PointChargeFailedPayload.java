@@ -1,4 +1,4 @@
-package msa.bookloan.application.saga.reply.member;
+package msa.bookloan.application.saga.reply.point;
 
 public record PointChargeFailedPayload(
         String reasonCode,

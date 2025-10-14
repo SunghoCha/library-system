@@ -3,8 +3,8 @@ package msa.bookloan.domain.saga;
 public enum  LoanSagaStep {
     INIT,
     MEMBER_CHECKING,
-    POINT_CHARGING,
     INVENTORY_RESERVING,
+    POINT_CHARGING,
     SHIPPING_SCHEDULING,
     FINISHED
 

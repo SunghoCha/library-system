@@ -11,9 +11,13 @@ public class KafkaProps {
     // commands
     private String topicMemberCheck;
     private String topicInventoryReserve;
+    private String topicPointCharge;
+    private String topicPointRefund;      // 보상
+    private String topicShippingSchedule;
+    private String topicInventoryRelease; // 보상
 
     // single reply channel
-    private String topicSagaReplies;
+    private String topicSagaReplies; // 응답
 
     // catalog
     private String topicCatalogChanged;

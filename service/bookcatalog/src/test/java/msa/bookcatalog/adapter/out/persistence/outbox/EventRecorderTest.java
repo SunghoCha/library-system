@@ -64,7 +64,7 @@ class EventRecorderTest {
         given(snowflake.nextId()).willReturn(expectedDbId);
 
         OutboxRouting expectedRouting = new OutboxRouting(testTopic, String.valueOf(event.getAggregateId()));
-        given(routingResolver.resolve(any(BookCatalogChangedEvent.class))).willReturn(expectedRouting);
+        given(routingResolver.doResolve(any(BookCatalogChangedEvent.class))).willReturn(expectedRouting);
 
         // when
         eventRecorder.save(event);
@@ -92,8 +92,8 @@ class EventRecorderTest {
 
         OutboxRouting routing1 = new OutboxRouting(testTopic, String.valueOf(event1.getAggregateId()));
         OutboxRouting routing2 = new OutboxRouting(testTopic, String.valueOf(event2.getAggregateId()));
-        given(routingResolver.resolve(event1)).willReturn(routing1);
-        given(routingResolver.resolve(event2)).willReturn(routing2);
+        given(routingResolver.doResolve(event1)).willReturn(routing1);
+        given(routingResolver.doResolve(event2)).willReturn(routing2);
         // when
         eventRecorder.saveAll(events);
 

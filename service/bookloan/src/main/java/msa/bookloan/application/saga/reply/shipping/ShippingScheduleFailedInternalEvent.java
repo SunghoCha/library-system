@@ -1,4 +1,6 @@
-package msa.bookloan.application.saga.reply.inventory;
+package msa.bookloan.application.saga.reply.shipping;
+
+import msa.bookloan.application.saga.reply.SagaReplyEvent;
 
 public record ShippingScheduleFailedInternalEvent(
         Long eventId,
@@ -6,4 +8,4 @@ public record ShippingScheduleFailedInternalEvent(
         Long causationCommandId,
         Long sourceAggregateVersion,
         ShippingScheduleFailedPayload payload
-) {}
+) implements SagaReplyEvent {}

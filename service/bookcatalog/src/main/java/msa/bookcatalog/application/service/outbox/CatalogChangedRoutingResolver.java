@@ -14,7 +14,12 @@ public class CatalogChangedRoutingResolver implements OutboxRoutingResolver<Book
     private final KafkaProps kafkaProps;
 
     @Override
-    public OutboxRouting resolve(BookCatalogChangedEvent event) {
+    public Class<BookCatalogChangedEvent> payloadType() {
+        return BookCatalogChangedEvent.class;
+    }
+
+    @Override
+    public OutboxRouting doResolve(BookCatalogChangedEvent event) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicCatalogChanged())
                 .partitionKey(String.valueOf(event.getAggregateId()))

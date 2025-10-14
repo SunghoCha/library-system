@@ -10,4 +10,4 @@ public record CheckMemberCommand(
         Long memberId,
         Long sourceAggregateVersion, // BookLoan.@Version
         Long causationEventId        // (LoanRequestedInternalEvent.eventId) 이 커맨드를 유발한 직전 이벤트의 id
-) {}
+) implements SagaCommand {}
