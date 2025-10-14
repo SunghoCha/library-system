@@ -44,14 +44,16 @@ public class LoanService {
         long loanId = snowflake.nextId();
         BookLoan loan = BookLoan.createNew(loanId, memberId, request.bookId());
         bookLoanRepository.save(loan);
+        bookLoanRepository.flush(); // version 정보 세팅용
 
         String sagaId = Long.toString(loanId);
         long eventId = snowflake.nextId();
+        Long version = loan.getVersion();
 
         eventPublisher.publishEvent(new LoanRequestedInternalEvent(
                 sagaId, loanId,
                 memberId, request.bookId(),
-                eventId, LocalDateTime.now(clock)
+                eventId, version, LocalDateTime.now(clock)
         ));
 
         // 수행 후 레포지토리 저장하고 빠르게 반환해서 응답

@@ -2,12 +2,12 @@ package msa.bookcatalog.application.service.batch;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
+import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
-import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
-import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.common.events.EventType;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

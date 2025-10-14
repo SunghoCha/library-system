@@ -35,8 +35,30 @@ spring:
 app:
   kafka:
     source-token: book-loan
-    topic-loan-requested: book-loan.requested
-    topic-loan-returned:  book-loan.returned
+
+    # commands
+    topic-member-check: member.check
+    topic-inventory-reserve: inventory.reserve
+    topic-point-charge: point.charge
+    topic-point-refund: point.refund
+    topic-shipping-schedule: shipping.schedule
+    topic-inventory-release: inventory.release
+
+    # single reply channel
+    topic-saga-replies: loan.saga.replies
+
+    # catalog
     topic-catalog-changed: book-catalog.changed
-    group-loan-requested: bookloan.loan-requested
+
+    # groups
+    group-saga-replies: bookloan-saga-replies
     group-catalog-replica: bookloan-category-changed-replica
+
+  saga:
+    overall-timeout: 3m
+    default-step-timeout: 30s
+    steps:
+      member-checking: 10s
+      inventory-reserving: 20s
+      point-charging: 15s
+      shipping-scheduling: 30s

@@ -6,12 +6,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
-import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.common.domain.model.BookTypeRef;
+import msa.common.domain.model.CategoryRef;
+import msa.common.events.bookcatalog.BookCatalogChangedPayload;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,7 +77,7 @@ public class EventRecorder {
     public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = routingResolver.resolve(event);
+        OutboxRouting routing = routingResolver.doResolve(event);
         if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Routing is invalid: " + event);
         }
@@ -94,7 +95,6 @@ public class EventRecorder {
                 .routing(routing)
                 .build();
     }
-
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
@@ -135,14 +135,35 @@ public class EventRecorder {
         return updated;
     }
 
+//    private String serializeToPayloadV2(BookCatalogChangedEvent event) {
+//        try {
+//            BookCatalogChangedExternalEventPayload payload = BookCatalogChangedExternalEventPayload.of(event);
+//            return objectMapper.writeValueAsString(payload);
+//        } catch (JsonProcessingException e) {
+//            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
+//        }
+//
+//    }
+
     private String serializeToPayload(BookCatalogChangedEvent event) {
         try {
-            BookCatalogChangedExternalEventPayload payload = BookCatalogChangedExternalEventPayload.of(event);
+            BookCatalogChangedPayload payload = new BookCatalogChangedPayload(
+                    String.valueOf(event.getEventId()),
+                    event.getEventType().name(),
+                    String.valueOf(event.getBookId()),
+                    event.getAggregateVersion(),
+                    String.valueOf(event.getBookId()),
+                    event.getAggregateType(),
+                    event.getTitle(),
+                    event.getAuthor(),
+                    new CategoryRef(event.getCategory().categoryId(), event.getCategory().categoryName()),
+                    new BookTypeRef(event.getBookType().bookType(), event.getBookType().bookTypeName()),
+                    event.getOccurredAt()
+            );
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
         }
-
     }
 
 }

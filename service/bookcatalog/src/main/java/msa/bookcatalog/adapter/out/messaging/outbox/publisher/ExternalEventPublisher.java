@@ -3,7 +3,7 @@ package msa.bookcatalog.adapter.out.messaging.outbox.publisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.messaging.outbox.OutboxEventSender;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
+import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;

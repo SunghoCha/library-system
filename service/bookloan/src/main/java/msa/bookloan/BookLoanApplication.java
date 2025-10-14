@@ -11,8 +11,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.retry.annotation.EnableRetry;
 
 @EnableRetry
-@ConfigurationPropertiesScan
 @SpringBootApplication
+@ConfigurationPropertiesScan
 @Import({
         InfraModulesConfig.class,
         CommonModuleConfig.class

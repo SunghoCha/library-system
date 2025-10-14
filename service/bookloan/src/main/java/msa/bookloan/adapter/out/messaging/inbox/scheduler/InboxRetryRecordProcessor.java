@@ -4,13 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
-import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
+import msa.bookloan.application.event.BookCatalogChangedEvent;
 import msa.bookloan.application.projection.BookCatalogProjectionProcessor;
 import msa.bookloan.application.service.exception.InboxEventRecordNotFoundException;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
-import msa.common.events.bookcatalog.BookCatalogChangedExternalEventPayload;
+import msa.common.events.bookcatalog.BookCatalogChangedPayload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,23 +42,23 @@ public class InboxRetryRecordProcessor {
     }
 
     private BookCatalogChangedEvent createBookCatalogUpdatedEvent(InboxEventRecord eventRecord) {
-        BookCatalogChangedExternalEventPayload payload = getPayload(eventRecord);
+        BookCatalogChangedPayload payload = getPayload(eventRecord);
 
         return BookCatalogChangedEvent.builder()
                 .eventId(eventRecord.getEventId())
                 .eventType(eventRecord.getEventType())
-                .bookId(toLong(payload.getBookId()))
+                .bookId(toLong(payload.bookId()))
                 .aggregateVersion(eventRecord.getAggregateVersion())
-                .title(payload.getTitle())
-                .author(payload.getAuthor())
-                .category(payload.getCategory())
+                .title(payload.title())
+                .author(payload.author())
+                .category(payload.category())
                 .build();
     }
 
-    private BookCatalogChangedExternalEventPayload getPayload(InboxEventRecord eventRecord) {
+    private BookCatalogChangedPayload getPayload(InboxEventRecord eventRecord) {
         try {
             String payload = eventRecord.getPayload();
-            return objectMapper.readValue(payload, BookCatalogChangedExternalEventPayload.class);
+            return objectMapper.readValue(payload, BookCatalogChangedPayload.class);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Invalid JSON in inbox record: " + eventRecord.getId(), e);
         }

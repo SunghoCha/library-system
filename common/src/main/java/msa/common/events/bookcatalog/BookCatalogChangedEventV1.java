@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Getter
-public class BookCatalogChangedEvent implements DomainEvent {
+@Deprecated
+public class BookCatalogChangedEventV1 implements DomainEvent {
 
     public static final String AGGREGATE_TYPE = "BookCatalog";
 
@@ -30,9 +31,9 @@ public class BookCatalogChangedEvent implements DomainEvent {
     private final LocalDateTime occurredAt;
 
     @Builder
-    public BookCatalogChangedEvent(Long eventId, EventType eventType, long bookId, long aggregateVersion,
-                                   String title, String author, CategoryRef category,
-                                   BookTypeRef  bookType, LocalDateTime occurredAt) {
+    public BookCatalogChangedEventV1(Long eventId, EventType eventType, long bookId, long aggregateVersion,
+                                     String title, String author, CategoryRef category,
+                                     BookTypeRef  bookType, LocalDateTime occurredAt) {
         this.eventId = Objects.requireNonNull(eventId, "eventId must not be null");
         this.eventType = eventType;
         this.bookId = bookId;
@@ -59,7 +60,7 @@ public class BookCatalogChangedEvent implements DomainEvent {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BookCatalogChangedEvent that = (BookCatalogChangedEvent) o;
+        BookCatalogChangedEventV1 that = (BookCatalogChangedEventV1) o;
         return Objects.equals(eventId, that.eventId);
     }
 

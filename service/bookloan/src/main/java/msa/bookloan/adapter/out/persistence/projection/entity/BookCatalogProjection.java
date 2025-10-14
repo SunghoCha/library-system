@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import msa.common.events.bookcatalog.BookCatalogChangedEvent;
+import msa.bookloan.application.event.BookCatalogChangedEvent;
 
 import java.time.LocalDateTime;
 
@@ -24,22 +24,22 @@ public class BookCatalogProjection {
     @Column(name = "book_id")
     private Long bookId;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(length = 200)
+    @Column(name = "author")
     private String author;
 
     @Column(name = "category_id", nullable = false)
     private Integer categoryId;
 
-    @Column(name = "category_name", length = 100, nullable = false)
+    @Column(name = "category_name", nullable = false)
     private String categoryName;
 
-    @Column(name = "book_type", length = 32)
+    @Column(name = "book_type")
     private String bookType;
 
-    @Column(name = "book_type_name", length = 32)
+    @Column(name = "book_type_name")
     private String bookTypeName;
 
     @Column(name = "aggregate_version", nullable = false)
@@ -49,9 +49,9 @@ public class BookCatalogProjection {
     private LocalDateTime lastEventAt;
 
     // TODO : 굳이 필요한지 모르겠음
-    @Version
-    @Column(name = "row_version")
-    private Long rowVersion;
+//    @Version
+//    @Column(name = "row_version")
+//    private Long rowVersion;
 
     @Builder
     public BookCatalogProjection(Long bookId, String title, String author,
