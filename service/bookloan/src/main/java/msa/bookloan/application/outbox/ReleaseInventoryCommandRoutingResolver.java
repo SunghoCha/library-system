@@ -12,11 +12,14 @@ import org.springframework.stereotype.Component;
 public class ReleaseInventoryCommandRoutingResolver implements OutboxRoutingResolver<ReleaseInventoryCommand> {
 
     private final KafkaProps props;
-    @Override public Class<ReleaseInventoryCommand> payloadType() { return ReleaseInventoryCommand.class; }
-    @Override public OutboxRouting doResolve(ReleaseInventoryCommand cmd) {
+    @Override public Class<ReleaseInventoryCommand> payloadType() {
+        return ReleaseInventoryCommand.class;
+    }
+
+    @Override public OutboxRouting doResolve(ReleaseInventoryCommand command) {
         return OutboxRouting.builder()
                 .topic(props.getTopicInventoryRelease())
-                .partitionKey(cmd.sagaId())
+                .partitionKey(String.valueOf(command.bookId()))
                 .build();
     }
 }

@@ -59,7 +59,7 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     private int retryCount = 0;
 
     // TODO : next_attempt_at, worker_id, lease_until 추가 예정
-    // 추가: 재시도/클레임용
+    // 재시도 백오프 용인데 이건 일단 보류
     @Column(name = "next_attempt_at", columnDefinition = "datetime(6)")
     private LocalDateTime nextAttemptAt;
 

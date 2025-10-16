@@ -21,8 +21,8 @@ public class ScheduleShippingCommandRoutingResolver implements OutboxRoutingReso
     @Override
     public OutboxRouting doResolve(ScheduleShippingCommand command) {
         return OutboxRouting.builder()
-                .topic(kafkaProps.getTopicInventoryReserve())
-                .partitionKey(command.sagaId())
+                .topic(kafkaProps.getTopicShippingSchedule())
+                .partitionKey(String.valueOf(command.loanId()))
                 .build();
     }
 }

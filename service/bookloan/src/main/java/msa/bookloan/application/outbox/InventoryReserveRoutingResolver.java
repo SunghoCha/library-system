@@ -22,7 +22,7 @@ public class InventoryReserveRoutingResolver implements OutboxRoutingResolver<Re
     public OutboxRouting doResolve(ReserveInventoryCommand command) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicInventoryReserve())
-                .partitionKey(command.sagaId())
+                .partitionKey(String.valueOf(command.bookId()))
                 .build();
     }
 }

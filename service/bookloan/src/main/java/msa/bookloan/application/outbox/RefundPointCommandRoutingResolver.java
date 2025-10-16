@@ -17,10 +17,10 @@ public class RefundPointCommandRoutingResolver implements OutboxRoutingResolver<
         return RefundPointCommand.class;
     }
 
-    @Override public OutboxRouting doResolve(RefundPointCommand cmd) {
+    @Override public OutboxRouting doResolve(RefundPointCommand command) {
         return OutboxRouting.builder()
                 .topic(props.getTopicPointRefund())
-                .partitionKey(cmd.sagaId())
+                .partitionKey(String.valueOf(command.memberId()))
                 .build();
     }
 }

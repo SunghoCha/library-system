@@ -5,7 +5,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
+import msa.bookloan.adapter.in.web.controller.dto.response.LoanCancelResponse;
 import msa.bookloan.adapter.in.web.controller.dto.response.LoanCreateResponse;
 import msa.bookloan.application.service.LoanService;
 import msa.bookloan.application.service.dto.LoanCreateResult;
@@ -46,6 +48,26 @@ public class LoanController {
         return ResponseEntity.accepted()
                 .location(location)
                 .body(body);
+    }
+
+    @Operation(summary = "도서 대출 취소", description = "FINISHED 전이면 언제든 접수(202). 보상은 비동기.")
+    @ApiResponse(responseCode = "202", description = "취소 요청 접수됨")
+    @PostMapping("/{loanId}:cancel")
+    public ResponseEntity<LoanCancelResponse> cancel(@PathVariable Long loanId) {
+        Long memberId = 1L; // TODO: 시큐리티 붙이면 교체
+
+        LoanCancelResult result = loanService.requestCancel(memberId, loanId);
+
+        String statusUrl = ServletUriComponentsBuilder
+                .fromCurrentRequestUri().replacePath("/loans/{id}")
+                .buildAndExpand(loanId)
+                .toUriString();
+        URI location = URI.create(statusUrl);
+
+        LoanCancelResponse body = new LoanCancelResponse(
+                loanId, result.sagaId(), "ACCEPTED", statusUrl);
+
+        return ResponseEntity.accepted().location(location).body(body);
     }
 
 

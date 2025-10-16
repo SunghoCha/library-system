@@ -41,6 +41,9 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
     @Version
     private Long version;
 
+    @Column(name = "current_saga_id") // 일종의 시맨틱락으로 사용 
+    private String currentSagaId;
+
     @Builder
     public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,
                     LoanProcessStatus processStatus, LocalDate dueDate, LocalDate returnDate) {

@@ -8,6 +8,7 @@ import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
 import msa.common.events.EventType;
+import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
@@ -29,7 +30,7 @@ public class EventRecorder {
     private final OutboxRoutingResolver<LoanRequestedInternalEvent> routingResolver;
 
     @Transactional
-    public void save(LoanRequestedInternalEvent event) {
+    public void save(OutboxRecordableEvent event) {
         OutboxEventRecord record = toRecord(event);
         try {
             eventRecordRepository.save(record);
@@ -40,11 +41,11 @@ public class EventRecorder {
         }
     }
 
-    private OutboxEventRecord toRecord(LoanRequestedInternalEvent event) {
+    private OutboxEventRecord toRecord(OutboxRecordableEvent event) {
         String payload = serializeToPayload(event);
 
         OutboxRouting routing = routingResolver.doResolve(event);
-        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+        if (routing == null || routing.topic() == null || routing.partitionKey() == null) {
             throw new IllegalStateException("Invalid routing for event: " + event);
         }
 
@@ -62,7 +63,7 @@ public class EventRecorder {
                 .build();
     }
 
-    private String serializeToPayload(LoanRequestedInternalEvent event) {
+    private String serializeToPayload(OutboxRecordableEvent event) {
         try {
             return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {

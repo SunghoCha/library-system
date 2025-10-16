@@ -62,3 +62,4 @@ app:
       inventory-reserving: 20s
       point-charging: 15s
       shipping-scheduling: 30s
+      shipping-accepted: 10m

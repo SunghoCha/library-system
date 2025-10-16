@@ -21,8 +21,8 @@ public class ChargePointCommandRoutingResolver implements OutboxRoutingResolver<
     @Override
     public OutboxRouting doResolve(ChargePointCommand command) {
         return OutboxRouting.builder()
-                .topic(kafkaProps.getTopicMemberCheck())
-                .partitionKey(command.sagaId())
+                .topic(kafkaProps.getTopicPointCharge())
+                .partitionKey(String.valueOf(command.memberId()))
                 .build();
     }
 }

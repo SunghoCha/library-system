@@ -23,6 +23,10 @@ public final class SagaTimeouts {
             case POINT_CHARGING -> duration = steps != null ? steps.pointCharging() : null;
             case SHIPPING_SCHEDULING -> duration = steps != null ? steps.shippingScheduling() : null;
             case INIT, FINISHED -> duration = Duration.ZERO;
+            case SHIPPING_ACCEPTED ->
+                    duration = (steps != null && steps.shippingAccepted() != null)
+                            ? steps.shippingAccepted()
+                            : Duration.ofMinutes(10);
         }
         return duration != null ? duration : defaultStepTimeout();
 

@@ -111,24 +111,115 @@ public class LoanSaga extends BaseTimeEntity {
         this.stepDeadlineAt = null;
     }
 
-    public void markProcessing(LoanSagaStep step, Duration timeout) {
+    public boolean markProcessing(LoanSagaStep step, Duration timeout) {
+        // 터미널/보상 중엔 앞으로 진행 금지
+        if (isTerminal() || this.status == SagaStatus.COMPENSATING) {
+            return false;
+        }
+
+        // 동일 스텝 재진입은 멱등 처리
+        if (this.status == SagaStatus.PROCESSING && this.currentStep == step) {
+            return false;
+        }
+
         this.currentStep = step;
         this.status = SagaStatus.PROCESSING;
         LocalDateTime now = LocalDateTime.now();
         this.stepStartedAt = now;
         this.stepDeadlineAt = now.plus(timeout);
+
+        return true;
     }
 
-    public void markCompleted() {
+    public boolean markCompleted() {
+        // 이미 완료면 멱등, 다른 터미널이면 무시
+        if (this.status == SagaStatus.COMPLETED || isTerminal()) {
+            return false;
+        }
+
+        // 정책상 완료 가능한 지점만 허용(현재 설계: SHIPPING_SCHEDULING 이후)
+        if (this.currentStep != LoanSagaStep.SHIPPING_SCHEDULING
+                && this.currentStep != LoanSagaStep.SHIPPING_ACCEPTED) {
+            return false;
+        }
+
         this.currentStep = LoanSagaStep.FINISHED;
         this.status = SagaStatus.COMPLETED;
         this.stepDeadlineAt = null;
+        this.workerId = null;
+        this.leaseUntil = null;
+        this.lastError = null;
+
+        return true;
     }
 
-    public void markFailed(String reason) {
+    public boolean markFailed(SagaAbortReason reason) {
+        // 멱등/우선순위: 완료된 건은 건드리지 않음
+        if (this.status == SagaStatus.COMPLETED || this.status == SagaStatus.FAILED) {
+            return false;
+        }
+
         this.status = SagaStatus.FAILED;
-        this.lastError = reason;
+        this.lastError = reason.name();
         this.stepDeadlineAt = null;
+        this.workerId = null;
+        this.leaseUntil = null;
+
+        return true;
+    }
+
+    public boolean markCancelled(SagaAbortReason reason) {
+        if (this.status == SagaStatus.COMPLETED || this.status == SagaStatus.CANCELLED) {
+            return false;
+        }
+
+        this.status = SagaStatus.CANCELLED;
+        this.lastError = reason.name();
+        this.stepDeadlineAt = null;
+        this.workerId = null;
+        this.leaseUntil = null;
+
+        return true;
+    }
+
+    public boolean  enterCompensating(Duration timeout) {
+        // 이미 끝났거나 피벗 통과면 아무 것도 하지 않음 (방어)
+        if (isTerminal() || isAfterPivot() || this.status == SagaStatus.COMPENSATING) {
+            return false;
+        }
+        this.status = SagaStatus.COMPENSATING;
+        LocalDateTime now = LocalDateTime.now();
+        this.stepStartedAt = now;                    // 보상 시작 시각 갱신
+        this.stepDeadlineAt = now.plus(timeout);     // 보상 타임아웃
+        // 워커 시맨틱락 해제
+        this.workerId = null;
+        this.leaseUntil = null;
+
+        return true;
+    }
+
+    public boolean isProcessingAt(LoanSagaStep step) {
+        return this.getStatus() == SagaStatus.PROCESSING && this.getCurrentStep() == step;
+    }
+
+    public boolean isProcessingAtAny(LoanSagaStep... steps) {
+        if (this.getStatus() != SagaStatus.PROCESSING) return false;
+        for (LoanSagaStep s : steps) {
+            if (this.getCurrentStep() == s) return true;
+        }
+        return false;
+    }
+
+    public boolean isCompensatingFrom(LoanSagaStep step) {
+        return this.getStatus() == SagaStatus.COMPENSATING && this.getCurrentStep() == step;
+    }
+
+    public boolean moveCompensatingTo(LoanSagaStep step, Duration timeout) {
+        if (this.getStatus() != SagaStatus.COMPENSATING) return false;
+        this.setStepDeadlineAt(LocalDateTime.now().plus(timeout));
+        this.currentStep = step;
+        this.stepStartedAt = LocalDateTime.now();
+        return true;
     }
 
     public boolean isTerminal() {

@@ -22,7 +22,7 @@ public class CheckMemberCommandRoutingResolver implements OutboxRoutingResolver<
     public OutboxRouting doResolve(CheckMemberCommand command) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicMemberCheck())
-                .partitionKey(command.sagaId())
+                .partitionKey(String.valueOf(command.memberId()))
                 .build();
     }
 }

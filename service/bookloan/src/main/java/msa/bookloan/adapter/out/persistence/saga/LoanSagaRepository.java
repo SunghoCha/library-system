@@ -7,13 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 public interface LoanSagaRepository extends JpaRepository<LoanSaga, String> {
-
-    boolean existsBySagaId(String sagaId);
-
-    Optional<LoanSaga> findBySagaId(String sagaId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """

@@ -8,10 +8,7 @@ import msa.bookloan.application.saga.reply.inventory.*;
 import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
 import msa.bookloan.application.saga.reply.point.*;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedPayload;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledPayload;
+import msa.bookloan.application.saga.reply.shipping.*;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -25,15 +22,6 @@ public class ReplyPayloadTranslator {
     private final ObjectMapper objectMapper;
 
     private final Map<ReplyType, Function<SagaReplyEnvelope, SagaReplyEvent>> translators;
-
-    public SagaReplyEvent toInternalEvent(SagaReplyEnvelope envelope) {
-        ReplyType type = ReplyType.from(envelope.replyType());
-        Function<SagaReplyEnvelope, SagaReplyEvent> function = translators.get(type);
-        if (function == null) {
-            throw new IllegalArgumentException("Unknown reply type: " + type);
-        }
-        return function.apply(envelope);
-    }
 
     public ReplyPayloadTranslator(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -75,8 +63,21 @@ public class ReplyPayloadTranslator {
         map.put(ReplyType.InventoryReleased,
                 createTranslator(InventoryReleasedPayload.class, InventoryReleasedInternalEvent::new));
 
+        map.put(ReplyType.ShippingAccepted,
+                createTranslator(ShippingAcceptedPayload.class, ShippingAcceptedInternalEvent::new));
+
         translators = Collections.unmodifiableMap(map);
 
+    }
+
+    public SagaReplyEvent toInternalEvent(SagaReplyEnvelope envelope) {
+        ReplyType type = ReplyType.from(envelope.replyType());
+        if (type == null) throw new IllegalArgumentException("Null/unknown replyType: " + envelope.replyType());
+
+        Function<SagaReplyEnvelope, SagaReplyEvent> function = translators.get(type);
+        if (function == null) throw new IllegalArgumentException("Unknown reply type: " + type);
+
+        return function.apply(envelope);
     }
 
     private <P> P read(SagaReplyEnvelope envelope, Class<P> type) {
@@ -110,7 +111,7 @@ public class ReplyPayloadTranslator {
         try {
             return Long.parseLong(s);
         } catch (NumberFormatException ex) {
-            throw new IllegalStateException("Invalid eventId: " + s, ex);
+            throw new IllegalStateException("Invalid eventId (not a number): " + s, ex);
         }
     }
 

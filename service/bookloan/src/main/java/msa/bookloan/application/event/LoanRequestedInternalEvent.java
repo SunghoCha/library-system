@@ -1,6 +1,8 @@
 package msa.bookloan.application.event;
 
 
+import msa.common.events.outbox.OutboxRecordableEvent;
+
 import java.time.LocalDateTime;
 
 public record LoanRequestedInternalEvent(
@@ -11,5 +13,4 @@ public record LoanRequestedInternalEvent(
         Long eventId,
         Long aggregateVersion,
         LocalDateTime occurredAt
-        ) {
-}
+) implements OutboxRecordableEvent { }
