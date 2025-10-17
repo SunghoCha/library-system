@@ -97,8 +97,8 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
-        int updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
 
         if (updated == 0) {
             log.info("[Outbox] 발행 처리 스킵: 펜싱 또는 이미 처리됨 (eventId={}, workerId={}, claimedAt={})",
@@ -110,8 +110,8 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
-        int updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
+        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
 
         if (updated == 0) {
             log.info("[Outbox] 실패 처리 스킵: 펜싱 또는 회수됨 (eventId={}, workerId={}, claimedAt={})",
@@ -123,8 +123,8 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markDeadLetter(Long eventId, String error) {
-        int updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+    public long markDeadLetter(Long eventId, String error) {
+        long updated = eventRecordRepository.markDeadFromFailed(eventId, error);
 
         if (updated == 0) {
             log.info("[Outbox] 데드레터 전이 스킵: 현재 상태가 FAILED 아님 (eventId={})", eventId);

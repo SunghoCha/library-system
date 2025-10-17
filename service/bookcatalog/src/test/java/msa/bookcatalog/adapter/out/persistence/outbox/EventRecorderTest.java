@@ -145,10 +145,10 @@ class EventRecorderTest {
         String workerId = "worker-1";
         LocalDateTime claimedAt = LocalDateTime.now();
         // Repository가 1(성공)을 반환하도록 설정
-        when(eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt)).thenReturn(1);
+        when(eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt)).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
+        long result = eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
 
         // then
         // Repository의 해당 메서드가 정확한 인자와 함께 호출되었는지 검증
@@ -165,10 +165,10 @@ class EventRecorderTest {
         String workerId = "worker-2";
         LocalDateTime claimedAt = LocalDateTime.now();
         String reason = "Kafka Error";
-        when(eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason)).thenReturn(1);
+        when(eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason)).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        long result = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, reason);
 
         // then
         verify(eventRecordRepository).markFailedByEventId(eventId, workerId, claimedAt, reason);
@@ -181,10 +181,10 @@ class EventRecorderTest {
         // given
         Long eventId = 3L;
         String error = "Max retries exceeded";
-        when(eventRecordRepository.markDeadFromFailed(eventId, error)).thenReturn(1);
+        when(eventRecordRepository.markDeadFromFailed(eventId, error)).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markDeadLetter(eventId, error);
+        long result = eventRecorder.markDeadLetter(eventId, error);
 
         // then
         verify(eventRecordRepository).markDeadFromFailed(eventId, error);

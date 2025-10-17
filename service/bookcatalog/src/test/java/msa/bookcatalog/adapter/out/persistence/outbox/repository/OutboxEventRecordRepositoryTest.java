@@ -122,7 +122,7 @@ class OutboxEventRecordRepositoryTest {
         List<Long> ids = List.of(newEvent.getId(), failedEvent.getId());
 
         // when
-        int updatedCount = outboxRepository.markPublishing(ids, workerId, now, leaseSeconds);
+        long updatedCount = outboxRepository.markPublishing(ids, workerId, now, leaseSeconds);
 
         // then
         assertThat(updatedCount).isEqualTo(2);
@@ -143,7 +143,7 @@ class OutboxEventRecordRepositoryTest {
         outboxRepository.save(publishingEvent);
 
         // when
-        int updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), workerId, claimedAt);
+        long updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), workerId, claimedAt);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -166,7 +166,7 @@ class OutboxEventRecordRepositoryTest {
 
         // when
         String errorMessage = "Kafka Connection Failed";
-        int updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), workerId, claimedAt, errorMessage);
+        long updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), workerId, claimedAt, errorMessage);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -188,7 +188,7 @@ class OutboxEventRecordRepositoryTest {
 
         // when
         String reason = "Max retry exceeded";
-        int updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason);
+        long updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -209,7 +209,7 @@ class OutboxEventRecordRepositoryTest {
         int leaseSeconds = 30;
 
         // when
-        int updatedCount = outboxRepository.tryClaimFromNew(newEvent.getEventId(), workerId, now, leaseSeconds);
+        long updatedCount = outboxRepository.tryClaimFromNew(newEvent.getEventId(), workerId, now, leaseSeconds);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -226,7 +226,7 @@ class OutboxEventRecordRepositoryTest {
         outboxRepository.save(failedEvent);
 
         // when
-        int updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), "worker", LocalDateTime.now(), 30);
+        long updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), "worker", LocalDateTime.now(), 30);
 
         // then
         assertThat(updatedCount).isEqualTo(0);

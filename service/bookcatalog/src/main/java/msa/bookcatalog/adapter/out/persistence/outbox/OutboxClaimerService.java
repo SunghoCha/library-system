@@ -38,11 +38,11 @@ public class OutboxClaimerService {
 
         String workerId = instanceIdentity.workerId();
 
-        int updated = outboxRepository.markPublishing(ids, workerId, now, properties.leaseSeconds());
+        long updated = outboxRepository.markPublishing(ids, workerId, now, properties.leaseSeconds());
         if (updated == 0) {
             return List.of();
         }
 
-        return outboxRepository.findAllByIdInOrderByOccurredAt(ids);
+        return outboxRepository.findPublishingByIdsOrderByOccurredAt(ids);
     }
 }
