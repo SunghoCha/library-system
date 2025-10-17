@@ -131,7 +131,7 @@ public class InventoryStepService {
 
     private ChargePointCommand createChargePointCommand(LoanSaga saga, Long causationEventId) {
         return ChargePointCommand.builder()
-                .commandId(snowflake.nextId())
+                .commandId(snowflake.nextId()) // 유니크한 커맨드가 만들어지는 지점. 이 메서드가 의도치않게 중복 실행되면 위험
                 .sagaId(saga.getSagaId())
                 .loanId(saga.getLoanId())
                 .memberId(saga.getMemberId())

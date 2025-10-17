@@ -6,7 +6,6 @@ import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNotFoundException;
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.InstanceIdentity;
 import org.springframework.kafka.core.KafkaTemplate;

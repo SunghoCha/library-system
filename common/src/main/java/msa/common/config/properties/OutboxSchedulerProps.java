@@ -1,4 +1,4 @@
-package msa.bookcatalog.infra.config.properties;
+package msa.common.config.properties;
 
 import jakarta.validation.constraints.Min;
 import org.springframework.boot.context.properties.ConfigurationProperties;

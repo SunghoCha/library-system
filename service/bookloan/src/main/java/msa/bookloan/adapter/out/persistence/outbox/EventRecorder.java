@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
+import msa.bookloan.application.saga.command.SagaCommand;
 import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
@@ -15,6 +16,8 @@ import msa.common.snowflake.Snowflake;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
@@ -27,7 +30,7 @@ public class EventRecorder {
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
-    private final OutboxRoutingResolver<LoanRequestedInternalEvent> routingResolver;
+    private final List<OutboxRoutingResolver<?>> resolvers;
 
     @Transactional
     public void save(OutboxRecordableEvent event) {
@@ -44,8 +47,8 @@ public class EventRecorder {
     private OutboxEventRecord toRecord(OutboxRecordableEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = routingResolver.doResolve(event);
-        if (routing == null || routing.topic() == null || routing.partitionKey() == null) {
+        OutboxRouting routing = route(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Invalid routing for event: " + event);
         }
 
@@ -61,6 +64,27 @@ public class EventRecorder {
                 .outboxEventRecordStatus(NEW)
                 .routing(routing)
                 .build();
+    }
+
+    private OutboxRouting route(OutboxRecordableEvent event) {
+        OutboxRoutingResolver<?> target = null;
+
+        for (OutboxRoutingResolver<?> resolver : resolvers) {
+            if (resolver.supports(event)) {
+                target = resolver;
+            }
+        }
+
+        if (target == null) {
+            throw new IllegalStateException("No OutboxRoutingResolver for type: " + event.getClass().getName());
+        }
+
+        OutboxRouting routing = target.resolve(event);
+        if (routing == null || routing.getTopic() == null) {
+            throw new IllegalStateException("Resolver returned null routing/topic for " + event.getClass().getName());
+        }
+
+        return routing;
     }
 
     private String serializeToPayload(OutboxRecordableEvent event) {

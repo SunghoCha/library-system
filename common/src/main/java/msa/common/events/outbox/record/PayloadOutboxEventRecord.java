@@ -47,6 +47,9 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     @Column(name = "status", nullable = false)
     private OutboxEventRecordStatus outboxEventRecordStatus;
 
+    @Column(name = "failure_category", length = 32)
+    private String failureCategory;
+
     @Builder.Default
     @Column(nullable = false)
     private int retryCount = 0;

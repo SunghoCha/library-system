@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.infra.config.properties.OutboxSchedulerProps;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import org.springframework.stereotype.Component;
 

@@ -46,13 +46,11 @@ public class CommandOutboxRecorder {
         }
 
         if (target == null) {
-            throw new IllegalStateException(
-                    "No OutboxRoutingResolver for type: " + command.getClass().getName()
-            );
+            throw new IllegalStateException("No OutboxRoutingResolver for type: " + command.getClass().getName());
         }
 
         OutboxRouting routing = target.resolve(command);
-        if (routing == null || routing.topic() == null) {
+        if (routing == null || routing.getTopic() == null) {
             throw new IllegalStateException("Resolver returned null routing/topic for " + command.getClass().getName());
         }
 
@@ -62,7 +60,7 @@ public class CommandOutboxRecorder {
     private OutboxEventRecord createOutboxRecord(SagaCommand command, String payloadJson, OutboxRouting routing) {
         OutboxEventRecord record = OutboxEventRecord.builder()
                 .id(snowflake.nextId())
-                .eventId(command.commandId())                 // 커맨드 추적용 ID(유니크)
+                .eventId(command.commandId())                 // 커맨드 추적용 ID(유니크) 생성된 커맨드의 중복발행 방지
                 .eventType(EventType.CREATED)                // 내부 표준: 커맨드 적재는 CREATED로 통일
                 .aggregateType(AGGREGATE_TYPE)
                 .aggregateId(command.sagaId())

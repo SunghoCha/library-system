@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 //@ConditionalOnProperty(name = "snowflake.enabled", havingValue = "true", matchIfMissing = true)
 public class SnowflakeConfig {
 
+    // TODO : 기본값 1 추후 삭제
     @Bean
     public InstanceIdentity instanceIdentity(
             @Value("${snowflake.node-id:1}") long nodeId) {

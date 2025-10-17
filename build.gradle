@@ -9,6 +9,8 @@ repositories {
 }
 
 subprojects  {
+    if (project.path == ':service') return
+
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
 

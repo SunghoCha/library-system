@@ -160,7 +160,7 @@ public class LoanSaga extends BaseTimeEntity {
         }
 
         this.status = SagaStatus.FAILED;
-        this.lastError = reason.name();
+        this.lastError = reason != null ? reason.name() : SagaAbortReason.UNKNOWN.name(); ;
         this.stepDeadlineAt = null;
         this.workerId = null;
         this.leaseUntil = null;
