@@ -1,8 +1,9 @@
 package msa.bookcatalog.adapter.out.messaging.outbox;
 
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
+import msa.common.config.properties.OutboxSchedulerProps;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,7 +65,7 @@ class OutboxRelayProcessorTest {
         // 최대 재시도 횟수를 3으로 설정
         when(props.maxRetryCount()).thenReturn(3);
         // markFailedByEventId 호출 시 1(성공)을 반환하도록 설정
-        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1);
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1L);
 
         // when
         outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);
@@ -92,7 +92,7 @@ class OutboxRelayProcessorTest {
 
         // 최대 재시도 횟수를 3으로 설정
         when(props.maxRetryCount()).thenReturn(3);
-        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1);
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(1L);
 
         // when
         outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);
@@ -117,7 +117,7 @@ class OutboxRelayProcessorTest {
         when(outboxEventRecordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
         //when(props.maxRetryCount()).thenReturn(3);
         // FAILED 마킹 시 0(실패)을 반환하도록 설정
-        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(0);
+        when(eventRecorder.markFailedByEventId(anyLong(), anyString(), any(), anyString())).thenReturn(0L);
 
         // when
         outboxRelayProcessor.updateStatusAfterProcessing(eventId, workerId, claimedAt, exception);

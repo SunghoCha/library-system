@@ -55,7 +55,10 @@ public class InventoryStepService {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
-        if (saga.isTerminal()) return;
+        if (saga.isTerminal()) {
+            log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
+            return;
+        }
         if (!saga.isProcessingAt(INVENTORY_RESERVING)) return;
 
         boolean stepped = saga.markProcessing(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING));
@@ -87,7 +90,10 @@ public class InventoryStepService {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
-        if (saga.isTerminal()) return;
+        if (saga.isTerminal()) {
+            log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
+            return;
+        }
         if (!saga.isProcessingAt(INVENTORY_RESERVING)) return;
 
         boolean stepped = saga.markFailed(SagaAbortReason.INVENTORY_RESERVE_FAILED);
@@ -117,7 +123,10 @@ public class InventoryStepService {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
-        if (saga.isTerminal()) return;
+        if (saga.isTerminal()) {
+            log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
+            return;
+        }
         if (!saga.isCompensatingFrom(POINT_CHARGING)) return;
 
         boolean stepped = saga.markFailed(SagaAbortReason.COMPENSATION);
@@ -130,14 +139,13 @@ public class InventoryStepService {
     }
 
     private ChargePointCommand createChargePointCommand(LoanSaga saga, Long causationEventId) {
-        return ChargePointCommand.builder()
-                .commandId(snowflake.nextId()) // 유니크한 커맨드가 만들어지는 지점. 이 메서드가 의도치않게 중복 실행되면 위험
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .memberId(saga.getMemberId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return ChargePointCommand.of(
+                snowflake.nextId(),
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getMemberId(),
+                causationEventId
+        );
     }
 
     @Recover

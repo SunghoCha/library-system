@@ -17,7 +17,7 @@ public class BookCatalogChangedEvent implements DomainEvent {
     public static final String AGGREGATE_TYPE = "BookCatalog";
 
     private final Long eventId;
-    private final EventType eventType;
+    private final String eventType;
     private final long bookId;
     private final long aggregateVersion;
 
@@ -30,7 +30,7 @@ public class BookCatalogChangedEvent implements DomainEvent {
     private final LocalDateTime occurredAt;
 
     @Builder
-    public BookCatalogChangedEvent(Long eventId, EventType eventType, long bookId, long aggregateVersion,
+    public BookCatalogChangedEvent(Long eventId, String eventType, long bookId, long aggregateVersion,
                                    String title, String author, CategoryRef category,
                                    BookTypeRef  bookType, LocalDateTime occurredAt) {
         this.eventId = Objects.requireNonNull(eventId, "eventId must not be null");

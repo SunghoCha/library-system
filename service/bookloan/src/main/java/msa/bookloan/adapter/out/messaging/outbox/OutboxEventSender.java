@@ -1,14 +1,9 @@
-package msa.bookcatalog.adapter.out.messaging.outbox;
+package msa.bookloan.adapter.out.messaging.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.application.event.BookCatalogChangedEvent;
-import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNotFoundException;
-import msa.common.config.properties.OutboxSchedulerProps;
+import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.common.events.outbox.dto.OutboxRouting;
-import msa.common.snowflake.InstanceIdentity;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,36 +14,10 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class OutboxEventSender {
 
-    private final InstanceIdentity identity;
-    private final OutboxSchedulerProps props;
     private final OutboxRelayProcessor outboxRelayProcessor;
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final OutboxEventRecordRepository outboxRepository;
-    private final ImmediateClaimer claimer;
 
-    public void send(BookCatalogChangedEvent event) {
-        Long eventId = event.getEventId();
-        OutboxEventRecord record = outboxRepository.findByEventId(eventId)
-                .orElseThrow(OutboxEventRecordNotFoundException::new);
-
-        OutboxRouting routing = record.getRouting();
-        if (routing == null) {
-            throw new IllegalStateException("OutboxRouting is null for eventId=" + record.getEventId());
-        }
-
-        String workerId = identity.workerId();
-        LocalDateTime claimedAt = LocalDateTime.now();
-
-        boolean claimed = claimer.tryClaim(eventId, workerId, claimedAt, props.leaseSeconds());
-        if (!claimed) {
-            log.info("즉시 발행 선점 스킵: 이미 선점되었거나 상태가 NEW가 아님 (eventId={})", eventId);
-            return;
-        }
-
-        sendAsync(record, workerId, claimedAt);
-    }
-
-    public void resend(OutboxEventRecord record) {
+    public void send(OutboxEventRecord record) {
         OutboxRouting routing = record.getRouting();
         if (routing == null || routing.getTopic() == null || routing.getTopic().isBlank()) {
             throw new IllegalStateException("Missing topic for eventId=" + record.getEventId());

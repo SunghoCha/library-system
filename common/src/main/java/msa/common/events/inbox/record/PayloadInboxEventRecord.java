@@ -29,12 +29,11 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "aggregate_id", nullable = false, updatable = false)
     private Long aggregateId;
 
-    @Column(name = "aggregate_version", updatable = false) // 사가의 경우 없어도 될 듯
+    @Column(name = "aggregate_version", updatable = false) // 사가의 경우 없어도 될 듯 null 허용
     private Long aggregateVersion;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false)
-    private EventType eventType;
+    private String eventType;
 
     @Column(name = "payload", columnDefinition = "json")
     private String payload;

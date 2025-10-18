@@ -3,11 +3,11 @@ package msa.bookcatalog.application.service.batch;
 import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.bookcatalog.application.event.CatalogEvents;
 import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.bookcatalog.domain.model.BookCategory;
 import msa.bookcatalog.domain.model.BookType;
-import msa.common.events.EventType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,7 +103,7 @@ class BookCatalogBatchServiceTest {
                 .thenReturn(List.of(existing));
 
         // 이벤트 매퍼는 더미 이벤트 리턴 (내용은 중요치 않음)
-        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), any(EventType.class)))
+        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), any(String.class)))
                 .thenReturn(mock(BookCatalogChangedEvent.class));
 
         // when
@@ -120,8 +120,8 @@ class BookCatalogBatchServiceTest {
         verify(bookCatalogRepository).flush();
 
         // 이벤트 매퍼 호출 검증
-        verify(bookCatalogEventMapper).toEventFrom(eq(existing), eq(EventType.UPDATED));
-        verify(bookCatalogEventMapper).toEventFrom(eq(createIncoming), eq(EventType.CREATED));
+        verify(bookCatalogEventMapper).toEventFrom(eq(existing), eq(CatalogEvents.UPDATED));
+        verify(bookCatalogEventMapper).toEventFrom(eq(createIncoming), eq(CatalogEvents.CREATED));
 
         // 이벤트 저장 한 번 호출 (개수는 매퍼 호출 수와 동일)
         verify(eventRecorder, times(1)).saveAll(anyList());
@@ -213,7 +213,7 @@ class BookCatalogBatchServiceTest {
                 .thenReturn(new ArrayList<>());
 
         // 이건 없어도 되긴 할 듯
-        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), eq(EventType.CREATED)))
+        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), eq(CatalogEvents.CREATED)))
                 .thenReturn(mock(BookCatalogChangedEvent.class));
 
         // when
@@ -228,10 +228,10 @@ class BookCatalogBatchServiceTest {
 
         // CREATED만 두 번
         verify(bookCatalogEventMapper, times(2))
-                .toEventFrom(any(BookCatalog.class), eq(EventType.CREATED));
+                .toEventFrom(any(BookCatalog.class), eq(CatalogEvents.CREATED));
         // UPDATED 호출은 없어야 함
         verify(bookCatalogEventMapper, never())
-                .toEventFrom(any(BookCatalog.class), eq(EventType.UPDATED));
+                .toEventFrom(any(BookCatalog.class), eq(CatalogEvents.UPDATED));
 
         verify(eventRecorder).saveAll(anyList());
     }

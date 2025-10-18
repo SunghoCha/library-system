@@ -33,22 +33,22 @@ public class LoanSaga extends BaseTimeEntity {
 
     @Setter
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
+    @Column(name = "status", nullable = false)
     private SagaStatus status;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "current_step", length = 64, nullable = false)
+    @Column(name = "current_step", nullable = false)
     private LoanSagaStep currentStep;
 
     @Version
-    @Column(name = "row_version", nullable = false)
-    private Long rowVersion;
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Lob
     @Column(name = "last_error")
     private String lastError;
 
-    @Column(name = "worker_id", length = 64)
+    @Column(name = "worker_id")
     private String workerId;
 
     @Column(name = "lease_until")

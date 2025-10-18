@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:tc:mysql:8.3.0:///testdb
+    url: jdbc:tc:mysql:8.3.0:///testdb?useAffectedRows=true
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:

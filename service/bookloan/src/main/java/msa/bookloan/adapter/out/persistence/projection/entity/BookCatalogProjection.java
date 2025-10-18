@@ -48,10 +48,9 @@ public class BookCatalogProjection {
     @Column(name = "last_event_at")
     private LocalDateTime lastEventAt;
 
-    // TODO : 굳이 필요한지 모르겠음
-//    @Version
-//    @Column(name = "row_version")
-//    private Long rowVersion;
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @Builder
     public BookCatalogProjection(Long bookId, String title, String author,

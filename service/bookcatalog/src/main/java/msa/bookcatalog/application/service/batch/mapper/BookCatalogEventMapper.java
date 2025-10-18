@@ -17,7 +17,7 @@ public class BookCatalogEventMapper {
 
     private final Snowflake snowflake;
 
-    public BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, EventType eventType) {
+    public BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, String eventType) {
         CategoryRef categoryRef = new CategoryRef(bookCatalog.getCategory().categoryId(), bookCatalog.getCategory().categoryName());
         BookTypeRef bookTypeRef = new BookTypeRef(bookCatalog.getBookType().name(), bookCatalog.getBookType().displayName());
 

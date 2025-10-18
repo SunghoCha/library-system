@@ -16,7 +16,7 @@ import static msa.common.events.inbox.dto.InboxEventRecordStatus.*;
 @RequiredArgsConstructor
 public class InboxRetryScheduler {
 
-    private static final int MAX_RETRY_COUNT = 3;
+    private static final int MAX_RETRY_COUNT = 3; // TODO : 외부 변수화해야함
     private final InboxEventRecordRepository recordRepository;
     private final InboxRetryRecordProcessor retryRecordProcessor;
 

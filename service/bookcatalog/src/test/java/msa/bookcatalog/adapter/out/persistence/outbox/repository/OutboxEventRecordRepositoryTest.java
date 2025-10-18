@@ -1,14 +1,13 @@
 package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
 import jakarta.persistence.EntityManager;
-import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.infra.config.QueryDslConfig;
 import msa.bookcatalog.adapter.out.messaging.outbox.OutboxEventSender;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxRelayScheduler;
+import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
-import msa.common.events.EventType;
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.infra.config.QueryDslConfig;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.junit.jupiter.api.BeforeEach;
@@ -239,7 +238,7 @@ class OutboxEventRecordRepositoryTest {
         return OutboxEventRecord.builder()
                 .id(id)
                 .eventId(eventId)
-                .eventType(EventType.CREATED)
+                .eventType(CatalogEvents.CREATED)
                 .aggregateId("agg-id-" + eventId)
                 .aggregateType("BOOK_CATALOG")
                 .aggregateVersion(0L)

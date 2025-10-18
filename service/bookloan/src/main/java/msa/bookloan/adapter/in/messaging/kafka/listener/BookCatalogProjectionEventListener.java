@@ -65,7 +65,7 @@ public class BookCatalogProjectionEventListener {
         // 업서트
         boolean isNew;
         try {
-            isNew = inboxAppender.upsertEventRecord(record, source);
+            isNew = inboxAppender.upsertRecord(record, source);
         } catch (IllegalStateException e) { // 직렬화,매핑 실패 (재시도 무의미)
             deadLetterAppender.save(record, source, FailureCategory.SERIALIZE_FAIL, e.getMessage());
             return;

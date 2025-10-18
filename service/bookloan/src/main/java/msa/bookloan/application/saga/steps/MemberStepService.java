@@ -80,14 +80,13 @@ public class MemberStepService {
     }
 
     private ReserveInventoryCommand createInventoryCommand(LoanSaga saga, Long causationEventId) {
-        return ReserveInventoryCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .bookId(saga.getBookId())
-                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
-                .causationEventId(causationEventId) // 직전 내부 이벤트 ID
-                .build();
+        return ReserveInventoryCommand.of(
+                snowflake.nextId(),
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getBookId(),
+                causationEventId
+        );
     }
 
     @Recover

@@ -64,7 +64,7 @@ public class SagaReplyKafkaListener {
         // 업서트로 아웃박스 저장
         boolean isNew;
         try {
-            isNew = inboxAppender.upsertSagaRecord(record, source);
+            isNew = inboxAppender.upsertRecord(record, source);
         } catch (IllegalStateException e) { // 직렬화,매핑 실패 (재시도 무의미)
             deadLetterAppender.save(record, source, FailureCategory.SERIALIZE_FAIL, e.getMessage());
             return;

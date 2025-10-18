@@ -124,14 +124,13 @@ public class ShippingStepService {
     }
 
     private RefundPointCommand createRefundPointCommand(LoanSaga saga, Long causationEventId) {
-        return RefundPointCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .memberId(saga.getMemberId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return RefundPointCommand.of(
+                snowflake.nextId(),          // commandId
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getMemberId(),
+                causationEventId
+        );
     }
 
     @Recover

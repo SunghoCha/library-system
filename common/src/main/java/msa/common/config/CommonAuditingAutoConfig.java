@@ -16,14 +16,9 @@ import java.util.Optional;
 public class CommonAuditingAutoConfig {
 
     @Bean @ConditionalOnMissingBean
-    public Clock clock() { return Clock.systemUTC(); }
-
-    @Bean @ConditionalOnMissingBean
     public DateTimeProvider auditingDateTimeProvider(Clock clock) {
         return () -> Optional.of(LocalDateTime.now(clock));
     }
-
-
 
     // TODO : 시큐리티 추가 후 설정 예정
     @Bean

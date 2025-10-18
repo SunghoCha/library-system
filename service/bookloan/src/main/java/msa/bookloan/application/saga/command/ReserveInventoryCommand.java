@@ -1,13 +1,23 @@
 package msa.bookloan.application.saga.command;
 
-import lombok.Builder;
 
-@Builder
 public record ReserveInventoryCommand(
         Long commandId,
         String sagaId,
         Long loanId,
         Long bookId,
-        Long sourceAggregateVersion, // BookLoan @Version (출처 버전)
-        Long causationEventId   // 커맨드 추적용 id (MemberCheck의 commandId)
-) implements SagaCommand { }
+        Long causationEventId,   // 커맨드 추적용 id (MemberCheck의 commandId)
+        String type
+) implements SagaCommand {
+
+    public static ReserveInventoryCommand of(
+            Long cmdId,
+            String sagaId,
+            Long loanId,
+            Long bookId,
+            Long causationId
+    ) {
+        return new ReserveInventoryCommand(cmdId, sagaId, loanId, bookId, causationId,
+                CommandTypes.INVENTORY_RESERVE);
+    }
+}

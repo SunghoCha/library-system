@@ -1,10 +1,10 @@
-package msa.bookcatalog.adapter.out.messaging.outbox;
+package msa.bookloan.adapter.out.messaging.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookloan.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.common.config.properties.OutboxSchedulerProps;
 import org.springframework.stereotype.Component;
 

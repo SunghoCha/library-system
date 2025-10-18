@@ -131,27 +131,24 @@ public class PointStepService {
     }
 
     private ScheduleShippingCommand createScheduleShippingCommand(LoanSaga saga, Long causationEventId) {
-        return ScheduleShippingCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .bookId(saga.getBookId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return ScheduleShippingCommand.of(
+                snowflake.nextId(),          // commandId
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getBookId(),
+                causationEventId
+        );
     }
 
     private ReleaseInventoryCommand createReleaseInventoryCommand(LoanSaga saga, Long causationEventId) {
-        return ReleaseInventoryCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .bookId(saga.getBookId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return ReleaseInventoryCommand.of(
+                snowflake.nextId(),
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getBookId(),
+                causationEventId
+        );
     }
-
     @Recover
     public void recoverOnTransient(Exception ex, Object event) {
         log.warn("[Saga] 포인트 단계 재시도 소진. event={}, err={}", event, ex.getMessage(), ex);

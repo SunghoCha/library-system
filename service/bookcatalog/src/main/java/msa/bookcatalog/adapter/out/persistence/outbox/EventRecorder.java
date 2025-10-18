@@ -34,16 +34,39 @@ public class EventRecorder {
     private final OutboxEventRecordRepository eventRecordRepository;
     private final OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
 
+    // TODO : 추후 이벤트 종류 늘어나면 제네릭 메서드로 변경 예정
     @Transactional
-    public void save(BookCatalogChangedEvent event) {
-        OutboxEventRecord record = toRecord(event);
-        try {
-            eventRecordRepository.save(record);
-            log.debug("OutboxEventRecord 저장 완료 : eventId=[{}], dbId=[{}]", event.getEventId(), record.getId());
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.info("[Outbox] 중복 이벤트 스킵(eventId={})", event.getEventId());
+    public boolean save(BookCatalogChangedEvent event) {
+        String payloadJson = serializeToPayload(event);
+        OutboxRouting routing = routingResolver.doResolve(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+            throw new IllegalStateException("Routing is invalid. eventId={} " + event.getEventId());
         }
 
+        int affected = eventRecordRepository.upsertOutbox(
+                snowflake.nextId(),
+                event.getEventId(),
+                event.getEventType(),
+                String.valueOf(event.getAggregateId()),
+                event.getAggregateType(),
+                event.getAggregateVersion(),
+                payloadJson,
+                routing.getTopic(),
+                routing.getPartitionKey(),
+                event.getOccurredAt());
+
+        boolean isNew = (affected == 1);
+
+        if (isNew) {
+            log.debug("[Outbox] inserted: type={} aggType={} aggId={} eventId={} topic={}",
+                    event.getEventType(), event.getAggregateType(), event.getAggregateId(),
+                    event.getEventId(), routing.getTopic());
+        } else {
+            log.debug("[Outbox] duplicate-skip: type={} aggType={} aggId={} eventId={}",
+                    event.getEventType(), event.getAggregateType(), event.getAggregateId(), event.getEventId());
+        }
+
+        return isNew;
     }
 
     @Transactional
@@ -135,24 +158,14 @@ public class EventRecorder {
         return updated;
     }
 
-//    private String serializeToPayloadV2(BookCatalogChangedEvent event) {
-//        try {
-//            BookCatalogChangedExternalEventPayload payload = BookCatalogChangedExternalEventPayload.of(event);
-//            return objectMapper.writeValueAsString(payload);
-//        } catch (JsonProcessingException e) {
-//            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
-//        }
-//
-//    }
-
     private String serializeToPayload(BookCatalogChangedEvent event) {
         try {
             BookCatalogChangedPayload payload = new BookCatalogChangedPayload(
                     String.valueOf(event.getEventId()),
-                    event.getEventType().name(),
+                    event.getEventType(),
                     String.valueOf(event.getBookId()),
                     event.getAggregateVersion(),
-                    String.valueOf(event.getBookId()),
+                    String.valueOf(event.getAggregateId()),
                     event.getAggregateType(),
                     event.getTitle(),
                     event.getAuthor(),

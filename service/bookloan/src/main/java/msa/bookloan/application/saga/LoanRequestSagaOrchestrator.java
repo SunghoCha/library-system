@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -44,6 +45,7 @@ import static org.springframework.transaction.event.TransactionPhase.AFTER_COMMI
 @RequiredArgsConstructor
 public class LoanRequestSagaOrchestrator {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final LoanSagaRepository sagaRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
@@ -77,7 +79,7 @@ public class LoanRequestSagaOrchestrator {
 
     private boolean startSagaRowIfAbsent(LoanRequestedInternalEvent event) {
         LocalDateTime deadline =
-                LocalDateTime.now().plus(sagaTimeouts.stepTimeout(MEMBER_CHECKING));
+                LocalDateTime.now(clock).plus(sagaTimeouts.stepTimeout(MEMBER_CHECKING));
 
         return sagaRepository.insertIfAbsent(
                 event.sagaId(),
@@ -276,36 +278,33 @@ public class LoanRequestSagaOrchestrator {
     }
 
     private CheckMemberCommand createMemberCommand(LoanRequestedInternalEvent event) {
-        return CheckMemberCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(event.sagaId())
-                .loanId(event.loanId())
-                .memberId(event.memberId())
-                .sourceAggregateVersion(event.aggregateVersion()) // BookLoan의 버전
-                .causationEventId(event.eventId()) // 직전 내부 이벤트 ID
-                .build();
+        return CheckMemberCommand.of(
+                snowflake.nextId(),
+                event.sagaId(),
+                event.loanId(),
+                event.memberId(),
+                event.eventId()             // causation
+        );
     }
 
     private ReleaseInventoryCommand createReleaseInventoryCommand(LoanSaga saga, Long causationEventId) {
-        return ReleaseInventoryCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .bookId(saga.getBookId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return ReleaseInventoryCommand.of(
+                snowflake.nextId(),
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getBookId(),
+                causationEventId
+        );
     }
 
     private RefundPointCommand createRefundPointCommand(LoanSaga saga, Long causationEventId) {
-        return RefundPointCommand.builder()
-                .commandId(snowflake.nextId())
-                .sagaId(saga.getSagaId())
-                .loanId(saga.getLoanId())
-                .memberId(saga.getMemberId())
-                .sourceAggregateVersion(saga.getAggregateVersion())
-                .causationEventId(causationEventId)
-                .build();
+        return RefundPointCommand.of(
+                snowflake.nextId(),
+                saga.getSagaId(),
+                saga.getLoanId(),
+                saga.getMemberId(),
+                causationEventId
+        );
     }
 
 }

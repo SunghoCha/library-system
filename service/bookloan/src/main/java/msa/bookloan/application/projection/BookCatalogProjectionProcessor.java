@@ -7,6 +7,7 @@ import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
 import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
 import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
 import msa.bookloan.application.event.BookCatalogChangedEvent;
+import msa.bookloan.application.event.CatalogEvents;
 import msa.common.events.EventType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookCatalogProjectionProcessor {
 
     private final BookCatalogProjectionRepository projectionRepository;
-    private final InboxAppender inboxAppender;
 
     @Transactional
     public void project(BookCatalogChangedEvent event) {
-        if (event.getEventType() == EventType.DELETED) {
+        if (event.getEventType().equals(CatalogEvents.DELETED)) {
             handleDeletedEvent(event);
             return;
         }
@@ -32,7 +32,7 @@ public class BookCatalogProjectionProcessor {
     @Transactional
     public void retry(BookCatalogChangedEvent event) {
         // 삭제 이벤트면 삭제, 아니면 upsert 재시도
-        if (event.getEventType() == EventType.DELETED) {
+        if (event.getEventType().equals(CatalogEvents.DELETED)) {
             handleDeletedEvent(event);
         } else {
             upsert(event);

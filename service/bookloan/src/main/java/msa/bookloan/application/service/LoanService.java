@@ -2,20 +2,18 @@ package msa.bookloan.application.service;
 
 import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
+import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
+import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
+import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
 import msa.bookloan.application.event.LoanCancelRequestedInternalEvent;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
+import msa.bookloan.application.port.out.lock.DistributedLock;
 import msa.bookloan.application.service.dto.LoanCreateResult;
 import msa.bookloan.domain.model.BookLoan;
 import msa.bookloan.domain.model.LoanProcessStatus;
 import msa.bookloan.domain.policy.LoanTermPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
-import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
-import msa.bookloan.application.port.out.lock.DistributedLock;
-import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
-import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
-import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
-import msa.bookloan.domain.saga.SagaStatus;
 import msa.common.snowflake.Snowflake;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -24,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @Transactional
@@ -78,11 +75,11 @@ public class LoanService {
 
     private LoanCancelRequestedInternalEvent newUserCancelEvent(BookLoan loan, Long memberId) {
         return new LoanCancelRequestedInternalEvent(
+                snowflake.nextId(),
                 null,                          // sagaId 모름
                 loan.getId(),
                 memberId,
                 loan.getBookId(),
-                snowflake.nextId(),
                 loan.getVersion(),
                 SagaAbortReason.USER_CANCEL,   // 사용자 취소는 고정
                 LocalDateTime.now(clock)

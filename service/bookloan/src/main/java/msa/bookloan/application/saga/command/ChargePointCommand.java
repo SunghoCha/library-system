@@ -1,13 +1,23 @@
 package msa.bookloan.application.saga.command;
 
-import lombok.Builder;
 
-@Builder
 public record ChargePointCommand(
         Long commandId,
         String sagaId,
         Long loanId,
         Long memberId,
-        Long sourceAggregateVersion, // BookLoan 버전
-        Long causationEventId        // 직전 내부 이벤트의 eventId (InventoryReservedInternalEvent.eventId)
-) implements SagaCommand { }
+        Long causationEventId,        // 직전 내부 이벤트의 eventId (InventoryReservedInternalEvent.eventId)
+        String type
+) implements SagaCommand {
+
+    public static ChargePointCommand of(
+            Long cmdId,
+            String sagaId,
+            Long loanId,
+            Long memberId,
+            Long causationId
+    ) {
+        return new ChargePointCommand(cmdId, sagaId, loanId, memberId, causationId,
+                CommandTypes.POINT_CHARGE);
+    }
+}

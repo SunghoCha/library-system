@@ -9,9 +9,8 @@ import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.common.domain.model.InboxSource;
 import msa.common.events.EventType;
 import msa.common.events.bookcatalog.BookCatalogChangedPayload;
-import msa.common.events.inbox.dto.ConsumerRecordMetadata;
+import msa.common.events.inbox.InboxRecordableEvent;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
-import msa.common.exception.FailureCategory;
 import msa.common.snowflake.Snowflake;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
@@ -29,82 +28,101 @@ import static msa.common.events.inbox.dto.InboxEventRecordStatus.*;
 @RequiredArgsConstructor
 public class InboxAppender {
 
+    // TODO : 추후 외부변수 분리 고려. InboxProps
     private static final int MAX_ATTEMPTS = 3;
 
     private final InboxEventRecordRepository eventRecordRepository;
     private final ObjectMapper objectMapper;
     private final Snowflake snowflake;
 
-//    public void saveEventRecord(ConsumerRecord<String, BookCatalogChangedExternalEventPayload> record, InboxEventRecordStatus status, String json) {
-//        ConsumerRecordMetadata recordMetadata = createConsumerRecordMetadata(record);
-//
-//        BookCatalogProjectionInboxEventRecord eventRecord = BookCatalogProjectionInboxEventRecord.builder()
-//                .id(snowflake.nextId())
-//                .eventId(getEventId(record.value()))
-//                .eventType(record.value().getEventType())
-//                .payload(json)
-//                .inboxEventRecordStatus(status)
-//                .consumerRecordMetadata(recordMetadata)
-//                .build();
-//
-//        eventRecordRepository.save(eventRecord);
-//    }
+    public <T extends InboxRecordableEvent> boolean upsertRecord(ConsumerRecord<String, T> record, InboxSource source) {
 
-    @Transactional
+        T payload = record.value();
+        long eventId = toLong(payload.getEventId());
+
+        final String payloadJson = toJson(record, payload, eventId);
+
+        int affected = eventRecordRepository.upsertInbox(
+                snowflake.nextId(),
+                eventId,
+                toLong(payload.getAggregateId()),
+                payload.getAggregateVersion(),
+                payload.getEventType(),
+                payloadJson,
+                source.name(),
+                record.topic(),
+                record.partition(),
+                record.offset()
+        );
+
+        boolean isNew = (affected == 1);
+        log.debug("Inbox UPSERT: affected={}, isNew={}, eventId={} type={} topic={}",
+                affected, isNew, eventId, payload.getEventType(), record.topic());
+
+        return isNew;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordSuccess(Long eventId) {
-        Long updated = markAsProcessed(eventId);
-        if (updated == 1) {
-            log.info("이벤트 발행 성공 {}", eventId);
-        } else {
-            log.debug("이미 발행되었거나 유효하지 않음: {}", eventId);
-        }
+        updateStatus(eventId, PROCESSED, List.of(NEW, FAILED));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(Long eventId, String errorMessage) {
-        try {
-            Long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
-            if (incremented == 0) {
-                markAsDeadLetter(eventId);
-            } else {
-                markAsFailed(eventId);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to recordFailure for {}: {}", eventId, e.getMessage(), e);
+        Long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
+        if (incremented == 0) {
+            updateStatus(eventId, DEAD_LETTER, List.of(NEW, FAILED));
+        } else {
+            updateStatus(eventId, FAILED, List.of(NEW, FAILED));
+        }
+
+    }
+
+    private boolean updateStatus(Long eventId, InboxEventRecordStatus target, List<InboxEventRecordStatus> allowed) {
+        long updated = eventRecordRepository.updateStatusIfPending(eventId, target, allowed);
+        if (updated == 1) {
+            log.debug("Inbox status -> {} (eventId={})", target, eventId);
+            return true;
+        } else {
+            log.debug("Inbox status skip (eventId={}, target={})", eventId, target);
+            return false;
         }
     }
 
+    private String toJson(ConsumerRecord<String, ?> record, Object payload, long eventId) {
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            log.info("Inbox serialize fail: eventId={} topic={} partition={} offset={} error={}",
+                    eventId, record.topic(), record.partition(), record.offset(), e.getMessage());
+            throw new IllegalStateException("Inbox serialize fail", e);
+        }
+    }
+
+    @Deprecated
     private Long markAsProcessed(Long eventId) {
         logStatusUpdate(eventId, PROCESSED);
         return eventRecordRepository.updateStatusIfPending(eventId, PROCESSED, List.of(NEW, FAILED));
     }
 
+    @Deprecated
     private Long markAsFailed(Long eventId) {
         logStatusUpdate(eventId, FAILED);
         return eventRecordRepository.updateStatusIfPending(eventId, FAILED, List.of(NEW, FAILED));
     }
 
+    @Deprecated
     private Long markAsDeadLetter(Long eventId) {
         logStatusUpdate(eventId, DEAD_LETTER);
         return eventRecordRepository.updateStatusIfPending(eventId, DEAD_LETTER, List.of(NEW, FAILED));
     }
 
-    public boolean isDuplicateEvent(long eventId) {
-        return eventRecordRepository.existsByEventId(eventId);
-    }
-
-    private ConsumerRecordMetadata createConsumerRecordMetadata(ConsumerRecord<String, BookCatalogChangedPayload> record) {
-        return ConsumerRecordMetadata.builder()
-                .topic(record.topic())
-                .partition(record.partition())
-                .offset(record.offset())
-                .build();
-    }
-
+    @Deprecated
     public boolean upsertEventRecord(
             ConsumerRecord<String, BookCatalogChangedPayload> record, InboxSource source) {
 
         BookCatalogChangedPayload payload = record.value();
+
         long eventId = toLong(payload.eventId());
         String eventType = payload.eventType();
 
@@ -137,10 +155,12 @@ public class InboxAppender {
         return isNew;
     }
 
+    @Deprecated
     public boolean upsertSagaRecord(
             ConsumerRecord<String, SagaReplyEnvelope> record, InboxSource source) {
 
         SagaReplyEnvelope payload = record.value();
+
         long eventId = Long.parseLong(payload.eventId());
         String eventType = EventType.SAGA_REPLY.name();
         long aggregateId = Long.parseLong(payload.aggregateId());

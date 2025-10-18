@@ -5,9 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.bookcatalog.application.event.CatalogEvents;
 import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
-import msa.common.events.EventType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,8 +58,8 @@ public class BookCatalogBatchService {
         bookCatalogRepository.flush(); // version 정보 업데이트
 
         ArrayList<BookCatalogChangedEvent> events = new ArrayList<>(toInsert.size() + toUpdate.size());
-        toInsert.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, EventType.CREATED)));
-        toUpdate.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, EventType.UPDATED)));
+        toInsert.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEvents.CREATED )));
+        toUpdate.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEvents.UPDATED)));
 
         if (!events.isEmpty()) {
             eventRecorder.saveAll(events);

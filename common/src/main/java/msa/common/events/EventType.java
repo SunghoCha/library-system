@@ -1,9 +1,9 @@
 package msa.common.events;
 
+@Deprecated
 public enum EventType {
-    CREATED,
-    UPDATED,
-    DELETED,
+    DOMAIN_EVENT,
     SAGA_REPLY,
+    COMMAND,
     UNKNOWN
 }

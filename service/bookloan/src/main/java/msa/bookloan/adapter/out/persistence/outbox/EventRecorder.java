@@ -6,21 +6,21 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookloan.application.event.LoanRequestedInternalEvent;
-import msa.bookloan.application.saga.command.SagaCommand;
-import msa.common.events.EventType;
+import msa.bookloan.application.event.CatalogEvents;
 import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
-
+// TODO : 사가 시작을 로컬트랜잭션에서 수행하는걸로 바뀌어서 아직은 필요없는 클래스인 상태. 추후 수정
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -38,11 +38,48 @@ public class EventRecorder {
         try {
             eventRecordRepository.save(record);
             log.debug("[Outbox] saved: eventId={}, dbId={}", event.eventId(), record.getId());
-        } catch (DataIntegrityViolationException dup) {
-            // event_id 유니크 충돌 : 이미 저장된 이벤트로 간주하고 스킵
+        } catch (DataIntegrityViolationException e) {
+            // eventId 유니크 충돌 : 이미 저장된 이벤트로 간주하고 스킵
             log.info("[Outbox] duplicate skipped: eventId={}", event.eventId());
         }
     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+        if (updated == 0L) {
+            log.info("[Outbox] 발행 처리 스킵(펜싱/이미 처리): eventId={}, workerId={}, claimedAt={}",
+                    eventId, workerId, claimedAt);
+        } else {
+            log.info("[Outbox] 발행 완료: eventId={}", eventId);
+        }
+        return updated;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
+        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        if (updated == 0L) {
+            log.info("[Outbox] 실패 처리 스킵(펜싱/회수됨): eventId={}, workerId={}, claimedAt={}",
+                    eventId, workerId, claimedAt);
+        } else {
+            log.warn("[Outbox] 발행 실패: eventId={}, reason={}", eventId, reason);
+        }
+        return updated;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public long markDeadLetter(Long eventId, String error) {
+        long updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+        if (updated == 0L) {
+            log.info("[Outbox] 데드레터 전이 스킵(FAILED 아님): eventId={}", eventId);
+        } else {
+            log.error("[Outbox] 데드레터 전이: eventId={}, error={}", eventId, error);
+        }
+        return updated;
+    }
+
+
 
     private OutboxEventRecord toRecord(OutboxRecordableEvent event) {
         String payload = serializeToPayload(event);
@@ -55,8 +92,8 @@ public class EventRecorder {
         return OutboxEventRecord.builder()
                 .id(snowflake.nextId())
                 .eventId(event.eventId())
-                .eventType(EventType.CREATED)                 // 사가 시작이므로 CREATED로 고정
-                .aggregateId(String.valueOf(event.loanId()))
+                .eventType(CatalogEvents.CREATED)                 // 사가 시작이므로 CREATED로 고정
+                //.aggregateId(String.valueOf(event.loanId()))
                 .aggregateType(AGGREGATE_TYPE)
                 .aggregateVersion(event.aggregateVersion())
                 .payload(payload)

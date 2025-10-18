@@ -30,12 +30,11 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     @Column(name = "aggregate_id",   nullable = false)
     private String aggregateId;
 
-    @Column(name = "aggregate_version", nullable = false)
+    @Column(name = "aggregate_version", updatable = false) // 사가커맨드는 null 허용
     private Long aggregateVersion;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private EventType eventType;
+    @Column(name = "event_type", nullable = false)
+    private String eventType;
 
     @Column(name = "payload", columnDefinition = "json")
     private String payload;
@@ -72,9 +71,8 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
 
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "topic",        column = @Column(name = "topic", nullable = false, length = 255)),
-            @AttributeOverride(name = "partitionKey", column = @Column(name = "partition_key", nullable = false, length = 255)),
-            @AttributeOverride(name = "partition",    column = @Column(name = "partition_no"))
+            @AttributeOverride(name = "topic",        column = @Column(name = "topic", nullable = false)),
+            @AttributeOverride(name = "partitionKey", column = @Column(name = "partition_key", nullable = false)),
     })
     private OutboxRouting routing;
 
