@@ -2,7 +2,7 @@ package msa.bookloan.application.saga.steps;
 
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
@@ -11,6 +11,7 @@ import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +23,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,15 +53,16 @@ class MemberStepServiceTest {
     private Snowflake snowflake;
 
     private LoanSaga testSaga;
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
     private final String SAGA_ID = "saga-member-123";
     private final Long LOAN_ID = 10L;
     private final Long MEMBER_ID = 100L;
 
     @BeforeEach
     void setUp() {
-        testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, MEMBER_ID, 200L, 0L, 99L);
+        testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, MEMBER_ID, 200L, 0L, 99L, now(fixedClock));
         // 테스트 대상 단계인 MEMBER_CHECKING으로 상태 전이
-        testSaga.markProcessing(MEMBER_CHECKING, Duration.ofMinutes(5));
+        testSaga.markProcessing(MEMBER_CHECKING, Duration.ofMinutes(5), now(fixedClock));
     }
 
     @Nested
@@ -140,7 +144,7 @@ class MemberStepServiceTest {
         @DisplayName("무시: 사가가 이미 터미널 상태이면 아무 작업도 수행하지 않는다")
         void shouldDoNothing_whenSagaIsInTerminalState() {
             // given
-            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5));
+            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.markCompleted(); // COMPLETED 상태로 설정
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
             MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
@@ -159,7 +163,7 @@ class MemberStepServiceTest {
         @DisplayName("무시: 사가가 올바른 단계(MEMBER_CHECKING)가 아니면 아무 작업도 수행하지 않는다")
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
-            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5)); // 다른 단계로 설정
+            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 다른 단계로 설정
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
             MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));

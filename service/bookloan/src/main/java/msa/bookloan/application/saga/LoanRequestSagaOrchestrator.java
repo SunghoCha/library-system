@@ -4,11 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
 import msa.bookloan.application.saga.command.CheckMemberCommand;
 import msa.bookloan.application.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
+import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
@@ -37,6 +38,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
 import static org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT;
 
@@ -47,10 +49,11 @@ public class LoanRequestSagaOrchestrator {
 
     private final Clock clock;
     private final Snowflake snowflake;
-    private final LoanSagaRepository sagaRepository;
-    private final CommandOutboxRecorder commandOutboxRecorder;
     private final SagaTimeouts sagaTimeouts;
+    private final LoanSagaRepository sagaRepository;
     private final BookLoanRepository bookLoanRepository;
+    private final CommandOutboxRecorder commandOutboxRecorder;
+
     private final MemberStepService memberStepService;
     private final InventoryStepService inventoryStepService;
     private final PointStepService pointStepService;
@@ -79,7 +82,7 @@ public class LoanRequestSagaOrchestrator {
 
     private boolean startSagaRowIfAbsent(LoanRequestedInternalEvent event) {
         LocalDateTime deadline =
-                LocalDateTime.now(clock).plus(sagaTimeouts.stepTimeout(MEMBER_CHECKING));
+                now(clock).plus(sagaTimeouts.stepTimeout(MEMBER_CHECKING));
 
         return sagaRepository.insertIfAbsent(
                 event.sagaId(),
@@ -223,7 +226,7 @@ public class LoanRequestSagaOrchestrator {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void requestCancel(String sagaId, SagaAbortReason reason, Long causationEventId) {
+    public void requestCancelV1(String sagaId, SagaAbortReason reason, Long causationEventId) {
         LoanSaga saga = sagaRepository.findById(sagaId).orElseThrow();
 
         // 피벗 이후 또는 터미널/보상 중이면 취소 불가
@@ -249,7 +252,7 @@ public class LoanRequestSagaOrchestrator {
 
             case POINT_CHARGING:
                 // 재고 확보됐을 수 있음 -> 보상 시작(ReleaseInventory)
-                if (saga.enterCompensating(to)) {
+                if (saga.enterCompensating(to, now(clock))) {
                     sagaRepository.save(saga);
                     commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
                     log.info("[Saga] 보상 시작(ReleaseInventory): sagaId={}, reason={}", saga.getSagaId(), reason);
@@ -259,7 +262,7 @@ public class LoanRequestSagaOrchestrator {
             case SHIPPING_SCHEDULING:
             case SHIPPING_ACCEPTED:
                 // 포인트·재고가 확보됐을 수 있음 -> 보상 시작(RefundPoint)
-                if (saga.enterCompensating(to)) {
+                if (saga.enterCompensating(to, now(clock))) {
                     sagaRepository.save(saga);
                     commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
                     log.info("[Saga] 보상 시작(RefundPoint): sagaId={}, reason={}", saga.getSagaId(), reason);
@@ -277,13 +280,57 @@ public class LoanRequestSagaOrchestrator {
         }
     }
 
+    @Transactional
+    public boolean requestCancel(String sagaId, SagaAbortReason reason, Long causationEventId) {
+        LoanSaga saga = sagaRepository.findForUpdate(sagaId)
+                .orElseThrow(() -> new SagaNotFoundException(sagaId)); // 취소 상태로 업데이트
+
+        // 피벗 이후/터미널 가드
+        if (!saga.markCancelRequested(reason)) return false;
+
+        Duration to = sagaTimeouts.compensationTimeoutFor();
+
+        switch (saga.getCurrentStep()) {
+            case INIT, MEMBER_CHECKING, INVENTORY_RESERVING: {
+                // 외부자원 아직 확정 전 -> 즉시 취소
+                saga.markCancelled(reason);
+                sagaRepository.save(saga);
+                bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
+                return true;
+            }
+            case POINT_CHARGING: {
+                // 재고가 잡혀있을 수 있음 -> 보상 전이 + ReleaseInventory
+                saga.enterCompensating(to, LocalDateTime.now(clock));
+                sagaRepository.save(saga);
+                commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
+
+                return true;
+            }
+            case SHIPPING_SCHEDULING, SHIPPING_ACCEPTED: {
+                // 포인트/재고가 확정됐을 수 있음 -> 보상 전이 + RefundPoint
+                saga.enterCompensating(to, LocalDateTime.now(clock));
+                sagaRepository.save(saga);
+                commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
+                return true;
+            }
+            default: {
+                // 방어적 코드 (보상트랜잭션 필요한건데 이게 수행되면 오히려 위험할지도? 예외던지는게 나은가)
+                saga.markCancelled(reason);
+                sagaRepository.save(saga);
+                bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
+                return true;
+            }
+        }
+
+    }
+
     private CheckMemberCommand createMemberCommand(LoanRequestedInternalEvent event) {
         return CheckMemberCommand.of(
                 snowflake.nextId(),
                 event.sagaId(),
                 event.loanId(),
                 event.memberId(),
-                event.eventId()             // causation
+                event.eventId()
         );
     }
 

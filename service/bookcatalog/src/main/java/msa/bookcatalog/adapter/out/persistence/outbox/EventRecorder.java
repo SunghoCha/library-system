@@ -17,11 +17,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.time.LocalDateTime.*;
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
 @Slf4j
@@ -29,6 +31,7 @@ import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 @RequiredArgsConstructor
 public class EventRecorder {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
@@ -121,7 +124,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
-        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt, now(clock));
 
         if (updated == 0) {
             log.info("[Outbox] 발행 처리 스킵: 펜싱 또는 이미 처리됨 (eventId={}, workerId={}, claimedAt={})",
@@ -134,7 +137,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
-        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason, now(clock));
 
         if (updated == 0) {
             log.info("[Outbox] 실패 처리 스킵: 펜싱 또는 회수됨 (eventId={}, workerId={}, claimedAt={})",
@@ -147,7 +150,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markDeadLetter(Long eventId, String error) {
-        long updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+        long updated = eventRecordRepository.markDeadFromFailed(eventId, error, now(clock));
 
         if (updated == 0) {
             log.info("[Outbox] 데드레터 전이 스킵: 현재 상태가 FAILED 아님 (eventId={})", eventId);

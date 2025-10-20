@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,13 +17,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OutboxClaimerService {
 
+    private final Clock clock;
     private final InstanceIdentity instanceIdentity;
     private final OutboxSchedulerProps properties;
     private final OutboxEventRecordRepository outboxRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<OutboxEventRecord> claimEvents() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime gracePeriodThreshold = now.minusMinutes(properties.gracePeriodMinutes());
         LocalDateTime staleThreshold = now.minusMinutes(properties.staleTimeoutMinutes());
 

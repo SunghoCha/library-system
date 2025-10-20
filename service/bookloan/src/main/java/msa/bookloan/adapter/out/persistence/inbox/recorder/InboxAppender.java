@@ -62,7 +62,7 @@ public class InboxAppender {
         return isNew;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void recordSuccess(Long eventId) {
         updateStatus(eventId, PROCESSED, List.of(NEW, FAILED));
     }

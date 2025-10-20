@@ -2,7 +2,7 @@ package msa.bookloan.application.saga.steps;
 
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ChargePointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
@@ -13,6 +13,7 @@ import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEv
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,9 +25,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -51,6 +54,7 @@ class InventoryStepServiceTest {
     private CommandOutboxRecorder commandOutboxRecorder;
 
     private LoanSaga testSaga;
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
     private final String SAGA_ID = "saga-123";
     private final Long LOAN_ID = 1L;
     private final Long BOOK_ID = 200L;
@@ -58,7 +62,7 @@ class InventoryStepServiceTest {
     @BeforeEach
     void setUp() {
         // 각 테스트에서 재사용할 기본 LoanSaga 객체 생성 (PROCESSING)
-        testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, 100L, 200L, 0L, 99L);
+        testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, 100L, 200L, 0L, 99L, now(fixedClock));
     }
 
     @Nested
@@ -70,7 +74,7 @@ class InventoryStepServiceTest {
         void shouldTransitionToNextStepAndRecordCommand_whenSagaIsValid() {
             // given
             // 사가를 INVENTORY_RESERVING 단계로 설정
-            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5));
+            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock));
             InventoryReservedInternalEvent event = new InventoryReservedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
 
             // Mock 설정
@@ -155,7 +159,7 @@ class InventoryStepServiceTest {
         @DisplayName("성공: 유효한 상태의 사가를 FAILED로 전이시키고 BookLoan의 sagaId를 정리한다(시맨틱 락 해제)")
         void shouldTransitionToFailedAndClearBinding_whenSagaIsValid() {
             // given
-            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5));
+            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock));
             InventoryReserveFailedPayload payload = new InventoryReserveFailedPayload(BOOK_ID, "NO_STOCK", "재고 부족");
             InventoryReserveFailedInternalEvent event = new InventoryReserveFailedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
@@ -179,7 +183,7 @@ class InventoryStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             // POINT_CHARGING 단계로 미리 넘어간 상태 (경합에서 이겨서 이미 다음 성공흐름으로 진행됨)
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             InventoryReserveFailedPayload payload = new InventoryReserveFailedPayload(BOOK_ID, "NO_STOCK", "재고 부족");
             InventoryReserveFailedInternalEvent event = new InventoryReserveFailedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
@@ -202,8 +206,8 @@ class InventoryStepServiceTest {
         void shouldFinalizeAsFailed_whenCompensating() {
             // given
             // 보상 중인 상태로 설정
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
-            testSaga.enterCompensating(Duration.ofMinutes(5));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
+            testSaga.enterCompensating(Duration.ofMinutes(5), now(fixedClock));
             InventoryReleasedInternalEvent event = new InventoryReleasedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
@@ -227,7 +231,7 @@ class InventoryStepServiceTest {
         void shouldDoNothing_whenSagaIsNotCompensating() {
             // given
             // 정상 진행(PROCESSING) 상태
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             InventoryReleasedInternalEvent event = new InventoryReleasedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 

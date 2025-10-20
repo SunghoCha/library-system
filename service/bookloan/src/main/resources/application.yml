@@ -58,6 +58,9 @@ app:
     group-catalog-replica: bookloan-category-changed-replica
 
   saga:
+    timeout:
+      batch-size: 50
+      lease-sec: 15
     overall-timeout: 3m
     default-step-timeout: 30s
     steps:

@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
@@ -22,6 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
 import static msa.bookloan.domain.saga.SagaAbortReason.BLACKLISTED;
@@ -31,6 +34,7 @@ import static msa.bookloan.domain.saga.SagaAbortReason.BLACKLISTED;
 @RequiredArgsConstructor
 public class MemberStepService {
 
+    private final Clock clock;
     private final LoanSagaRepository sagaRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
     private final SagaTimeouts sagaTimeouts;
@@ -60,16 +64,15 @@ public class MemberStepService {
             boolean changed = saga.markFailed(BLACKLISTED);
             if (!changed) return;
 
-            // 낙관적 예외 발생시 바로 던지도록 설계
+            // 낙관적 예외 발생시 바로 던지도록 설계 (save로 해도 큰 차이는 없을듯?)
             sagaRepository.saveAndFlush(saga);
 
-            // flush 성공 이후에만 부수효과
             bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
             log.info("[Saga] 블랙리스트로 종료: sagaId={}", event.sagaId());
             return;
         }
 
-        boolean stepped = saga.markProcessing(INVENTORY_RESERVING, sagaTimeouts.stepTimeout(INVENTORY_RESERVING));
+        boolean stepped = saga.markProcessing(INVENTORY_RESERVING, sagaTimeouts.stepTimeout(INVENTORY_RESERVING), now(clock));
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);

@@ -25,6 +25,7 @@ public class OutboxRelayProcessor {
                                             Throwable ex) {
         if (ex == null) {
             eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
+            log.info("[Outbox] 발행 완료 처리: eventId={}, workerId={}, claimedAt={}", eventId, workerId, claimedAt);
             return;
         }
 
@@ -33,9 +34,14 @@ public class OutboxRelayProcessor {
                 .orElse(0) + 1;
 
         long updated = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, ex.toString());// 미리 FAILED로 해야 DEAD 가능
+        log.info("[Outbox] 발행 실패 처리: eventId={}, workerId={}, attempt={}, updated={}, error={}",
+                eventId, workerId, attempt, updated, ex.toString());
+
         if (updated > 0 && attempt >= props.maxRetryCount()) { //
             eventRecorder.markDeadLetter(eventId, "재시도 횟수 초과: " + ex);
+            log.info("[Outbox] 데드레터 전환: eventId={}, attempt={}, maxRetry={}", eventId, attempt, props.maxRetryCount());
         }
     }
-
 }
+
+

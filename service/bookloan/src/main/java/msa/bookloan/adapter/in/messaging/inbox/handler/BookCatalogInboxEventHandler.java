@@ -1,5 +1,6 @@
 package msa.bookloan.adapter.in.messaging.inbox.handler;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
@@ -20,6 +21,7 @@ public class BookCatalogInboxEventHandler {
 
     // TODO : adaptor in -> out으로 가는 구조라 나중에 여유되면 중간에 서비스영역 거치도록 리팩토링...
     @Async("inboxExecutor")
+    @Transactional
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookCatalogUpdated(BookCatalogChangedEvent event) {
         Long eventId = event.getEventId();

@@ -19,23 +19,27 @@ public interface OutboxEventRecordRepositoryCustom {
 
     long markPublished(Collection<Long> ids,
                        String workerId,
-                       LocalDateTime claimedAt);
+                       LocalDateTime claimedAt,
+                       LocalDateTime now);
 
     long markFailed(Collection<Long> ids,
                     String workerId,
                     LocalDateTime claimedAt,
-                    String lastError);
+                    String lastError,
+                    LocalDateTime now);
 
-    long markDeadFromFailed(Long eventId, String reason);
+    long markDeadFromFailed(Long eventId, String reason, LocalDateTime now);
 
     long markPublishedByEventId(Long eventId,
                                 String workerId,
-                                LocalDateTime claimedAt);
+                                LocalDateTime claimedAt,
+                                LocalDateTime now);
 
     long markFailedByEventId(Long eventId,
                              String workerId,
                              LocalDateTime claimedAt,
-                             String lastError);
+                             String lastError,
+                             LocalDateTime now);
 
 
 }

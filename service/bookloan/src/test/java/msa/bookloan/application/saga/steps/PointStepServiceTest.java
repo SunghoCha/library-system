@@ -1,7 +1,7 @@
 package msa.bookloan.application.saga.steps;
 
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.command.ScheduleShippingCommand;
@@ -11,6 +11,7 @@ import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +23,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -45,11 +48,12 @@ class PointStepServiceTest {
     private CommandOutboxRecorder commandOutboxRecorder;
 
     private LoanSaga testSaga;
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
     private final String SAGA_ID = "saga-point-123";
 
     @BeforeEach
     void setUp() {
-        testSaga = LoanSaga.startNew(SAGA_ID, 1L, 100L, 200L, 0L, 99L);
+        testSaga = LoanSaga.startNew(SAGA_ID, 1L, 100L, 200L, 0L, 99L, now(fixedClock));
     }
 
     @Nested
@@ -60,7 +64,7 @@ class PointStepServiceTest {
         @DisplayName("성공: 다음 단계(SHIPPING_SCHEDULING)로 전이하고 배송 스케줄링 커맨드를 발행한다")
         void shouldTransitionToNextStepAndRecordCommand() {
             // given
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             PointChargedInternalEvent event = new PointChargedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
@@ -84,7 +88,7 @@ class PointStepServiceTest {
         @DisplayName("무시: 사가가 올바른 단계(POINT_CHARGING)가 아니면 아무 작업도 수행하지 않는다")
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
-            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5)); // 이전 단계
+            testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 이전 단계
             PointChargedInternalEvent event = new PointChargedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
@@ -105,7 +109,7 @@ class PointStepServiceTest {
         @DisplayName("성공: 보상(COMPENSATING) 상태로 진입하고 재고 해제(보상) 커맨드를 발행한다")
         void shouldEnterCompensatingAndRecordCompensationCommand() {
             // given
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             PointChargeFailedPayload payload = new PointChargeFailedPayload("INSUFFICIENT_FUNDS", "잔액 부족");
             PointChargeFailedInternalEvent event = new PointChargeFailedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
 
@@ -152,8 +156,8 @@ class PointStepServiceTest {
         void shouldMoveCompensationStepAndRecordNextCommand() {
             // given
             // 보상 시나리오를 위한 사전 상태 설정
-            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5));
-            testSaga.enterCompensating(Duration.ofMinutes(30)); // 현재 상태: COMPENSATING, SHIPPING_SCHEDULING
+            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
+            testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, SHIPPING_SCHEDULING
 
             PointRefundedInternalEvent event = new PointRefundedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
 
@@ -181,8 +185,8 @@ class PointStepServiceTest {
         void shouldDoNothing_whenSagaIsNotInCorrectCompensatingStep() {
             // given
             // 잘못된 보상 단계 설정
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5));
-            testSaga.enterCompensating(Duration.ofMinutes(30)); // 현재 상태: COMPENSATING, POINT_CHARGING
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
+            testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, POINT_CHARGING
 
             PointRefundedInternalEvent event = new PointRefundedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));

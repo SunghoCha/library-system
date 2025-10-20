@@ -4,7 +4,7 @@
 //import lombok.extern.slf4j.Slf4j;
 //import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 //import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-//import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+//import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 //import msa.bookloan.application.event.LoanRequestedInternalEvent;
 //import msa.bookloan.application.saga.command.*;
 //import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;

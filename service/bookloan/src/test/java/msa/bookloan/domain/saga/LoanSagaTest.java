@@ -1,17 +1,21 @@
 package msa.bookloan.domain.saga;
 
+import msa.bookloan.testsupport.time.TestClocks;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import static java.time.LocalDateTime.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class LoanSagaTest {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
 
     private LoanSaga createInitialSaga() {
         return LoanSaga.startNew( // PROCESSING 으로 생성
@@ -20,7 +24,8 @@ class LoanSagaTest {
                 100L,
                 200L,
                 0L,
-                99L
+                99L,
+                now(fixedClock)
         );
     }
 
@@ -54,13 +59,13 @@ class LoanSagaTest {
             LoanSaga saga = createInitialSaga();
 
             // when
-            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT);
+            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isTrue();
             assertThat(saga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
             assertThat(saga.getCurrentStep()).isEqualTo(LoanSagaStep.MEMBER_CHECKING);
-            assertThat(saga.getStepDeadlineAt()).isAfter(LocalDateTime.now());
+            assertThat(saga.getStepDeadlineAt()).isAfter(now());
         }
 
         @Test
@@ -69,11 +74,11 @@ class LoanSagaTest {
             // given
             LoanSaga saga = createInitialSaga();
             // SHIPPING_SCHEDULING 단계로 이동 후 강제로 완료 상태로 만듦
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
             saga.markCompleted();
 
             // when
-            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT);
+            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isFalse();
@@ -86,11 +91,11 @@ class LoanSagaTest {
         void markProcessing_ShouldBeIdempotent_ForSameStep() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT, now(fixedClock));
             LocalDateTime initialDeadline = saga.getStepDeadlineAt();
 
             // when
-            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT);
+            boolean result = saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isFalse();
@@ -108,7 +113,7 @@ class LoanSagaTest {
             // given
             LoanSaga saga = createInitialSaga();
             // SHIPPING_SCHEDULING 단계까지 강제로 진행
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // when
             boolean result = saga.markCompleted();
@@ -126,7 +131,7 @@ class LoanSagaTest {
         void markCompleted_ShouldFail_FromNonAllowedStep() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.MEMBER_CHECKING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // when
             boolean result = saga.markCompleted();
@@ -142,7 +147,7 @@ class LoanSagaTest {
         void markCompleted_ShouldBeIdempotent() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
             saga.markCompleted();
 
             // when
@@ -162,7 +167,7 @@ class LoanSagaTest {
         void markFailed_ShouldTransitionToFailed() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.INVENTORY_RESERVING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.INVENTORY_RESERVING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // when
             boolean result = saga.markFailed(SagaAbortReason.INVENTORY_RESERVE_FAILED);
@@ -179,7 +184,7 @@ class LoanSagaTest {
         void markFailed_ShouldNotTransition_WhenAlreadyCompleted() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
             saga.markCompleted();
 
             // when
@@ -214,10 +219,10 @@ class LoanSagaTest {
         void enterCompensating_ShouldStartCompensation() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT); // 보상 가능한 스텝
+            saga.markProcessing(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT, now(fixedClock)); // 보상 가능한 스텝
 
             // when
-            boolean result = saga.enterCompensating(DEFAULT_TIMEOUT);
+            boolean result = saga.enterCompensating(DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isTrue();
@@ -231,11 +236,11 @@ class LoanSagaTest {
         void enterCompensating_ShouldFail_AfterPivot() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
             saga.markCompleted(); // isAfterPivot()가 true가 됨
 
             // when
-            boolean result = saga.enterCompensating(DEFAULT_TIMEOUT);
+            boolean result = saga.enterCompensating(DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isFalse();
@@ -247,17 +252,17 @@ class LoanSagaTest {
         void moveCompensatingTo_ShouldMoveToNextCompensationStep() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
-            saga.enterCompensating(DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
+            saga.enterCompensating(DEFAULT_TIMEOUT, now(fixedClock));
 
             // when
-            boolean result = saga.moveCompensatingTo(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT);
+            boolean result = saga.moveCompensatingTo(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isTrue();
             assertThat(saga.getStatus()).isEqualTo(SagaStatus.COMPENSATING);
             assertThat(saga.getCurrentStep()).isEqualTo(LoanSagaStep.POINT_CHARGING);
-            assertThat(saga.getStepDeadlineAt()).isAfter(LocalDateTime.now());
+            assertThat(saga.getStepDeadlineAt()).isAfter(now());
         }
 
         @Test
@@ -265,10 +270,10 @@ class LoanSagaTest {
         void moveCompensatingTo_ShouldFail_IfNotCompensating() {
             // given
             LoanSaga saga = createInitialSaga();
-            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT);
+            saga.markProcessing(LoanSagaStep.SHIPPING_SCHEDULING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // when
-            boolean result = saga.moveCompensatingTo(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT);
+            boolean result = saga.moveCompensatingTo(LoanSagaStep.POINT_CHARGING, DEFAULT_TIMEOUT, now(fixedClock));
 
             // then
             assertThat(result).isFalse();

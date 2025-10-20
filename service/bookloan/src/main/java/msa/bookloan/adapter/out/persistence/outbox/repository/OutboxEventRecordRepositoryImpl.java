@@ -50,6 +50,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, workerId)
                 .set(r.pickedAt, now)
                 .set(r.leaseUntil, leaseUntil)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(NEW))
@@ -72,6 +73,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, workerId)
                 .set(r.pickedAt, now)
                 .set(r.leaseUntil, leaseUntil)
+                .set(r.updatedAt, now)
                 .where(
                         r.id.in(ids)
                                 .and(r.outboxEventRecordStatus.in(NEW, FAILED, PUBLISHING))
@@ -82,7 +84,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markPublished(Collection<Long> ids, String workerId, LocalDateTime claimedAt) {
+    public long markPublished(Collection<Long> ids, String workerId, LocalDateTime claimedAt, LocalDateTime now) {
         if (ids == null || ids.isEmpty()) return 0L;
 
         return queryFactory
@@ -91,6 +93,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, (String) null)
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
+                .set(r.updatedAt, now)
                 .where(
                         idIn(ids)
                                 .and(eqStatus(PUBLISHING))
@@ -101,7 +104,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markFailed(Collection<Long> ids, String workerId, LocalDateTime claimedAt, String lastError) {
+    public long markFailed(Collection<Long> ids, String workerId, LocalDateTime claimedAt,
+                           String lastError, LocalDateTime now) {
         if (ids == null || ids.isEmpty()) return 0L;
 
         return queryFactory
@@ -112,6 +116,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, lastError)
+                .set(r.updatedAt, now)
                 .where(
                         idIn(ids)
                                 .and(eqStatus(PUBLISHING))
@@ -122,7 +127,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markDeadFromFailed(Long eventId, String reason) {
+    public long markDeadFromFailed(Long eventId, String reason, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -132,6 +137,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, reason)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(FAILED))
@@ -140,7 +146,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
+    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -149,6 +155,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, (String) null)
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(PUBLISHING))
@@ -159,7 +166,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String lastError) {
+    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt,
+                                    String lastError, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -170,6 +178,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, lastError)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(PUBLISHING))

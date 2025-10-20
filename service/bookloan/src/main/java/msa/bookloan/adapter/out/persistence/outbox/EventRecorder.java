@@ -16,9 +16,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static java.time.LocalDateTime.*;
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 // TODO : 사가 시작을 로컬트랜잭션에서 수행하는걸로 바뀌어서 아직은 필요없는 클래스인 상태. 추후 수정
 @Slf4j
@@ -27,6 +29,7 @@ import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 public class EventRecorder {
     private static final String AGGREGATE_TYPE = "BookLoan";
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
@@ -46,7 +49,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
-        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt, now(clock));
         if (updated == 0L) {
             log.info("[Outbox] 발행 처리 스킵(펜싱/이미 처리): eventId={}, workerId={}, claimedAt={}",
                     eventId, workerId, claimedAt);
@@ -58,7 +61,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
-        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason, now(clock));
         if (updated == 0L) {
             log.info("[Outbox] 실패 처리 스킵(펜싱/회수됨): eventId={}, workerId={}, claimedAt={}",
                     eventId, workerId, claimedAt);
@@ -70,7 +73,7 @@ public class EventRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long markDeadLetter(Long eventId, String error) {
-        long updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+        long updated = eventRecordRepository.markDeadFromFailed(eventId, error, now(clock));
         if (updated == 0L) {
             log.info("[Outbox] 데드레터 전이 스킵(FAILED 아님): eventId={}", eventId);
         } else {
@@ -93,7 +96,7 @@ public class EventRecorder {
                 .id(snowflake.nextId())
                 .eventId(event.eventId())
                 .eventType(CatalogEvents.CREATED)                 // 사가 시작이므로 CREATED로 고정
-                //.aggregateId(String.valueOf(event.loanId()))
+                //.aggregateId(String.valueOf(event.loanId())) // TODO : 체크해야함
                 .aggregateType(AGGREGATE_TYPE)
                 .aggregateVersion(event.aggregateVersion())
                 .payload(payload)

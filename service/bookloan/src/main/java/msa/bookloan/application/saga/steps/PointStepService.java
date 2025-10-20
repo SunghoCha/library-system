@@ -3,7 +3,7 @@ package msa.bookloan.application.saga.steps;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.command.ScheduleShippingCommand;
@@ -24,6 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
 import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
 
@@ -32,6 +35,7 @@ import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
 @RequiredArgsConstructor
 public class PointStepService {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final SagaTimeouts sagaTimeouts;
     private final LoanSagaRepository sagaRepository;
@@ -56,7 +60,7 @@ public class PointStepService {
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(POINT_CHARGING)) return;
 
-        boolean entered = saga.enterCompensating(sagaTimeouts.compensationTimeoutFor());
+        boolean entered = saga.enterCompensating(sagaTimeouts.compensationTimeoutFor(), now(clock));
         if (!entered) return;
 
         sagaRepository.saveAndFlush(saga);
@@ -87,7 +91,7 @@ public class PointStepService {
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(POINT_CHARGING)) return;
 
-        boolean stepped = saga.markProcessing(SHIPPING_SCHEDULING, sagaTimeouts.stepTimeout(SHIPPING_SCHEDULING));
+        boolean stepped = saga.markProcessing(SHIPPING_SCHEDULING, sagaTimeouts.stepTimeout(SHIPPING_SCHEDULING), now(clock));
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);
@@ -118,7 +122,7 @@ public class PointStepService {
         if (saga.isTerminal()) return;
         if (!saga.isCompensatingFrom(SHIPPING_SCHEDULING)) return;
 
-        boolean moved = saga.moveCompensatingTo(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING));
+        boolean moved = saga.moveCompensatingTo(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING), now(clock));
         if (!moved) return;
 
         sagaRepository.saveAndFlush(saga);

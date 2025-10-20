@@ -8,7 +8,10 @@ import msa.bookcatalog.adapter.out.persistence.outbox.entity.QOutboxEventRecord;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import org.springframework.stereotype.Repository;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,6 +23,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
 
     private final QOutboxEventRecord r = QOutboxEventRecord.outboxEventRecord;
     private final JPAQueryFactory queryFactory;
+
+    Clock clock = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC);
 
     @Override
     public List<OutboxEventRecord> findPublishingByIdsOrderByOccurredAt(
@@ -50,6 +55,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, workerId)
                 .set(r.pickedAt, now)
                 .set(r.leaseUntil, leaseUntil)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(NEW))
@@ -57,6 +63,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .execute();
     }
 
+    // 이미 스킵락으로 잡힌 대상에 대해서만 실행해야함
     @Override
     public long markPublishing(Collection<Long> ids,
                                    String workerId,
@@ -72,6 +79,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, workerId)
                 .set(r.pickedAt, now)
                 .set(r.leaseUntil, leaseUntil)
+                .set(r.updatedAt, now)
                 .where(
                         r.id.in(ids)
                                 .and(r.outboxEventRecordStatus.in(NEW, FAILED, PUBLISHING))
@@ -82,7 +90,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markPublished(Collection<Long> ids, String workerId, LocalDateTime claimedAt) {
+    public long markPublished(Collection<Long> ids, String workerId,
+                              LocalDateTime claimedAt, LocalDateTime now) {
         if (ids == null || ids.isEmpty()) return 0L;
 
         return queryFactory
@@ -91,6 +100,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, (String) null)
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
+                .set(r.updatedAt, now)
                 .where(
                         idIn(ids)
                                 .and(eqStatus(PUBLISHING))
@@ -101,7 +111,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markFailed(Collection<Long> ids, String workerId, LocalDateTime claimedAt, String lastError) {
+    public long markFailed(Collection<Long> ids, String workerId, LocalDateTime claimedAt,
+                           String lastError, LocalDateTime now) {
         if (ids == null || ids.isEmpty()) return 0L;
 
         return queryFactory
@@ -112,6 +123,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, lastError)
+                .set(r.updatedAt, now)
                 .where(
                         idIn(ids)
                                 .and(eqStatus(PUBLISHING))
@@ -122,7 +134,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markDeadFromFailed(Long eventId, String reason) {
+    public long markDeadFromFailed(Long eventId, String reason, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -132,6 +144,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, reason)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(FAILED))
@@ -140,7 +153,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
+    public long markPublishedByEventId(Long eventId, String workerId,
+                                       LocalDateTime claimedAt, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -149,6 +163,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.workerId, (String) null)
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(PUBLISHING))
@@ -159,7 +174,8 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String lastError) {
+    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt,
+                                    String lastError, LocalDateTime now) {
         if (eventId == null) return 0L;
 
         return queryFactory
@@ -170,6 +186,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseUntil, (LocalDateTime) null)
                 .set(r.pickedAt, (LocalDateTime) null)
                 .set(r.lastError, lastError)
+                .set(r.updatedAt, now)
                 .where(
                         eqEventId(eventId)
                                 .and(eqStatus(PUBLISHING))

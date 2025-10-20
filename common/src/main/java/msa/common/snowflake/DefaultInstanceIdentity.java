@@ -1,5 +1,7 @@
 package msa.common.snowflake;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
@@ -10,7 +12,7 @@ public class DefaultInstanceIdentity implements InstanceIdentity {
     private final long nodeId;
     private final String workerId;
 
-    public DefaultInstanceIdentity(long nodeId) {
+    public DefaultInstanceIdentity(@Value("${snowflake.node-id}")long nodeId) {
         this.nodeId = nodeId;
         this.workerId = buildWorkerId(nodeId);
     }

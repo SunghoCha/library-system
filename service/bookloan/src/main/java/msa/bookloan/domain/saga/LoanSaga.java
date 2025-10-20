@@ -87,8 +87,8 @@ public class LoanSaga extends BaseTimeEntity {
                                     Long memberId,
                                     Long bookId,
                                     Long aggregateVersion,
-                                    Long triggerEventId) {
-        LocalDateTime now = LocalDateTime.now();
+                                    Long triggerEventId,
+                                    LocalDateTime now) {
         return LoanSaga.builder()
                 .sagaId(sagaId)
                 .loanId(loanId)
@@ -104,14 +104,14 @@ public class LoanSaga extends BaseTimeEntity {
     }
 
     @Deprecated
-    public void markProcessing(LoanSagaStep step) {
+    public void markProcessing(LoanSagaStep step, LocalDateTime now) {
         this.currentStep = step;
         this.status = SagaStatus.PROCESSING;
-        this.stepStartedAt = LocalDateTime.now();
+        this.stepStartedAt = now;
         this.stepDeadlineAt = null;
     }
 
-    public boolean markProcessing(LoanSagaStep step, Duration timeout) {
+    public boolean markProcessing(LoanSagaStep step, Duration timeout, LocalDateTime now) {
         // 터미널/보상 중엔 앞으로 진행 금지
         if (isTerminal() || this.status == SagaStatus.COMPENSATING) {
             return false;
@@ -124,13 +124,13 @@ public class LoanSaga extends BaseTimeEntity {
 
         this.currentStep = step;
         this.status = SagaStatus.PROCESSING;
-        LocalDateTime now = LocalDateTime.now();
         this.stepStartedAt = now;
         this.stepDeadlineAt = now.plus(timeout);
 
         return true;
     }
 
+    // ShippingScheduled(성공 리플라이)를 처리하는 순간만 완료 허용
     public boolean markCompleted() {
         // 이미 완료면 멱등, 다른 터미널이면 무시
         if (this.status == SagaStatus.COMPLETED || isTerminal()) {
@@ -182,13 +182,23 @@ public class LoanSaga extends BaseTimeEntity {
         return true;
     }
 
-    public boolean  enterCompensating(Duration timeout) {
+    public boolean markCancelRequested(SagaAbortReason reason) {
+        if (!canAcceptCancel() || isCancelRequested() || this.status == SagaStatus.COMPENSATING) {
+            return false;
+        }
+        this.status = SagaStatus.CANCEL_REQUESTED;
+        this.lastError = (reason != null ? reason.name() : null);
+        this.workerId = null;
+        this.leaseUntil = null;
+        return true;
+    }
+
+    public boolean  enterCompensating(Duration timeout, LocalDateTime now) {
         // 이미 끝났거나 피벗 통과면 아무 것도 하지 않음 (방어)
         if (isTerminal() || isAfterPivot() || this.status == SagaStatus.COMPENSATING) {
             return false;
         }
         this.status = SagaStatus.COMPENSATING;
-        LocalDateTime now = LocalDateTime.now();
         this.stepStartedAt = now;                    // 보상 시작 시각 갱신
         this.stepDeadlineAt = now.plus(timeout);     // 보상 타임아웃
         // 워커 시맨틱락 해제
@@ -214,11 +224,11 @@ public class LoanSaga extends BaseTimeEntity {
         return this.getStatus() == SagaStatus.COMPENSATING && this.getCurrentStep() == step;
     }
 
-    public boolean moveCompensatingTo(LoanSagaStep step, Duration timeout) {
+    public boolean moveCompensatingTo(LoanSagaStep step, Duration timeout, LocalDateTime now) {
         if (this.getStatus() != SagaStatus.COMPENSATING) return false;
-        this.setStepDeadlineAt(LocalDateTime.now().plus(timeout));
+        this.setStepDeadlineAt(now.plus(timeout));
         this.currentStep = step;
-        this.stepStartedAt = LocalDateTime.now();
+        this.stepStartedAt = now;
         return true;
     }
 
@@ -232,10 +242,14 @@ public class LoanSaga extends BaseTimeEntity {
     public boolean isAfterPivot() {
         // 현 설계: ShippingScheduled가 커밋되면 FINISHED로 전이됨 -> 그 시점이 pivot 통과
         // 지금은 피벗트랜잭션이 마지막인데 나중엔 바뀔수도 있음
-        return this.currentStep == LoanSagaStep.FINISHED;
+        return this.currentStep == LoanSagaStep.FINISHED || this.status == SagaStatus.COMPLETED;
     }
 
     public boolean canAcceptCancel() {
         return !isTerminal() && !isAfterPivot();
+    }
+
+    public boolean isCancelRequested() {
+        return this.status == SagaStatus.CANCEL_REQUESTED;
     }
 }

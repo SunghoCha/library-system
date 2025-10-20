@@ -4,6 +4,7 @@ import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNotFoundException;
+import msa.common.config.properties.OutboxSchedulerProps;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.InstanceIdentity;
 import org.junit.jupiter.api.DisplayName;
@@ -128,7 +129,7 @@ class OutboxEventSenderTest {
         OutboxEventRecord recordWithNullRouting = createTestRecord(3L, false);
         when(outboxRepository.findByEventId(3L)).thenReturn(Optional.of(recordWithNullRouting));
 
-        // when & then
+        // when then
         assertThrows(IllegalStateException.class, () -> {
             outboxEventSender.send(createTestEvent(3L));
         });
@@ -141,7 +142,7 @@ class OutboxEventSenderTest {
     private OutboxEventRecord createTestRecord(Long eventId, boolean withRouting) {
         OutboxEventRecord.OutboxEventRecordBuilder builder = OutboxEventRecord.builder()
                 .eventId(eventId)
-                .payload("{\"message\":\"test payload\"}");
+                .payload("test payload");
 
         if (withRouting) {
             builder.routing(OutboxRouting.builder()

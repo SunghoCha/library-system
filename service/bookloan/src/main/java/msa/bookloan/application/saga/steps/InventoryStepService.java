@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ChargePointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
@@ -25,6 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+
+import static java.time.LocalDateTime.*;
 import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
 
@@ -33,6 +36,7 @@ import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
 @RequiredArgsConstructor
 public class InventoryStepService {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final SagaTimeouts sagaTimeouts;
     private final LoanSagaRepository sagaRepository;
@@ -61,7 +65,7 @@ public class InventoryStepService {
         }
         if (!saga.isProcessingAt(INVENTORY_RESERVING)) return;
 
-        boolean stepped = saga.markProcessing(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING));
+        boolean stepped = saga.markProcessing(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING), now(clock));
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);

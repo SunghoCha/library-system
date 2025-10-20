@@ -40,14 +40,36 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
             )
           )
         ORDER BY o.occurred_at ASC, o.id ASC
-        LIMIT :lim
+        LIMIT :limit
         FOR UPDATE SKIP LOCKED
         """, nativeQuery = true)
-    List<Long> lockClaimableIds(@Param("lim") int limit,
+    List<Long> lockClaimableIdsV1(@Param("limit") int limit,
                                 @Param("maxRetry") int maxRetry,
                                 @Param("now") LocalDateTime now,
                                 @Param("grace") LocalDateTime graceThreshold,
                                 @Param("stale") LocalDateTime staleThreshold);
+
+    @Query(value = """
+            SELECT o.id
+            FROM outbox_event_record o
+            WHERE
+              (
+                (o.status = 'NEW'        AND o.occurred_at < :grace)
+                OR
+                (o.status = 'FAILED'     AND o.retry_count < :maxRetry)
+                OR
+                (o.status = 'PUBLISHING' AND (o.lease_until IS NULL OR o.lease_until < :now OR o.picked_at < :stale))
+              )
+            ORDER BY o.occurred_at ASC, o.id ASC
+            LIMIT :limit
+            FOR UPDATE SKIP LOCKED;
+        """, nativeQuery = true)
+    List<Long> lockClaimableIds(@Param("limit") int limit,
+                                @Param("maxRetry") int maxRetry,
+                                @Param("now") LocalDateTime now,
+                                @Param("grace") LocalDateTime graceThreshold,
+                                @Param("stale") LocalDateTime staleThreshold);
+
 
     @Modifying
     @Query(value = """

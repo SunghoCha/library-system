@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
-import msa.bookloan.adapter.out.persistence.saga.LoanSagaRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
@@ -24,6 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_ACCEPTED;
 import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
 
@@ -32,6 +35,7 @@ import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
 @RequiredArgsConstructor
 public class ShippingStepService {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final SagaTimeouts sagaTimeouts;
     private final LoanSagaRepository sagaRepository;
@@ -58,7 +62,7 @@ public class ShippingStepService {
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(SHIPPING_SCHEDULING)) return;
 
-        boolean stepped = saga.markProcessing(SHIPPING_ACCEPTED, sagaTimeouts.stepTimeout(SHIPPING_ACCEPTED));
+        boolean stepped = saga.markProcessing(SHIPPING_ACCEPTED, sagaTimeouts.stepTimeout(SHIPPING_ACCEPTED), now(clock));
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);
@@ -111,7 +115,7 @@ public class ShippingStepService {
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAtAny(SHIPPING_SCHEDULING, SHIPPING_ACCEPTED)) return;
 
-        boolean entered = saga.enterCompensating(sagaTimeouts.compensationTimeoutFor());
+        boolean entered = saga.enterCompensating(sagaTimeouts.compensationTimeoutFor(), now(clock));
         if (!entered) return;
 
         sagaRepository.saveAndFlush(saga);

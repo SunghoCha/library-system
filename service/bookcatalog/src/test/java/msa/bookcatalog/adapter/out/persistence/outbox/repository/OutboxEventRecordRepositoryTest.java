@@ -8,6 +8,7 @@ import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.application.event.CatalogEvents;
 import msa.bookcatalog.infra.config.QueryDslConfig;
+import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,9 +24,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static java.time.LocalDateTime.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(QueryDslConfig.class)
@@ -56,11 +59,13 @@ class OutboxEventRecordRepositoryTest {
         OutboxClaimerService outboxClaimerService() { return Mockito.mock(OutboxClaimerService.class); }
     }
 
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
+
     @Autowired
     private OutboxEventRecordRepository outboxRepository;
 
     @Autowired
-    private EntityManager entityManager;
+    private EntityManager em;
 
     @BeforeEach
     void setUp() {
@@ -71,7 +76,7 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("lockClaimableIds: 발행 가능한 모든 종류의 이벤트를 조건에 맞게 조회한다")
     void lockClaimableIds_shouldFindAllClaimableEvents() {
         // given
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         int maxRetry = 3;
 
         // 1. 발행 대상: NEW 상태이고 grace time이 지난 이벤트
@@ -111,12 +116,15 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("markPublishing: 여러 ID의 상태를 PUBLISHING으로 업데이트한다")
     void markPublishing_shouldUpdateStatusToPublishing() {
         // given
-        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
-        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, now());
+        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, 1, now());
         outboxRepository.saveAll(List.of(newEvent, failedEvent));
 
+        em.flush();
+        em.clear();
+
         String workerId = "test-worker";
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         int leaseSeconds = 60;
         List<Long> ids = List.of(newEvent.getId(), failedEvent.getId());
 
@@ -137,12 +145,14 @@ class OutboxEventRecordRepositoryTest {
     void markPublished_shouldUpdateStatusToPublished() {
         // given
         String workerId = "test-worker";
-        LocalDateTime claimedAt = LocalDateTime.now();
+        LocalDateTime claimedAt = now();
         OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
         outboxRepository.save(publishingEvent);
 
+        em.flush();
+        em.clear();
         // when
-        long updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), workerId, claimedAt);
+        long updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), workerId, claimedAt, now(fixedClock));
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -158,14 +168,16 @@ class OutboxEventRecordRepositoryTest {
     void markFailed_shouldUpdateStatusToFailedAndIncrementRetryCount() {
         // given
         String workerId = "test-worker";
-        LocalDateTime claimedAt = LocalDateTime.now();
+        LocalDateTime claimedAt = now();
         OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
         outboxRepository.save(publishingEvent);
         int initialRetryCount = publishingEvent.getRetryCount();
 
+        em.flush();
+        em.clear();
         // when
         String errorMessage = "Kafka Connection Failed";
-        long updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), workerId, claimedAt, errorMessage);
+        long updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), workerId, claimedAt, errorMessage, now(fixedClock));
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -182,12 +194,15 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("markDeadFromFailed: FAILED 상태의 이벤트를 DEAD_LETTER로 업데이트한다")
     void markDeadFromFailed_shouldUpdateStatusToDeadLetter() {
         // given
-        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 3, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 3, now());
         outboxRepository.save(failedEvent);
+
+        em.flush();
+        em.clear();
 
         // when
         String reason = "Max retry exceeded";
-        long updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason);
+        long updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason, now(fixedClock));
 
         // then
         assertThat(updatedCount).isEqualTo(1);
@@ -200,11 +215,14 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태의 이벤트를 선점하여 PUBLISHING으로 변경한다")
     void tryClaimFromNew_shouldClaimNewEvent() {
         // given
-        OutboxEventRecord newEvent = createRecord(100L, 1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L, 1L, OutboxEventRecordStatus.NEW, 0, now());
         outboxRepository.save(newEvent);
 
+        em.flush();
+        em.clear();
+
         String workerId = "claim-worker";
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         int leaseSeconds = 30;
 
         // when
@@ -221,11 +239,14 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태가 아닌 이벤트는 선점할 수 없다")
     void tryClaimFromNew_shouldNotClaimNonNewEvent() {
         // given
-        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 1, now());
         outboxRepository.save(failedEvent);
 
+        em.flush();
+        em.clear();
+
         // when
-        long updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), "worker", LocalDateTime.now(), 30);
+        long updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), "worker", now(), 30);
 
         // then
         assertThat(updatedCount).isEqualTo(0);

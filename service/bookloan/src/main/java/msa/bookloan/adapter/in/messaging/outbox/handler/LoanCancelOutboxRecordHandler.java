@@ -27,6 +27,13 @@ public class LoanCancelOutboxRecordHandler {
                     event.loanId(), event.reason(), event.eventId());
             return;
         }
-        orchestrator.requestCancel(sagaIdOpt.get(), event.reason(), event.eventId());
+
+        try {
+            orchestrator.requestCancel(sagaIdOpt.get(), event.reason(), event.eventId());
+        } catch (RuntimeException ex) {
+            // 특정 예외만 던져서 롤백할지 고민
+            log.warn("[Saga] 취소 처리 중 예기치 못한 오류: loanId={}", event.loanId(), ex);
+
+        }
     }
 }
