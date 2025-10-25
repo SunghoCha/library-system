@@ -3,8 +3,7 @@ package msa.common.events.outbox.record;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import msa.common.events.EventType;
-import msa.common.events.inbox.dto.InboxEventRecordStatus;
+import msa.common.events.EventTypeV1;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 
 import java.time.LocalDateTime;
@@ -24,7 +23,7 @@ public abstract class SimpleOutboxEventRecord {  // 페이로드 없는 이벤�
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EventType eventType;
+    private EventTypeV1 eventTypeV1;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime occurredAt;

@@ -69,3 +69,20 @@ app:
       point-charging: 15s
       shipping-scheduling: 30s
       shipping-accepted: 10m
+
+  outbox:
+    scheduler:
+      max-retry-count: 3
+      batch-size: 100
+      grace: 5s              # NEW 직후 잠깐 유예
+      stale-timeout: 10m     # 묶인 PUBLISHING 회수 기준
+      lease: 30s             # 선점 임대시간
+
+  inbox:
+    scheduler:
+      max-retry-count: 3
+      batch-size: 200
+      stale-timeout: 10m
+      lease: 30s
+    processing:
+      error-max-length: 2000

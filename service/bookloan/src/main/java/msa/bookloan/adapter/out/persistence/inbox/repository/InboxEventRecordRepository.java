@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,7 +27,7 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
                topic, partition_no, record_offset, last_error, failure_category,
                created_at, updated_at)
             VALUES
-              (:id, :eventId, :aggregateId, :aggregateVersion, :eventType, :payload, 'NEW', :source,
+              (:id, :eventId, :aggregateId, :aggregateVersion, :eventTypeV1, :payload, 'NEW', :source,
                NOW(6), 1, 0,
                :topic, :partitionNo, :recordOffset, NULL, NULL,
                NOW(6), NOW(6))
@@ -39,12 +40,35 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
                     @Param("eventId") long eventId,
                     @Param("aggregateId") long aggregateId,
                     @Param("aggregateVersion") long aggregateVersion,
-                    @Param("eventType") String eventType,
+                    @Param("eventTypeV1") String eventTypeV1,
                     @Param("payload") String payload,
                     @Param("source") String source,
                     @Param("topic") String topic,
                     @Param("partitionNo") int partitionNo,
                     @Param("recordOffset") long recordOffset);
+
+    @Query(value = """
+    SELECT id
+    FROM inbox_event
+    WHERE
+          status = 'NEW'
+       OR (status = 'FAILED' AND retry_count < :maxRetry)
+       OR (status = 'PROCESSING'
+           AND (lease_until IS NULL OR lease_until < :now OR picked_at < :stale))
+    ORDER BY last_seen_at ASC, id ASC
+    LIMIT :limit
+    FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+    List<Long> lockClaimableInboxIds(
+            @Param("limit") int limit,
+            @Param("maxRetry") int maxRetry,
+            @Param("now") LocalDateTime now,
+            @Param("stale") LocalDateTime staleThreshold
+    );
+
+
+
+
 
 
 }

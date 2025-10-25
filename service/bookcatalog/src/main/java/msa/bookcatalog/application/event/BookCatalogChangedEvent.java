@@ -6,7 +6,6 @@ import lombok.Getter;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
 import msa.common.events.DomainEvent;
-import msa.common.events.EventType;
 
 import java.time.LocalDateTime;
 import java.util.Objects;

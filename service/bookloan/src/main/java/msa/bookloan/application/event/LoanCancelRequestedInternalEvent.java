@@ -1,8 +1,6 @@
 package msa.bookloan.application.event;
 
 import msa.bookloan.domain.saga.SagaAbortReason;
-import msa.common.events.EventType;
-import msa.common.events.outbox.OutboxRecordableEvent;
 
 import java.time.LocalDateTime;
 

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+@Deprecated // 아예 무의미한 레코드를 굳이 dlt에 저장안해도 될 것 같음
 @Component
 @RequiredArgsConstructor
 public class DeadLetterAppender {
@@ -30,9 +31,9 @@ public class DeadLetterAppender {
             String errorMessage
     ) {
         String json = serializeOrNull(payload);
-        String msg = StringUtils.abbreviate(errorMessage, 2000);
+        String msg = StringUtils.abbreviate(errorMessage, 2000); // 메시지 초과 안하게 저장
 
-        InboxDeadLetter row = InboxDeadLetter.builder()
+        InboxDeadLetter deadLetter = InboxDeadLetter.builder()
                 .id(snowflake.nextId())
                 .source(source.name())
                 .topic(record.topic())
@@ -43,7 +44,7 @@ public class DeadLetterAppender {
                 .errorCategory(category.name())
                 .build();
 
-        repository.save(row);
+        repository.save(deadLetter);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

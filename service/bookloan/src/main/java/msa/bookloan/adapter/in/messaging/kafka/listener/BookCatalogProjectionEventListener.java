@@ -45,9 +45,8 @@ public class BookCatalogProjectionEventListener {
 
         // 페이로드 null 체크
         if (payload == null) {
-            log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
-                    record.topic(), record.partition(), record.offset());
-            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, "payload is null");
+            log.warn("[Catalog][드롭] 페이로드가 null 입니다. source={}, topic={}, partition={}, offset={}",
+                    source, record.topic(), record.partition(), record.offset());
             return;
         }
 
@@ -56,9 +55,8 @@ public class BookCatalogProjectionEventListener {
             payloadValidator.validateOrThrow(payload);
         } catch (ConstraintViolationException e) {
             String msg = summarize(e);
-            log.info("페이로드 검증 실패: {} [eventId={}, topic={}, partition={}, offset={}]",
-                    msg, payload.eventId(), record.topic(), record.partition(), record.offset());
-            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, msg);
+            log.warn("[Catalog][드롭] 유효성 검증 실패: {} [eventId={}, source={}, topic={}, partition={}, offset={}]",
+                    msg, payload.eventId(), source, record.topic(), record.partition(), record.offset());
             return;
         }
 
@@ -67,7 +65,8 @@ public class BookCatalogProjectionEventListener {
         try {
             isNew = inboxAppender.upsertRecord(record, source);
         } catch (IllegalStateException e) { // 직렬화,매핑 실패 (재시도 무의미)
-            deadLetterAppender.save(record, source, FailureCategory.SERIALIZE_FAIL, e.getMessage());
+            log.warn("[Catalog][드롭] 인박스 업서트 실패: {} [eventId={}, source={}, topic={}, partition={}, offset={}]",
+                    e.getMessage(), payload.eventId(), source, record.topic(), record.partition(), record.offset());
             return;
         }
 

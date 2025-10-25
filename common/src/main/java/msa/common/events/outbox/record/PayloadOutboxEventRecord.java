@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import msa.common.domain.base.BaseTimeEntity;
-import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.springframework.data.domain.Persistable;

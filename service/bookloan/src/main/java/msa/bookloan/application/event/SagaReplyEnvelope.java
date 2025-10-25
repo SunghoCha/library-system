@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import msa.common.events.EventType;
+import msa.common.events.EventTypeV1;
 import msa.common.events.inbox.InboxRecordableEvent;
 
 /**
@@ -38,6 +38,6 @@ public record SagaReplyEnvelope(
 
     @Override
     public String getEventType() {
-        return EventType.SAGA_REPLY.name();
+        return EventTypeV1.SAGA_REPLY.name();
     }
 }

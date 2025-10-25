@@ -44,9 +44,8 @@ public class SagaReplyKafkaListener {
 
         // 페이로드 null체크
         if (payload == null) {
-            log.info("페이로드가 null 입니다. DLQ로 저장합니다. [topic={}, partition={}, offset={}]",
-                    record.topic(), record.partition(), record.offset());
-            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, "payload is null");
+            log.warn("[Replies][드롭] 페이로드가 null 입니다. source={}, topic={}, partition={}, offset={}",
+                    source, record.topic(), record.partition(), record.offset());
             return;
         }
 
@@ -55,18 +54,20 @@ public class SagaReplyKafkaListener {
             payloadValidator.validateOrThrow(payload);
         } catch (ConstraintViolationException e) {
             String msg = summarize(e);
-            log.info("페이로드 검증 실패: {} [eventId={}, topic={}, partition={}, offset={}]",
-                    msg, payload.eventId(), record.topic(), record.partition(), record.offset());
-            deadLetterAppender.save(record, source, FailureCategory.VALIDATION_FAIL, msg);
+            log.warn("[Replies][드롭] 유효성 검증 실패: {} [eventId={}, sagaId={}, type={}, source={}, topic={}, partition={}, offset={}]",
+                    msg, payload.eventId(), payload.sagaId(), payload.replyType(),
+                    source, record.topic(), record.partition(), record.offset());
             return;
         }
 
-        // 업서트로 아웃박스 저장
+        // 업서트로 인박스 저장
         boolean isNew;
         try {
             isNew = inboxAppender.upsertRecord(record, source);
         } catch (IllegalStateException e) { // 직렬화,매핑 실패 (재시도 무의미)
-            deadLetterAppender.save(record, source, FailureCategory.SERIALIZE_FAIL, e.getMessage());
+            log.warn("[Replies][드롭] 인박스 업서트 실패: {} [eventId={}, sagaId={}, type={}, source={}, topic={}, partition={}, offset={}]",
+                    e.getMessage(), payload.eventId(), payload.sagaId(), payload.replyType(),
+                    source, record.topic(), record.partition(), record.offset());
             return;
         }
 

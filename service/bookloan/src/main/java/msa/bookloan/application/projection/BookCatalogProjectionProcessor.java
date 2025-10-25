@@ -3,12 +3,10 @@ package msa.bookloan.application.projection;
 import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
 import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
 import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
 import msa.bookloan.application.event.BookCatalogChangedEvent;
-import msa.bookloan.application.event.CatalogEvents;
-import msa.common.events.EventType;
+import msa.bookloan.application.event.CatalogEventType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +20,7 @@ public class BookCatalogProjectionProcessor {
 
     @Transactional
     public void project(BookCatalogChangedEvent event) {
-        if (event.getEventType().equals(CatalogEvents.DELETED)) {
+        if (event.getEventType().equals(CatalogEventType.DELETED.getValue())) {
             handleDeletedEvent(event);
             return;
         }
@@ -32,7 +30,7 @@ public class BookCatalogProjectionProcessor {
     @Transactional
     public void retry(BookCatalogChangedEvent event) {
         // 삭제 이벤트면 삭제, 아니면 upsert 재시도
-        if (event.getEventType().equals(CatalogEvents.DELETED)) {
+        if (event.getEventType().equals(CatalogEventType.DELETED.getValue())) {
             handleDeletedEvent(event);
         } else {
             upsert(event);

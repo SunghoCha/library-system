@@ -18,6 +18,6 @@ public record ChargePointCommand(
             Long causationId
     ) {
         return new ChargePointCommand(cmdId, sagaId, loanId, memberId, causationId,
-                CommandTypes.POINT_CHARGE);
+                SagaCommandType.POINT_CHARGE.getValue());
     }
 }

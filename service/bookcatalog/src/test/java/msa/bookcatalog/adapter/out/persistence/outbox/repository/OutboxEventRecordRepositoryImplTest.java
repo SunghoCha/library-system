@@ -1,21 +1,16 @@
 package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
-import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.infra.config.QueryDslConfig;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.common.events.EventType;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,7 +62,7 @@ class OutboxEventRecordRepositoryImplTest {
         return OutboxEventRecord.builder()
                 .id(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE) // 랜덤 ID
                 .eventId(eventId)
-                .eventType(CatalogEvents.CREATED)
+                .eventType(CatalogEventType.CREATED.getValue())
                 .aggregateId("agg-id-" + eventId)
                 .aggregateType("BOOK_CATALOG")
                 .aggregateVersion(0L)

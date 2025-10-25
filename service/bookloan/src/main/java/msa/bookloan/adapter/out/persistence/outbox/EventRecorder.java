@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookloan.application.event.CatalogEvents;
+import msa.bookloan.application.event.CatalogEventType;
 import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -35,6 +35,7 @@ public class EventRecorder {
     private final OutboxEventRecordRepository eventRecordRepository;
     private final List<OutboxRoutingResolver<?>> resolvers;
 
+    @Deprecated // TODO: 트랜잭션걸고 save에서 발생하는 예외가 catch에서 잡히지도 않을거고 추후 필요할떄 수정해야함. 업서트로 할 듯?
     @Transactional
     public void save(OutboxRecordableEvent event) {
         OutboxEventRecord record = toRecord(event);
@@ -95,7 +96,7 @@ public class EventRecorder {
         return OutboxEventRecord.builder()
                 .id(snowflake.nextId())
                 .eventId(event.eventId())
-                .eventType(CatalogEvents.CREATED)                 // 사가 시작이므로 CREATED로 고정
+                .eventType(CatalogEventType.CREATED.getValue())                 // 사가 시작이므로 CREATED로 고정
                 //.aggregateId(String.valueOf(event.loanId())) // TODO : 체크해야함
                 .aggregateType(AGGREGATE_TYPE)
                 .aggregateVersion(event.aggregateVersion())

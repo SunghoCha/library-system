@@ -3,7 +3,7 @@ package msa.bookcatalog.application.service.batch;
 import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
-import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.bookcatalog.domain.model.BookCategory;
@@ -120,8 +120,8 @@ class BookCatalogBatchServiceTest {
         verify(bookCatalogRepository).flush();
 
         // 이벤트 매퍼 호출 검증
-        verify(bookCatalogEventMapper).toEventFrom(eq(existing), eq(CatalogEvents.UPDATED));
-        verify(bookCatalogEventMapper).toEventFrom(eq(createIncoming), eq(CatalogEvents.CREATED));
+        verify(bookCatalogEventMapper).toEventFrom(eq(existing), eq(CatalogEventType.UPDATED.getValue()));
+        verify(bookCatalogEventMapper).toEventFrom(eq(createIncoming), eq(CatalogEventType.CREATED.getValue()));
 
         // 이벤트 저장 한 번 호출 (개수는 매퍼 호출 수와 동일)
         verify(eventRecorder, times(1)).saveAll(anyList());
@@ -213,7 +213,7 @@ class BookCatalogBatchServiceTest {
                 .thenReturn(new ArrayList<>());
 
         // 이건 없어도 되긴 할 듯
-        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), eq(CatalogEvents.CREATED)))
+        when(bookCatalogEventMapper.toEventFrom(any(BookCatalog.class), eq(CatalogEventType.CREATED.getValue())))
                 .thenReturn(mock(BookCatalogChangedEvent.class));
 
         // when
@@ -228,10 +228,10 @@ class BookCatalogBatchServiceTest {
 
         // CREATED만 두 번
         verify(bookCatalogEventMapper, times(2))
-                .toEventFrom(any(BookCatalog.class), eq(CatalogEvents.CREATED));
+                .toEventFrom(any(BookCatalog.class), eq(CatalogEventType.CREATED.getValue()));
         // UPDATED 호출은 없어야 함
         verify(bookCatalogEventMapper, never())
-                .toEventFrom(any(BookCatalog.class), eq(CatalogEvents.UPDATED));
+                .toEventFrom(any(BookCatalog.class), eq(CatalogEventType.UPDATED.getValue()));
 
         verify(eventRecorder).saveAll(anyList());
     }

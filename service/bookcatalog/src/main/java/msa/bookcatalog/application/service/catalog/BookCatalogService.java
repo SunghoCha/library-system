@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
-import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.application.service.catalog.dto.CreateBookCommand;
 import msa.bookcatalog.application.service.catalog.dto.UpdateBookCommand;
 import msa.bookcatalog.application.service.catalog.exception.BookCatalogNotFoundException;
@@ -50,7 +50,7 @@ public class BookCatalogService {
 
         BookCatalog saved = bookCatalogRepository.save(bookCatalog);
 
-        eventPublisher.publishEvent(toEventFrom(saved, CatalogEvents.CREATED));
+        eventPublisher.publishEvent(toEventFrom(saved, CatalogEventType.CREATED.getValue()));
         return saved.getId();
     }
 
@@ -66,7 +66,7 @@ public class BookCatalogService {
         }
         bookCatalogRepository.flush(); // 버전 정보 업데이트
 
-        eventPublisher.publishEvent(toEventFrom(bookCatalog, CatalogEvents.UPDATED));
+        eventPublisher.publishEvent(toEventFrom(bookCatalog, CatalogEventType.UPDATED.getValue()));
         return bookCatalog.getId();
     }
 

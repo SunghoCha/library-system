@@ -18,6 +18,6 @@ public record CheckMemberCommand(
             Long causationEventId
     ) {
         return new CheckMemberCommand(commandId, sagaId, loanId, memberId, causationEventId,
-                CommandTypes.MEMBER_CHECK);
+                SagaCommandType.MEMBER_CHECK.getValue());
     }
 }

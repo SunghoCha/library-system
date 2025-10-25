@@ -6,7 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
-import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
@@ -219,7 +219,7 @@ class EventRecorderTest {
     private BookCatalogChangedEvent createTestEvent(Long eventId, Long bookId) {
         return BookCatalogChangedEvent.builder()
                 .eventId(eventId)
-                .eventType(CatalogEvents.CREATED)
+                .eventType(CatalogEventType.CREATED.getValue())
                 .bookId(bookId)
                 .aggregateVersion(1L)
                 .title("New Title")

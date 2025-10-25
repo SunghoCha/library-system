@@ -17,6 +17,6 @@ public record ScheduleShippingCommand(
             Long bookId,
             Long causationId) {
         return new ScheduleShippingCommand(cmdId, sagaId, loanId, bookId, causationId,
-                CommandTypes.SHIPPING_SCHEDULE);
+                SagaCommandType.SHIPPING_SCHEDULE.getValue());
     }
 }

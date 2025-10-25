@@ -18,6 +18,6 @@ public record CancelShippingCommand(
             Long causationId
     ) {
         return new CancelShippingCommand(cmdId, sagaId, loanId, bookId, causationId,
-                CommandTypes.SHIPPING_CANCEL);
+                SagaCommandType.SHIPPING_CANCEL.getValue());
     }
 }

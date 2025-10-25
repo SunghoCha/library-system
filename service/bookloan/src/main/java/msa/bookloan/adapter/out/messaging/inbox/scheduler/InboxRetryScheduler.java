@@ -16,6 +16,7 @@ import static msa.common.events.inbox.dto.InboxEventRecordStatus.*;
 @RequiredArgsConstructor
 public class InboxRetryScheduler {
 
+    // TODO : 범용성 떨어지고 분산 환경 고려안된 구버전 스케줄러라서 아예 다시 만들어야할지도
     private static final int MAX_RETRY_COUNT = 3; // TODO : 외부 변수화해야함
     private final InboxEventRecordRepository recordRepository;
     private final InboxRetryRecordProcessor retryRecordProcessor;

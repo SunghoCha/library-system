@@ -18,6 +18,6 @@ public record ReserveInventoryCommand(
             Long causationId
     ) {
         return new ReserveInventoryCommand(cmdId, sagaId, loanId, bookId, causationId,
-                CommandTypes.INVENTORY_RESERVE);
+                SagaCommandType.INVENTORY_RESERVE.getValue());
     }
 }

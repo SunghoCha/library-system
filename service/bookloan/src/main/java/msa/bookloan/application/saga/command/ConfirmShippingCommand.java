@@ -18,6 +18,6 @@ public record ConfirmShippingCommand(
             Long causationId
     ) {
         return new ConfirmShippingCommand(cmdId, sagaId, loanId, bookId, causationId,
-                CommandTypes.SHIPPING_CONFIRM);
+                SagaCommandType.SHIPPING_CONFIRM.getValue());
     }
 }

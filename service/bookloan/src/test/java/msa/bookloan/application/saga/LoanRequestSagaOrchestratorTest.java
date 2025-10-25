@@ -164,7 +164,7 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(capturedCommand.loanId()).isEqualTo(event.loanId());
             assertThat(capturedCommand.memberId()).isEqualTo(event.memberId());
             assertThat(capturedCommand.causationEventId()).isEqualTo(event.eventId());
-            assertThat(capturedCommand.type()).isEqualTo(CommandTypes.MEMBER_CHECK);
+            assertThat(capturedCommand.type()).isEqualTo(SagaCommandType.MEMBER_CHECK);
         }
 
         @Test
@@ -1060,7 +1060,7 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(captured.sagaId()).isEqualTo(SAGA_ID);
             assertThat(captured.bookId()).isEqualTo(BOOK_ID);
             assertThat(captured.causationEventId()).isEqualTo(CAUSATION_ID);
-            assertThat(captured.type()).isEqualTo(CommandTypes.INVENTORY_RELEASE);
+            assertThat(captured.type()).isEqualTo(SagaCommandType.INVENTORY_RELEASE);
         }
 
         @Test
@@ -1089,7 +1089,7 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(captured.sagaId()).isEqualTo(SAGA_ID);
             assertThat(captured.memberId()).isEqualTo(MEMBER_ID);
             assertThat(captured.causationEventId()).isEqualTo(CAUSATION_ID);
-            assertThat(captured.type()).isEqualTo(CommandTypes.POINT_REFUND);
+            assertThat(captured.type()).isEqualTo(SagaCommandType.POINT_REFUND);
         }
     }
 }

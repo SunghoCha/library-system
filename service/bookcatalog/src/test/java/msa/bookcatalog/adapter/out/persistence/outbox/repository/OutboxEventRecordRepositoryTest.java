@@ -6,7 +6,7 @@ import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxRelaySchedul
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.bookcatalog.application.event.CatalogEvents;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.infra.config.QueryDslConfig;
 import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.events.outbox.OutboxEventRecordStatus;
@@ -259,7 +259,7 @@ class OutboxEventRecordRepositoryTest {
         return OutboxEventRecord.builder()
                 .id(id)
                 .eventId(eventId)
-                .eventType(CatalogEvents.CREATED)
+                .eventType(CatalogEventType.CREATED.getValue())
                 .aggregateId("agg-id-" + eventId)
                 .aggregateType("BOOK_CATALOG")
                 .aggregateVersion(0L)

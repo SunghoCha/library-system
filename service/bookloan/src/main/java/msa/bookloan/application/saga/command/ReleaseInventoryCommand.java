@@ -18,6 +18,6 @@ public record ReleaseInventoryCommand(
             Long causationEventId
     ) {
         return new ReleaseInventoryCommand(commandId, sagaId, loanId, bookId, causationEventId,
-                CommandTypes.INVENTORY_RELEASE);
+                SagaCommandType.INVENTORY_RELEASE.getValue());
     }
 }

@@ -58,29 +58,24 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .execute();
     }
 
+    // 같은 tx에서 스킵락으로 잡힌 대상에 대해서 실행
     @Override
     public long markPublishing(Collection<Long> ids,
-                                   String workerId,
-                                   LocalDateTime now,
-                                   int leaseSeconds) {
+                               String workerId,
+                               LocalDateTime pickedAt,
+                               LocalDateTime leaseUntil) {
         if (ids == null || ids.isEmpty()) return 0L;
 
-        LocalDateTime leaseUntil = now.plusSeconds(leaseSeconds);
 
-        long updated = queryFactory
+        return queryFactory
                 .update(r)
                 .set(r.outboxEventRecordStatus, PUBLISHING)
                 .set(r.workerId, workerId)
-                .set(r.pickedAt, now)
+                .set(r.pickedAt, pickedAt)
                 .set(r.leaseUntil, leaseUntil)
-                .set(r.updatedAt, now)
-                .where(
-                        r.id.in(ids)
-                                .and(r.outboxEventRecordStatus.in(NEW, FAILED, PUBLISHING))
-                )
+                .set(r.updatedAt, pickedAt)
+                .where(r.id.in(ids))
                 .execute();
-
-        return updated;
     }
 
     @Override

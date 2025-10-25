@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import msa.common.domain.base.BaseTimeEntity;
-import msa.common.events.EventType;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.exception.FailureCategory;
@@ -68,6 +67,14 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "lease_until", columnDefinition = "datetime(6)")
     private LocalDateTime leaseUntil;
 
+    @Setter
+    @Column(name = "picked_at", columnDefinition = "datetime(6)")
+    private LocalDateTime pickedAt;
+
+    @Lob
+    @Column(name = "last_error")
+    private String lastError;
+
     @Embedded
     @AttributeOverrides({
             @AttributeOverride(name = "topic",        column = @Column(name = "topic", nullable = false, length = 255)),
@@ -75,10 +82,6 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
             @AttributeOverride(name = "recordOffset", column = @Column(name = "record_offset", nullable = false))
     })
     private ConsumerRecordMetadata consumerRecordMetadata;
-
-    @Lob
-    @Column(name = "last_error")
-    private String lastError;
 
     public void updateStatus(InboxEventRecordStatus inboxEventRecordStatus) {
         this.inboxEventRecordStatus = inboxEventRecordStatus;

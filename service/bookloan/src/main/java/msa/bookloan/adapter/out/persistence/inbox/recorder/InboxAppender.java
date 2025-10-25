@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.common.domain.model.InboxSource;
-import msa.common.events.EventType;
+import msa.common.events.EventTypeV1;
 import msa.common.events.bookcatalog.BookCatalogChangedPayload;
 import msa.common.events.inbox.InboxRecordableEvent;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
@@ -62,14 +62,16 @@ public class InboxAppender {
         return isNew;
     }
 
+    // 삭제가능성 있음
     @Transactional
     public void recordSuccess(Long eventId) {
         updateStatus(eventId, PROCESSED, List.of(NEW, FAILED));
     }
 
+    // 삭제가능성 있음
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(Long eventId, String errorMessage) {
-        Long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
+        long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
         if (incremented == 0) {
             updateStatus(eventId, DEAD_LETTER, List.of(NEW, FAILED));
         } else {
@@ -162,7 +164,7 @@ public class InboxAppender {
         SagaReplyEnvelope payload = record.value();
 
         long eventId = Long.parseLong(payload.eventId());
-        String eventType = EventType.SAGA_REPLY.name();
+        String eventType = EventTypeV1.SAGA_REPLY.name();
         long aggregateId = Long.parseLong(payload.aggregateId());
         Long aggregateVersion = payload.sourceAggregateVersion();
 

@@ -5,7 +5,6 @@ import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
-import msa.common.events.EventType;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Component;
 

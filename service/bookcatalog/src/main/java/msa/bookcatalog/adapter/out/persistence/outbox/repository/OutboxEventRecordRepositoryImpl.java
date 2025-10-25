@@ -1,6 +1,7 @@
 package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
@@ -23,8 +24,6 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
 
     private final QOutboxEventRecord r = QOutboxEventRecord.outboxEventRecord;
     private final JPAQueryFactory queryFactory;
-
-    Clock clock = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC);
 
     @Override
     public List<OutboxEventRecord> findPublishingByIdsOrderByOccurredAt(
@@ -73,20 +72,16 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
 
         LocalDateTime leaseUntil = now.plusSeconds(leaseSeconds);
 
-        long updated = queryFactory
+        return queryFactory
                 .update(r)
                 .set(r.outboxEventRecordStatus, PUBLISHING)
                 .set(r.workerId, workerId)
                 .set(r.pickedAt, now)
                 .set(r.leaseUntil, leaseUntil)
                 .set(r.updatedAt, now)
-                .where(
-                        r.id.in(ids)
-                                .and(r.outboxEventRecordStatus.in(NEW, FAILED, PUBLISHING))
-                )
+                .where(r.id.in(ids))
                 .execute();
 
-        return updated;
     }
 
     @Override
@@ -197,7 +192,9 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     private BooleanExpression idIn(Collection<Long> ids) {
-        return r.id.in(ids);
+        return (ids == null || ids.isEmpty())
+                ? Expressions.FALSE
+                : r.id.in(ids);
     }
 
     private BooleanExpression eqStatus(OutboxEventRecordStatus status) {

@@ -17,10 +17,10 @@ public class InboxDeadLetter extends BaseTimeEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private Long id;
 
-    @Column(name = "source", nullable = false, length = 64)
+    @Column(name = "source", nullable = false)
     private String source;
 
-    @Column(name = "topic", nullable = false, length = 255)
+    @Column(name = "topic", nullable = false)
     private String topic;
 
     @Column(name = "partition_no", nullable = false)
@@ -35,6 +35,6 @@ public class InboxDeadLetter extends BaseTimeEntity {
     @Column(name = "error_message")
     private String errorMessage;
 
-    @Column(name = "error_category", nullable = false, length = 64)
+    @Column(name = "error_category", nullable = false)
     private String errorCategory;
 }

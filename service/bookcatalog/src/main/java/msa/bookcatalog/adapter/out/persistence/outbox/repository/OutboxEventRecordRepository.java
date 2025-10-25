@@ -52,14 +52,14 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
             INSERT INTO outbox_event_record
                 (id, event_id, event_type, aggregate_id, aggregate_type, aggregate_version,
                  payload, status, occurred_at, topic, partition_key, created_at, updated_at)
-            VALUES (:id, :eventId, :eventType, :aggregateId, :aggregateType, :aggregateVersion,
+            VALUES (:id, :eventId, :eventTypeV1, :aggregateId, :aggregateType, :aggregateVersion,
                     :payload, 'NEW', :occurredAt, :topic, :partitionKey, NOW(6), NOW(6))
             ON DUPLICATE KEY UPDATE
               updated_at = updated_at
             """, nativeQuery = true)
     int upsertOutbox(@Param("id") long id,
                      @Param("eventId") long eventId,
-                     @Param("eventType") String eventType,
+                     @Param("eventTypeV1") String eventTypeV1,
                      @Param("aggregateId") String aggregateId,
                      @Param("aggregateType") String aggregateType,
                      @Param("aggregateVersion") Long aggregateVersion,

@@ -39,7 +39,7 @@ public class OutboxEventSender {
         String workerId = identity.workerId();
         LocalDateTime claimedAt = LocalDateTime.now();
 
-        boolean claimed = claimer.tryClaim(eventId, workerId, claimedAt, props.leaseSeconds());
+        boolean claimed = claimer.tryClaim(eventId, workerId, claimedAt, props.lease());
         if (!claimed) {
             log.info("즉시 발행 선점 스킵: 이미 선점되었거나 상태가 NEW가 아님 (eventId={})", eventId);
             return;

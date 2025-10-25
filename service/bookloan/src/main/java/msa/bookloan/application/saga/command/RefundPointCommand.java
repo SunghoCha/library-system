@@ -18,6 +18,6 @@ public record RefundPointCommand(
             Long causationEventId
     ) {
         return new RefundPointCommand(commandId, sagaId, loanId, memberId, causationEventId,
-                CommandTypes.POINT_REFUND);
+                SagaCommandType.POINT_REFUND.getValue());
     }
 }

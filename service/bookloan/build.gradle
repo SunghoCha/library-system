@@ -56,6 +56,7 @@ dependencies {
     // Spring Kafka 핵심
     implementation 'org.springframework.kafka:spring-kafka'
 
+    implementation 'org.apache.commons:commons-lang3:3.14.0'
 
 
 

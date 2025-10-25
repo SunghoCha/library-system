@@ -15,10 +15,13 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 @RequiredArgsConstructor
 public class BookCatalogInboxEventHandler {
+    private static final int MAX_ERR_LEN = 2000;
 
     private final BookCatalogProjectionProcessor bookCatalogProjectionProcessor;
     private final InboxAppender inboxAppender;
 
+    // TODO : 폴링스케줄러와 이 클래스의 로직 경로가 2군데인 구조. 사이드이펙트가 생길 수 있는 가능성대비 이런 설계가 효율이 큰건지 모르겠음
+    // 삭제하고 폴링스케줄러로 통일할지 고민
     // TODO : adaptor in -> out으로 가는 구조라 나중에 여유되면 중간에 서비스영역 거치도록 리팩토링...
     @Async("inboxExecutor")
     @Transactional

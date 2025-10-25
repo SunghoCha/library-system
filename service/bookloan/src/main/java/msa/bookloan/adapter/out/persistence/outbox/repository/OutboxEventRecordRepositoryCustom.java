@@ -13,9 +13,9 @@ public interface OutboxEventRecordRepositoryCustom {
     long tryClaimFromNew(Long eventId, String workerId, LocalDateTime now, int leaseSeconds);
 
     long markPublishing(Collection<Long> ids,
-                            String workerId,
-                            LocalDateTime now,
-                            int leaseSeconds);
+                        String workerId,
+                        LocalDateTime pickedAt,
+                        LocalDateTime leaseUntil);
 
     long markPublished(Collection<Long> ids,
                        String workerId,

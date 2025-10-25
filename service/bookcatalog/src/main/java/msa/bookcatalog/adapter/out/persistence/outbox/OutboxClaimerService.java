@@ -23,7 +23,7 @@ public class OutboxClaimerService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<OutboxEventRecord> claimEvents() {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime gracePeriodThreshold = now.minusMinutes(properties.gracePeriodMinutes());
+        LocalDateTime gracePeriodThreshold = now.minusMinutes(properties.graceSeconds());
         LocalDateTime staleThreshold = now.minusMinutes(properties.staleTimeoutMinutes());
 
         List<Long> ids = outboxRepository.lockClaimableIds(

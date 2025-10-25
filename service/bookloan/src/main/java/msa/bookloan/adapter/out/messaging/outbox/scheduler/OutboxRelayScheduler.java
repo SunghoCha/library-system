@@ -22,12 +22,12 @@ public class OutboxRelayScheduler {
 
     @Scheduled(fixedDelayString = "${outbox.relay.fixed-delay-ms:60000}")
     public void retryPendingOutboxEvents() {
-        List<OutboxEventRecord> targets = outboxClaimerService.claimEvents();
+        List<OutboxEventRecord> claimedRecords = outboxClaimerService.claimEvents();
 
-        if (targets.isEmpty()) return;
+        if (claimedRecords.isEmpty()) return;
 
-        log.info("{}개의 아웃박스 이벤트를 재처리합니다.", targets.size());
-        for (OutboxEventRecord record : targets) {
+        log.info("{}개의 아웃박스 이벤트를 재처리합니다.", claimedRecords.size());
+        for (OutboxEventRecord record : claimedRecords) {
             try {
                 outboxEventSender.send(record);
             } catch (Exception e) {
