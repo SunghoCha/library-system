@@ -6,6 +6,7 @@ import msa.bookloan.adapter.out.messaging.inbox.InboxEventDispatcher;
 import msa.bookloan.adapter.out.persistence.inbox.InboxClaimerService;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.common.snowflake.InstanceIdentity;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -38,14 +39,13 @@ public class InboxPollingScheduler {
         }
         log.info("[Inbox] 배치 시작: count={}, workerId={}", claimedRecords.size(), workerId);
 
-
         int successCount = 0;
         int failureCount = 0;
         for (InboxEventRecord record : claimedRecords) {
             try {
                 inboxEventDispatcher.processEvent(record.getEventId(), record.getPickedAt());
                 successCount++;
-            } catch (org.springframework.dao.OptimisticLockingFailureException ole) {
+            } catch (OptimisticLockingFailureException ole) {
                 // 경합은 정상 플로우니까 실패 카운트에 안 넣고 조용히 넘기는게 나은거 같음
                 log.debug("[Inbox] 처리권 상실(경합): eventId={}", record.getEventId());
 
@@ -63,9 +63,6 @@ public class InboxPollingScheduler {
             log.info("[Inbox] 배치 종료: success={}, workerId={}",
                     successCount, workerId);
         }
-
-
-
     }
 
 }

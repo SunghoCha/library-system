@@ -34,7 +34,8 @@ public class InboxStatusMarker {
         long updated = repository.markProcessedByEventId(eventId, workerId, pickedAt, now);
 
         if (updated != 1) {
-            throw new OptimisticLockingFailureException("Inbox token mismatch: eventId=" + eventId + ", workerId=" + workerId);
+            throw new OptimisticLockingFailureException(
+                    "Inbox token mismatch: eventId=" + eventId + ", workerId=" + workerId + ", pickedAt=" + pickedAt);
         }
         log.info("[Inbox] PROCESSED 마킹 완료: eventId={}, workerId={}", eventId, workerId);
     }

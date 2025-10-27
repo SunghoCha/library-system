@@ -3,6 +3,7 @@ package msa.bookloan.adapter.out.messaging.inbox;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import msa.bookloan.adapter.out.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.common.config.properties.InboxProcessingProps;
@@ -30,7 +31,9 @@ public class InboxEventDispatcher {
 
     public InboxEventDispatcher(List<InboxEventHandler<?>> handlers,
                                 InboxEventRecordRepository recordRepository,
-                                ObjectMapper objectMapper, InboxStatusMarker inboxStatusMarker, InboxProcessingProps inboxProcessingProps,
+                                ObjectMapper objectMapper,
+                                InboxStatusMarker inboxStatusMarker,
+                                InboxProcessingProps inboxProcessingProps,
                                 InstanceIdentity instanceIdentity) {
 
         HashMap<String, InboxEventHandler<?>> map = new HashMap<>();
@@ -123,6 +126,6 @@ public class InboxEventDispatcher {
                     "Payload type mismatch: expected=" + payloadType.getName()
                             + ", actual=" + payloadName + ", eventId=" + record.getEventId(), e);
         }
-        eventHandler.handle(record.getEventId(), payload);
+        eventHandler.handle(payload);
     }
 }

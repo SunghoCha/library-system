@@ -8,20 +8,12 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.dao.QueryTimeoutException;
-import org.springframework.dao.TransientDataAccessResourceException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -43,19 +35,8 @@ public class ShippingStepService {
     private final CommandOutboxRecorder commandOutboxRecorder;
 
     // 상태만 SHIPPING_ACCEPTED로 갱신하고 커맨드 보내지않음
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterShippingAccepted(ShippingAcceptedInternalEvent event) {
+    @Transactional
+    public void afterShippingAccepted(ShippingAcceptedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -69,19 +50,8 @@ public class ShippingStepService {
         log.info("[Saga] 배송 접수(Ack): sagaId={}, loanId={}", event.sagaId(), saga.getLoanId());
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterShippingScheduled(ShippingScheduledInternalEvent event) {
+    @Transactional
+    public void afterShippingScheduled(ShippingScheduledReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -96,19 +66,8 @@ public class ShippingStepService {
         log.info("[Saga] 완료(ShippingScheduled): sagaId={}, loanId={}", event.sagaId(), saga.getLoanId());
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterShippingScheduleFailed(ShippingScheduleFailedInternalEvent event) {
+    @Transactional
+    public void afterShippingScheduleFailed(ShippingScheduleFailedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -135,12 +94,6 @@ public class ShippingStepService {
                 saga.getMemberId(),
                 causationEventId
         );
-    }
-
-    @Recover
-    public void recoverOnTransient(Exception ex, Object event) {
-        // 재시도 소진시 경고 로그
-        log.warn("[Saga] 배송 단계 재시도 소진. event={}, err={}", event, ex.getMessage(), ex);
     }
 
 }

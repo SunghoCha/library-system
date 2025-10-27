@@ -5,7 +5,7 @@ import msa.bookloan.application.event.ReplyType;
 import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.bookloan.application.saga.reply.SagaReplyEvent;
 import msa.bookloan.application.saga.reply.inventory.*;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
 import msa.bookloan.application.saga.reply.point.*;
 import msa.bookloan.application.saga.reply.shipping.*;
@@ -29,42 +29,42 @@ public class ReplyPayloadTranslator {
 
         // MemberChecked
         map.put(ReplyType.MemberChecked,
-                createTranslator(MemberCheckedPayload.class, MemberCheckedInternalEvent::new));
+                createTranslator(MemberCheckedPayload.class, MemberCheckedReply::new));
 
         // InventoryReserved
         map.put(ReplyType.InventoryReserved,
-                createTranslator(InventoryReservedPayload.class, InventoryReservedInternalEvent::new));
+                createTranslator(InventoryReservedPayload.class, InventoryReservedReply::new));
 
         // InventoryReserveFailed
         map.put(ReplyType.InventoryReserveFailed,
-                createTranslator(InventoryReserveFailedPayload.class, InventoryReserveFailedInternalEvent::new));
+                createTranslator(InventoryReserveFailedPayload.class, InventoryReserveFailedReply::new));
 
         // PointCharged
         map.put(ReplyType.PointCharged,
-                createTranslator(PointChargedPayload.class, PointChargedInternalEvent::new));
+                createTranslator(PointChargedPayload.class, PointChargedReply::new));
 
         // PointChargeFailed
         map.put(ReplyType.PointChargeFailed,
-                createTranslator(PointChargeFailedPayload.class, PointChargeFailedInternalEvent::new));
+                createTranslator(PointChargeFailedPayload.class, PointChargeFailedReply::new));
 
         // ShippingScheduled
         map.put(ReplyType.ShippingScheduled,
-                createTranslator(ShippingScheduledPayload.class, ShippingScheduledInternalEvent::new));
+                createTranslator(ShippingScheduledPayload.class, ShippingScheduledReply::new));
 
         // ShippingScheduleFailed
         map.put(ReplyType.ShippingScheduleFailed,
-                createTranslator(ShippingScheduleFailedPayload.class, ShippingScheduleFailedInternalEvent::new));
+                createTranslator(ShippingScheduleFailedPayload.class, ShippingScheduleFailedReply::new));
 
         // PointRefunded
         map.put(ReplyType.PointRefunded,
-                createTranslator(PointRefundedPayload.class, PointRefundedInternalEvent::new));
+                createTranslator(PointRefundedPayload.class, PointRefundedReply::new));
 
         // InventoryReleased
         map.put(ReplyType.InventoryReleased,
-                createTranslator(InventoryReleasedPayload.class, InventoryReleasedInternalEvent::new));
+                createTranslator(InventoryReleasedPayload.class, InventoryReleasedReply::new));
 
         map.put(ReplyType.ShippingAccepted,
-                createTranslator(ShippingAcceptedPayload.class, ShippingAcceptedInternalEvent::new));
+                createTranslator(ShippingAcceptedPayload.class, ShippingAcceptedReply::new));
 
         translators = Collections.unmodifiableMap(map);
 

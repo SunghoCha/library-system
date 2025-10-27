@@ -1,11 +1,11 @@
-package msa.bookloan.application.saga.reply.point;
+package msa.bookloan.application.saga.reply.inventory;
 
 import msa.bookloan.application.saga.reply.SagaReplyEvent;
 
-public record PointChargedInternalEvent(
+public record InventoryReserveFailedReply(
         Long eventId,
         String sagaId,
         Long causationCommandId,
         Long sourceAggregateVersion,
-        PointChargedPayload payload
+        InventoryReserveFailedPayload payload
 ) implements SagaReplyEvent {}

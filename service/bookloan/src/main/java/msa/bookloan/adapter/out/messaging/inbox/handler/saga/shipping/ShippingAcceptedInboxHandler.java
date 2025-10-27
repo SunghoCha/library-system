@@ -1,0 +1,30 @@
+package msa.bookloan.adapter.out.messaging.inbox.handler.saga.shipping;
+
+import lombok.RequiredArgsConstructor;
+import msa.bookloan.adapter.out.messaging.inbox.handler.InboxEventHandler;
+import msa.bookloan.application.saga.LoanRequestSagaOrchestrator;
+import msa.bookloan.application.saga.reply.SagaReplyType;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class ShippingAcceptedInboxHandler implements InboxEventHandler<ShippingAcceptedReply> {
+
+    private final LoanRequestSagaOrchestrator orchestrator;
+
+    @Override
+    public String eventType() {
+        return SagaReplyType.SHIPPING_ACCEPTED.getValue();
+    }
+
+    @Override
+    public Class<ShippingAcceptedReply> payloadType() {
+        return ShippingAcceptedReply.class;
+    }
+
+    @Override
+    public void handle(ShippingAcceptedReply payload) {
+        orchestrator.onShippingAccepted(payload);
+    }
+}

@@ -6,7 +6,7 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
@@ -74,7 +74,7 @@ class MemberStepServiceTest {
         void shouldTransitionToNextStep_whenMemberIsNotBlacklisted() {
             // given
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
-            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L, payload);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(INVENTORY_RESERVING)).thenReturn(Duration.ofMinutes(5));
@@ -105,7 +105,7 @@ class MemberStepServiceTest {
         void shouldTransitionToFailed_whenMemberIsBlacklisted() {
             // given
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, true, "연체 이력");
-            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L, payload);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
@@ -132,7 +132,7 @@ class MemberStepServiceTest {
         void shouldThrowException_whenSagaNotFound() {
             // given
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
-            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.empty());
 
             // when & then
@@ -147,7 +147,7 @@ class MemberStepServiceTest {
             testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.markCompleted(); // COMPLETED 상태로 설정
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
-            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -165,7 +165,7 @@ class MemberStepServiceTest {
             // given
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 다른 단계로 설정
             MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, false, null);
-            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L, payload);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when

@@ -19,7 +19,6 @@ import msa.common.events.inbox.record.PayloadInboxEventRecord;
         indexes = {
                 @Index(name = "idx_agg_status",   columnList = "aggregate_id, status, last_seen_at"),
                 @Index(name = "idx_status_lease", columnList = "status, lease_until"),
-                @Index(name = "idx_occurred_at",  columnList = "occurred_at")
         }
 )
 @SuperBuilder

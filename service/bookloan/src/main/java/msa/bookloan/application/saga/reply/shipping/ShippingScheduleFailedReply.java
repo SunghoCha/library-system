@@ -2,10 +2,10 @@ package msa.bookloan.application.saga.reply.shipping;
 
 import msa.bookloan.application.saga.reply.SagaReplyEvent;
 
-public record ShippingAcceptedInternalEvent(
+public record ShippingScheduleFailedReply(
         Long eventId,
         String sagaId,
         Long causationCommandId,
         Long sourceAggregateVersion,
-        ShippingAcceptedPayload payload
+        ShippingScheduleFailedPayload payload
 ) implements SagaReplyEvent {}

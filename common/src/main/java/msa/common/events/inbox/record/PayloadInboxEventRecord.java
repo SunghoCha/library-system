@@ -67,9 +67,12 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "lease_until", columnDefinition = "datetime(6)")
     private LocalDateTime leaseUntil;
 
-    @Setter
-    @Column(name = "picked_at", columnDefinition = "datetime(6)")
-    private LocalDateTime pickedAt;
+    @Column(name = "lease_id")
+    private String leaseId; // 새롭게 추가된 식별자 토큰
+
+//    @Setter // 기존 식별자 토큰에서 제외. 시간값이라 불안정함
+//    @Column(name = "picked_at", columnDefinition = "datetime(6)")
+//    private LocalDateTime pickedAt;
 
     @Lob
     @Column(name = "last_error")

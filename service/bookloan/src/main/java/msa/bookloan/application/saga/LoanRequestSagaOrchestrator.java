@@ -10,16 +10,16 @@ import msa.bookloan.application.saga.command.CheckMemberCommand;
 import msa.bookloan.application.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedReply;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
+import msa.bookloan.application.saga.reply.point.PointChargedReply;
+import msa.bookloan.application.saga.reply.point.PointRefundedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.application.saga.steps.InventoryStepService;
 import msa.bookloan.application.saga.steps.MemberStepService;
 import msa.bookloan.application.saga.steps.PointStepService;
@@ -32,7 +32,6 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -40,7 +39,6 @@ import java.time.LocalDateTime;
 
 import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
-import static org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT;
 
 @Slf4j
 @Service
@@ -98,130 +96,95 @@ public class LoanRequestSagaOrchestrator {
     }
 
     // 멤버 확인 리플라이 수신 - 통과 시 재고 예약 커맨드 발행
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onMemberChecked(MemberCheckedInternalEvent event) {
+    public void onMemberChecked(MemberCheckedReply event) {
         try {
             memberStepService.afterMemberChecked(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 멤버 확인 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
                     event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 멤버 확인 단계: 예상치 못한 오류. 수동 점검 필요. sagaId={}",
-                    event.sagaId(), ex);
         }
     }
 
     // 재고 예약 성공 리플라이 수신 - 포인트 차징 단계로 전이
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onInventoryReserved(InventoryReservedInternalEvent event) {
+    public void onInventoryReserved(InventoryReservedReply event) {
         try {
             inventoryStepService.afterInventoryReserved(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 재고 예약 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
                     event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 재고 예약 단계: 예상치 못한 오류. 수동 점검 필요. sagaId={}", event.sagaId(), ex);
         }
     }
 
     // 재고 예약 실패 리플라이 수신 - 보상/실패 전이
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onInventoryReserveFailed(InventoryReserveFailedInternalEvent event) {
+    public void onInventoryReserveFailed(InventoryReserveFailedReply event) {
         try {
             inventoryStepService.afterInventoryReserveFailed(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 재고 예약 실패 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
                     event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 재고 예약 실패 단계: 예상치 못한 오류. 수동 점검 필요. sagaId={}",
-                    event.sagaId(), ex);
         }
     }
 
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onPointCharged(PointChargedInternalEvent event) {
+    public void onPointCharged(PointChargedReply event) {
         try {
             pointStepService.afterPointCharged(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 포인트 차징 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
                     event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 포인트 차징 단계: 예상치 못한 오류. 수동 점검 필요. sagaId={}",
-                    event.sagaId(), ex);
         }
     }
 
     // 포인트 차징 실패 -> 종료(필요 시 포인트/재고 보상은 다음 단계에서)
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onPointChargeFailed(PointChargeFailedInternalEvent event) {
+    public void onPointChargeFailed(PointChargeFailedReply event) {
         try {
             pointStepService.afterPointChargeFailed(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 포인트 차징 단계: 중복/경합 드롭. sagaId={}, reason={}",
                     event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 포인트 차징 단계: 예상치 못한 오류. 수동 점검 필요. sagaId={}",
-                    event.sagaId(), ex);
         }
     }
 
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onShippingAccepted(ShippingAcceptedInternalEvent event) {
+    public void onShippingAccepted(ShippingAcceptedReply event) {
         try {
             shippingStepService.afterShippingAccepted(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 배송 ACK 단계: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 배송 ACK 단계: 예상치 못한 오류. sagaId={}", event.sagaId(), ex);
         }
     }
 
     // 배송 스케줄 성공 -> FINISHED(Pivot 통과)
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onShippingScheduled(ShippingScheduledInternalEvent event) {
+    public void onShippingScheduled(ShippingScheduledReply event) {
         try {
             shippingStepService.afterShippingScheduled(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 배송 스케줄 성공: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 배송 스케줄 성공: 예상치 못한 오류. sagaId={}", event.sagaId(), ex);
         }
     }
 
     // 배송 스케줄 실패 -> 종료(필요 시 보상 플로우는 별도)
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onShippingScheduleFailed(ShippingScheduleFailedInternalEvent event) {
+    public void onShippingScheduleFailed(ShippingScheduleFailedReply event) {
         try {
             shippingStepService.afterShippingScheduleFailed(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 배송 스케줄 실패: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 배송 스케줄 실패: 예상치 못한 오류. sagaId={}", event.sagaId(), ex);
         }
     }
 
     // 포인트 환불 성공 -> 인벤토리 해제 커맨드 발행(보상 체인 계속)
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onPointRefunded(PointRefundedInternalEvent event) {
+    public void onPointRefunded(PointRefundedReply event) {
         try {
             pointStepService.afterPointRefunded(event); // 저장안해서 낙관적 락 예외 발생안하는 케이스
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 포인트 환불 보상 단계: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 포인트 환불 보상 단계: 예상치 못한 오류. sagaId={}",
-                    event.sagaId(), ex);
         }
     }
 
     // 재고 해제 성공 -> 보상 종료(FAILED 확정)
-    @TransactionalEventListener(phase = AFTER_COMMIT)
-    public void onInventoryReleased(InventoryReleasedInternalEvent event) {
+    public void onInventoryReleased(InventoryReleasedReply event) {
         try {
             inventoryStepService.afterInventoryReleased(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 보상 종료 단계 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.warn("[Saga] 보상 종료 단계 처리 오류: sagaId={}", event.sagaId(), ex);
         }
     }
 

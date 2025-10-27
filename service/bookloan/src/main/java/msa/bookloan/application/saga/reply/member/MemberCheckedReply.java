@@ -2,7 +2,7 @@ package msa.bookloan.application.saga.reply.member;
 
 import msa.bookloan.application.saga.reply.SagaReplyEvent;
 
-public record MemberCheckedInternalEvent(
+public record MemberCheckedReply(
         Long eventId, // 리플라이의 eventId
         String sagaId,
         Long causationCommandId, // 리플라이를 트리거한 커맨드의 id

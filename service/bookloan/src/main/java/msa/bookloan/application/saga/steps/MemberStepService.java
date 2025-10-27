@@ -8,18 +8,10 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.dao.QueryTimeoutException;
-import org.springframework.dao.TransientDataAccessResourceException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -41,19 +33,8 @@ public class MemberStepService {
     private final BookLoanRepository bookLoanRepository;
     private final Snowflake snowflake;
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterMemberChecked(MemberCheckedInternalEvent event) {
+    @Transactional
+    public void afterMemberChecked(MemberCheckedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -90,11 +71,6 @@ public class MemberStepService {
                 saga.getBookId(),
                 causationEventId
         );
-    }
-
-    @Recover
-    public void recoverOnTransient(Exception ex, Object event) {
-        log.warn("[Saga] 멤버 단계 재시도 소진. event={}, err={}", event, ex.getMessage(), ex);
     }
 
 }

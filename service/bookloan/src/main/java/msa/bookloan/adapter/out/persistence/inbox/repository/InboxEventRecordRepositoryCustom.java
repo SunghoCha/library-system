@@ -18,7 +18,7 @@ public interface InboxEventRecordRepositoryCustom {
 
     long markProcessing(Collection<Long> ids, String workerId, LocalDateTime pickedAt, LocalDateTime leaseUntil);
 
-    long markProcessedByEventId(Long eventId, String workerId, LocalDateTime pickedAt, LocalDateTime now);
+    long markProcessedByEventId(Long eventId, String leaseId, String workerId, LocalDateTime pickedAt, LocalDateTime now);
 
     long markFailedByEventId(Long eventId, String workerId, LocalDateTime pickedAt, String lastError, LocalDateTime now);
 

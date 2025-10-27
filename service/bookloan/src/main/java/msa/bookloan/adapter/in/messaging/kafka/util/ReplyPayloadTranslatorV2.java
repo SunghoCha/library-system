@@ -7,12 +7,12 @@ import msa.bookloan.application.event.ReplyType;
 import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.bookloan.application.saga.reply.SagaReplyEvent;
 import msa.bookloan.application.saga.reply.inventory.*;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
 import msa.bookloan.application.saga.reply.point.*;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedPayload;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduledPayload;
 import org.springframework.stereotype.Component;
 
@@ -43,7 +43,7 @@ public class ReplyPayloadTranslatorV2 {
     void init() {
         // MemberChecked
         translators.put(ReplyType.MemberChecked, e ->
-                new MemberCheckedInternalEvent(
+                new MemberCheckedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, MemberCheckedPayload.class)
@@ -51,7 +51,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // InventoryReserved
         translators.put(ReplyType.InventoryReserved, e ->
-                new InventoryReservedInternalEvent(
+                new InventoryReservedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, InventoryReservedPayload.class)
@@ -59,7 +59,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // InventoryReserveFailed
         translators.put(ReplyType.InventoryReserveFailed, e ->
-                new InventoryReserveFailedInternalEvent(
+                new InventoryReserveFailedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, InventoryReserveFailedPayload.class)
@@ -67,7 +67,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // PointCharged
         translators.put(ReplyType.PointCharged, e ->
-                new PointChargedInternalEvent(
+                new PointChargedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, PointChargedPayload.class)
@@ -75,7 +75,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // PointChargeFailed
         translators.put(ReplyType.PointChargeFailed, e ->
-                new PointChargeFailedInternalEvent(
+                new PointChargeFailedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, PointChargeFailedPayload.class)
@@ -83,7 +83,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // ShippingScheduled
         translators.put(ReplyType.ShippingScheduled, e ->
-                new ShippingScheduledInternalEvent(
+                new ShippingScheduledReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, ShippingScheduledPayload.class)
@@ -91,7 +91,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // ShippingScheduleFailed
         translators.put(ReplyType.ShippingScheduleFailed, e ->
-                new ShippingScheduleFailedInternalEvent(
+                new ShippingScheduleFailedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, ShippingScheduleFailedPayload.class)
@@ -99,7 +99,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // PointRefunded
         translators.put(ReplyType.PointRefunded, e ->
-                new PointRefundedInternalEvent(
+                new PointRefundedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, PointRefundedPayload.class)
@@ -107,7 +107,7 @@ public class ReplyPayloadTranslatorV2 {
 
         // InventoryReleased
         translators.put(ReplyType.InventoryReleased, e ->
-                new InventoryReleasedInternalEvent(
+                new InventoryReleasedReply(
                         toLong(e.eventId()), e.sagaId(), toLongOrNull(e.causationCommandId()),
                         e.sourceAggregateVersion(),
                         read(e, InventoryReleasedPayload.class)

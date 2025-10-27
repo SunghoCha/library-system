@@ -12,6 +12,7 @@ import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.common.domain.model.InboxSource;
 import msa.common.exception.FailureCategory;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true")
 public class SagaReplyKafkaListener {
 
     private final InboxAppender inboxAppender;

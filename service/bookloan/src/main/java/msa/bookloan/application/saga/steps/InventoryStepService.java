@@ -8,26 +8,18 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ChargePointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.common.snowflake.Snowflake;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.dao.QueryTimeoutException;
-import org.springframework.dao.TransientDataAccessResourceException;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 
-import static java.time.LocalDateTime.*;
+import static java.time.LocalDateTime.now;
 import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
 
@@ -43,19 +35,8 @@ public class InventoryStepService {
     private final BookLoanRepository bookLoanRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterInventoryReserved(InventoryReservedInternalEvent event) {
+    @Transactional
+    public void afterInventoryReserved(InventoryReservedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -78,19 +59,8 @@ public class InventoryStepService {
 
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterInventoryReserveFailed(InventoryReserveFailedInternalEvent event) {
+    @Transactional
+    public void afterInventoryReserveFailed(InventoryReserveFailedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -111,19 +81,8 @@ public class InventoryStepService {
                 event.sagaId(), saga.getLoanId(), event.eventId(), event.payload().reasonCode());
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterInventoryReleased(InventoryReleasedInternalEvent event) {
+    @Transactional
+    public void afterInventoryReleased(InventoryReleasedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -152,8 +111,4 @@ public class InventoryStepService {
         );
     }
 
-    @Recover
-    public void recoverOnTransient(Exception ex, Object event) {
-        log.warn("[Saga] 재고 단계 재시도 소진. event={}, err={}", event, ex.getMessage(), ex);
-    }
 }

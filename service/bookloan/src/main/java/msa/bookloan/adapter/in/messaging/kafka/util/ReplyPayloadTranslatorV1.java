@@ -6,11 +6,11 @@ import msa.bookloan.application.event.ReplyType;
 import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.bookloan.application.saga.reply.inventory.*;
 import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.application.saga.reply.point.*;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedPayload;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduledPayload;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +32,7 @@ public class ReplyPayloadTranslatorV1 {
             case MemberChecked: {
                 MemberCheckedPayload payload =
                         objectMapper.convertValue(envelope.payload(), MemberCheckedPayload.class);
-                return new MemberCheckedInternalEvent(
+                return new MemberCheckedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -43,7 +43,7 @@ public class ReplyPayloadTranslatorV1 {
             case InventoryReserved: {
                 InventoryReservedPayload payload =
                         objectMapper.convertValue(envelope.payload(), InventoryReservedPayload.class);
-                return new InventoryReservedInternalEvent(
+                return new InventoryReservedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -54,7 +54,7 @@ public class ReplyPayloadTranslatorV1 {
             case InventoryReserveFailed: {
                 InventoryReserveFailedPayload payload =
                         objectMapper.convertValue(envelope.payload(), InventoryReserveFailedPayload.class);
-                return new InventoryReserveFailedInternalEvent(
+                return new InventoryReserveFailedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -65,7 +65,7 @@ public class ReplyPayloadTranslatorV1 {
             case PointCharged: {
                 PointChargedPayload payload =
                         objectMapper.convertValue(envelope.payload(), PointChargedPayload.class);
-                return new PointChargedInternalEvent(
+                return new PointChargedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -74,7 +74,7 @@ public class ReplyPayloadTranslatorV1 {
             case PointChargeFailed: {
                 PointChargeFailedPayload payload =
                         objectMapper.convertValue(envelope.payload(), PointChargeFailedPayload.class);
-                return new PointChargeFailedInternalEvent(
+                return new PointChargeFailedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -84,7 +84,7 @@ public class ReplyPayloadTranslatorV1 {
             case ShippingScheduled: {
                 ShippingScheduledPayload payload =
                         objectMapper.convertValue(envelope.payload(), ShippingScheduledPayload.class);
-                return new ShippingScheduledInternalEvent(
+                return new ShippingScheduledReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -94,7 +94,7 @@ public class ReplyPayloadTranslatorV1 {
             case ShippingScheduleFailed: {
                 ShippingScheduleFailedPayload payload =
                         objectMapper.convertValue(envelope.payload(), ShippingScheduleFailedPayload.class);
-                return new ShippingScheduleFailedInternalEvent(
+                return new ShippingScheduleFailedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -104,7 +104,7 @@ public class ReplyPayloadTranslatorV1 {
             case PointRefunded: {
                 PointRefundedPayload payload =
                         objectMapper.convertValue(envelope.payload(), PointRefundedPayload.class);
-                return new PointRefundedInternalEvent(
+                return new PointRefundedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,
@@ -115,7 +115,7 @@ public class ReplyPayloadTranslatorV1 {
             case InventoryReleased: {
                 InventoryReleasedPayload payload =
                         objectMapper.convertValue(envelope.payload(), InventoryReleasedPayload.class);
-                return new InventoryReleasedInternalEvent(
+                return new InventoryReleasedReply(
                         eventId,
                         envelope.sagaId(),
                         causationCommandId,

@@ -9,6 +9,7 @@ import msa.bookcatalog.application.service.catalog.exception.OutboxEventRecordNo
 import msa.common.config.properties.OutboxSchedulerProps;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.InstanceIdentity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true")
 public class OutboxEventSender {
 
     private final InstanceIdentity identity;

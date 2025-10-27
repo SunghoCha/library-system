@@ -26,5 +26,4 @@ public enum SagaCommandType implements EventType {
 
     private final String value;
 
-    // @Getter가 EventType 인터페이스의 getValue() 메서드를 자동으로 생성합니다.
 }

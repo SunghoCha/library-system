@@ -5,16 +5,16 @@ import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
 import msa.bookloan.application.saga.command.*;
-import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
-import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedReply;
+import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
+import msa.bookloan.application.saga.reply.point.PointChargedReply;
+import msa.bookloan.application.saga.reply.point.PointRefundedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaAbortReason;
@@ -307,8 +307,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onMemberChecked: 멤버 확인 응답 처리")
     class OnMemberCheckedTests {
 
-        private MemberCheckedInternalEvent createMockEvent() {
-            MemberCheckedInternalEvent event = mock(MemberCheckedInternalEvent.class);
+        private MemberCheckedReply createMockEvent() {
+            MemberCheckedReply event = mock(MemberCheckedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-123");
             return event;
         }
@@ -317,9 +317,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: MemberStepService로 처리를 위임한다.")
         void onMemberChecked_Success() {
             // given
-            MemberCheckedInternalEvent event = createMockEvent();
+            MemberCheckedReply event = createMockEvent();
 
-            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
 
             // when
             orchestrator.onMemberChecked(event);
@@ -332,11 +332,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onMemberChecked_OptimisticLockFailure() {
             // given
-            MemberCheckedInternalEvent event = createMockEvent();
+            MemberCheckedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+                    .when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
@@ -348,11 +348,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onMemberChecked_GenericException() {
             // given
-            MemberCheckedInternalEvent event = createMockEvent();
+            MemberCheckedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+                    .when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
@@ -365,8 +365,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReserved: 재고 예약 응답 처리")
     class OnInventoryReservedTests {
 
-        private InventoryReservedInternalEvent createMockEvent() {
-            InventoryReservedInternalEvent event = mock(InventoryReservedInternalEvent.class);
+        private InventoryReservedReply createMockEvent() {
+            InventoryReservedReply event = mock(InventoryReservedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-456");
             return event;
         }
@@ -375,9 +375,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReserved_Success() {
             // given
-            InventoryReservedInternalEvent event = createMockEvent();
+            InventoryReservedReply event = createMockEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
+            doNothing().when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
 
             // when
             orchestrator.onInventoryReserved(event);
@@ -391,11 +391,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReserved_OptimisticLockFailure() {
             // given
-            InventoryReservedInternalEvent event = createMockEvent();
+            InventoryReservedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserved(event));
@@ -408,11 +408,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onInventoryReserved_GenericException() {
             // given
-            InventoryReservedInternalEvent event = createMockEvent();
+            InventoryReservedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserved(event));
@@ -426,8 +426,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReserveFailed: 재고 예약 실패 응답 처리")
     class OnInventoryReserveFailedTests {
 
-        private InventoryReserveFailedInternalEvent createMockEvent() {
-            InventoryReserveFailedInternalEvent event = mock(InventoryReserveFailedInternalEvent.class);
+        private InventoryReserveFailedReply createMockEvent() {
+            InventoryReserveFailedReply event = mock(InventoryReserveFailedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-789-fail");
             return event;
         }
@@ -436,9 +436,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReserveFailed_Success() {
             // given
-            InventoryReserveFailedInternalEvent event = createMockEvent();
+            InventoryReserveFailedReply event = createMockEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
+            doNothing().when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
 
             // when
             orchestrator.onInventoryReserveFailed(event);
@@ -452,11 +452,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReserveFailed_OptimisticLockFailure() {
             // given
-            InventoryReserveFailedInternalEvent event = createMockEvent();
+            InventoryReserveFailedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserveFailed(event));
@@ -469,11 +469,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onInventoryReserveFailed_GenericException() {
             // given
-            InventoryReserveFailedInternalEvent event = createMockEvent();
+            InventoryReserveFailedReply event = createMockEvent();
             String errorMessage = "예상치 못한 에외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserveFailed(event));
@@ -486,8 +486,8 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("onPointCharged: 포인트 차감 응답 처리")
         class OnPointChargedTests {
 
-            private PointChargedInternalEvent createMockEvent() {
-                PointChargedInternalEvent event = mock(PointChargedInternalEvent.class);
+            private PointChargedReply createMockEvent() {
+                PointChargedReply event = mock(PointChargedReply.class);
                 lenient().when(event.sagaId()).thenReturn("saga-point-charged-111");
                 return event;
             }
@@ -496,9 +496,9 @@ class LoanRequestSagaOrchestratorTest {
             @DisplayName("성공: PointStepService로 처리를 위임한다.")
             void onPointCharged_Success() {
                 // given
-                PointChargedInternalEvent event = createMockEvent();
+                PointChargedReply event = createMockEvent();
 
-                doNothing().when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
+                doNothing().when(pointStepService).afterPointCharged(any(PointChargedReply.class));
 
                 // when
                 orchestrator.onPointCharged(event);
@@ -512,11 +512,11 @@ class LoanRequestSagaOrchestratorTest {
             @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
             void onPointCharged_OptimisticLockFailure() {
                 // given
-                PointChargedInternalEvent event = createMockEvent();
+                PointChargedReply event = createMockEvent();
                 String errorMessage = "사가 버전 불일치";
 
                 doThrow(new OptimisticLockingFailureException(errorMessage))
-                        .when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
+                        .when(pointStepService).afterPointCharged(any(PointChargedReply.class));
 
                 // when then
                 assertDoesNotThrow(() -> orchestrator.onPointCharged(event));
@@ -529,11 +529,11 @@ class LoanRequestSagaOrchestratorTest {
             @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
             void onPointCharged_GenericException() {
                 // given
-                PointChargedInternalEvent event = createMockEvent();
+                PointChargedReply event = createMockEvent();
                 String errorMessage = "예상치 못한 예외";
 
                 doThrow(new RuntimeException(errorMessage))
-                        .when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
+                        .when(pointStepService).afterPointCharged(any(PointChargedReply.class));
 
                 // when then
                 assertDoesNotThrow(() -> orchestrator.onPointCharged(event));
@@ -548,8 +548,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onPointChargeFailed: 포인트 차감 실패 응답 처리")
     class OnPointChargeFailedTests {
 
-        private PointChargeFailedInternalEvent createMockEvent() {
-            PointChargeFailedInternalEvent event = mock(PointChargeFailedInternalEvent.class);
+        private PointChargeFailedReply createMockEvent() {
+            PointChargeFailedReply event = mock(PointChargeFailedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-point-failed-222");
             return event;
         }
@@ -558,9 +558,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: PointStepService로 처리를 위임한다.")
         void onPointChargeFailed_Success() {
             // given
-            PointChargeFailedInternalEvent event = createMockEvent();
+            PointChargeFailedReply event = createMockEvent();
 
-            doNothing().when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
+            doNothing().when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
 
             // when
             orchestrator.onPointChargeFailed(event);
@@ -574,11 +574,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onPointChargeFailed_OptimisticLockFailure() {
             // given
-            PointChargeFailedInternalEvent event = createMockEvent();
+            PointChargeFailedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
+                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointChargeFailed(event));
@@ -591,11 +591,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onPointChargeFailed_GenericException() {
             // given
-            PointChargeFailedInternalEvent event = createMockEvent();
+            PointChargeFailedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
+                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointChargeFailed(event));
@@ -609,8 +609,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingAccepted: 배송 수락 응답 처리")
     class OnShippingAcceptedTests {
 
-        private ShippingAcceptedInternalEvent createMockEvent() {
-            ShippingAcceptedInternalEvent event = mock(ShippingAcceptedInternalEvent.class);
+        private ShippingAcceptedReply createMockEvent() {
+            ShippingAcceptedReply event = mock(ShippingAcceptedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-shipping-accepted");
             return event;
         }
@@ -619,9 +619,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingAccepted_Success() {
             // given
-            ShippingAcceptedInternalEvent event = createMockEvent();
+            ShippingAcceptedReply event = createMockEvent();
 
-            doNothing().when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
+            doNothing().when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
 
             // when
             orchestrator.onShippingAccepted(event);
@@ -635,11 +635,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingAccepted_OptimisticLockFailure() {
             // given
-            ShippingAcceptedInternalEvent event = createMockEvent();
+            ShippingAcceptedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
+                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingAccepted(event));
@@ -652,11 +652,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onShippingAccepted_GenericException() {
             // given
-            ShippingAcceptedInternalEvent event = createMockEvent();
+            ShippingAcceptedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
+                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingAccepted(event));
@@ -670,8 +670,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingScheduled: 배송 스케줄 성공 응답 처리")
     class OnShippingScheduledTests {
 
-        private ShippingScheduledInternalEvent createMockEvent() {
-            ShippingScheduledInternalEvent event = mock(ShippingScheduledInternalEvent.class);
+        private ShippingScheduledReply createMockEvent() {
+            ShippingScheduledReply event = mock(ShippingScheduledReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-shipping-scheduled");
             return event;
         }
@@ -680,9 +680,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingScheduled_Success() {
             // given
-            ShippingScheduledInternalEvent event = createMockEvent();
+            ShippingScheduledReply event = createMockEvent();
 
-            doNothing().when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
+            doNothing().when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
 
             // when
             orchestrator.onShippingScheduled(event);
@@ -696,11 +696,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingScheduled_OptimisticLockFailure() {
             // given
-            ShippingScheduledInternalEvent event = createMockEvent();
+            ShippingScheduledReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
+                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduled(event));
@@ -712,11 +712,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onShippingScheduled_GenericException() {
             // given
-            ShippingScheduledInternalEvent event = createMockEvent();
+            ShippingScheduledReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
+                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduled(event));
@@ -730,8 +730,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingScheduleFailed: 배송 스케줄 실패 응답 처리")
     class OnShippingScheduleFailedTests {
 
-        private ShippingScheduleFailedInternalEvent createMockEvent() {
-            ShippingScheduleFailedInternalEvent event = mock(ShippingScheduleFailedInternalEvent.class);
+        private ShippingScheduleFailedReply createMockEvent() {
+            ShippingScheduleFailedReply event = mock(ShippingScheduleFailedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-shipping-failed");
             return event;
         }
@@ -740,9 +740,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingScheduleFailed_Success() {
             // given
-            ShippingScheduleFailedInternalEvent event = createMockEvent();
+            ShippingScheduleFailedReply event = createMockEvent();
 
-            doNothing().when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
+            doNothing().when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
 
             // when
             orchestrator.onShippingScheduleFailed(event);
@@ -756,11 +756,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingScheduleFailed_OptimisticLockFailure() {
             // given
-            ShippingScheduleFailedInternalEvent event = createMockEvent();
+            ShippingScheduleFailedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
+                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduleFailed(event));
@@ -773,11 +773,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onShippingScheduleFailed_GenericException() {
             // given
-            ShippingScheduleFailedInternalEvent event = createMockEvent();
+            ShippingScheduleFailedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
+                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduleFailed(event));
@@ -791,8 +791,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onPointRefunded: 포인트 환불(보상) 응답 처리")
     class OnPointRefundedTests {
 
-        private PointRefundedInternalEvent createMockEvent() {
-            PointRefundedInternalEvent event = mock(PointRefundedInternalEvent.class);
+        private PointRefundedReply createMockEvent() {
+            PointRefundedReply event = mock(PointRefundedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-point-refunded");
             return event;
         }
@@ -801,9 +801,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: PointStepService로 처리를 위임한다.")
         void onPointRefunded_Success() {
             // given
-            PointRefundedInternalEvent event = createMockEvent();
+            PointRefundedReply event = createMockEvent();
 
-            doNothing().when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
+            doNothing().when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
 
             // when
             orchestrator.onPointRefunded(event);
@@ -817,11 +817,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onPointRefunded_OptimisticLockFailure() {
             // given
-            PointRefundedInternalEvent event = createMockEvent();
+            PointRefundedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
+                    .when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointRefunded(event));
@@ -834,11 +834,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onPointRefunded_GenericException() {
             // given
-            PointRefundedInternalEvent event = createMockEvent();
+            PointRefundedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
+                    .when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointRefunded(event));
@@ -852,8 +852,8 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReleased: 재고 해제(보상) 응답 처리")
     class OnInventoryReleasedTests {
 
-        private InventoryReleasedInternalEvent createMockEvent() {
-            InventoryReleasedInternalEvent event = mock(InventoryReleasedInternalEvent.class);
+        private InventoryReleasedReply createMockEvent() {
+            InventoryReleasedReply event = mock(InventoryReleasedReply.class);
             lenient().when(event.sagaId()).thenReturn("saga-inventory-released");
             return event;
         }
@@ -862,9 +862,9 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReleased_Success() {
             // given
-            InventoryReleasedInternalEvent event = createMockEvent();
+            InventoryReleasedReply event = createMockEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
+            doNothing().when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
 
             // when
             orchestrator.onInventoryReleased(event);
@@ -878,11 +878,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReleased_OptimisticLockFailure() {
             // given
-            InventoryReleasedInternalEvent event = createMockEvent();
+            InventoryReleasedReply event = createMockEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReleased(event));
@@ -895,11 +895,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
         void onInventoryReleased_GenericException() {
             // given
-            InventoryReleasedInternalEvent event = createMockEvent();
+            InventoryReleasedReply event = createMockEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
+                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReleased(event));

@@ -5,10 +5,10 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.command.ScheduleShippingCommand;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
 import msa.bookloan.application.saga.reply.point.PointChargeFailedPayload;
-import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargedReply;
+import msa.bookloan.application.saga.reply.point.PointRefundedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.time.TestClocks;
@@ -65,7 +65,7 @@ class PointStepServiceTest {
         void shouldTransitionToNextStepAndRecordCommand() {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
-            PointChargedInternalEvent event = new PointChargedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
+            PointChargedReply event = new PointChargedReply(1L, SAGA_ID, 2L, 0L, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(SHIPPING_SCHEDULING)).thenReturn(Duration.ofMinutes(10));
@@ -89,7 +89,7 @@ class PointStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 이전 단계
-            PointChargedInternalEvent event = new PointChargedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
+            PointChargedReply event = new PointChargedReply(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -111,7 +111,7 @@ class PointStepServiceTest {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             PointChargeFailedPayload payload = new PointChargeFailedPayload("INSUFFICIENT_FUNDS", "잔액 부족");
-            PointChargeFailedInternalEvent event = new PointChargeFailedInternalEvent(1L, SAGA_ID, 2L, 0L, payload);
+            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID, 2L, 0L, payload);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.compensationTimeoutFor()).thenReturn(Duration.ofMinutes(30));
@@ -135,7 +135,7 @@ class PointStepServiceTest {
         void shouldDoNothing_whenSagaIsTerminal() {
             // given
             testSaga.markFailed(null); // FAILED 상태
-            PointChargeFailedInternalEvent event = new PointChargeFailedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
+            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -159,7 +159,7 @@ class PointStepServiceTest {
             testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, SHIPPING_SCHEDULING
 
-            PointRefundedInternalEvent event = new PointRefundedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
+            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID, 2L, 0L, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(POINT_CHARGING)).thenReturn(Duration.ofMinutes(5));
@@ -188,7 +188,7 @@ class PointStepServiceTest {
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, POINT_CHARGING
 
-            PointRefundedInternalEvent event = new PointRefundedInternalEvent(1L, SAGA_ID, 2L, 0L, null);
+            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID, 2L, 0L, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when

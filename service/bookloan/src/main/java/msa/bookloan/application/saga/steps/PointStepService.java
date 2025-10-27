@@ -8,20 +8,13 @@ import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.command.ScheduleShippingCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
-import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
+import msa.bookloan.application.saga.reply.point.PointChargedReply;
+import msa.bookloan.application.saga.reply.point.PointRefundedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.dao.QueryTimeoutException;
-import org.springframework.dao.TransientDataAccessResourceException;
-import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -41,19 +34,8 @@ public class PointStepService {
     private final LoanSagaRepository sagaRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterPointChargeFailed(PointChargeFailedInternalEvent event) {
+    @Transactional
+    public void afterPointChargeFailed(PointChargeFailedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -72,19 +54,8 @@ public class PointStepService {
                 event.sagaId(), event.payload().reasonCode());
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterPointCharged(PointChargedInternalEvent event) {
+    @Transactional
+    public void afterPointCharged(PointChargedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -103,19 +74,8 @@ public class PointStepService {
                 event.sagaId(), saga.getLoanId());
     }
 
-    @Retryable(
-            retryFor = {
-                    QueryTimeoutException.class,
-                    TransientDataAccessResourceException.class
-            },
-            noRetryFor = {
-                    OptimisticLockingFailureException.class,
-                    DataIntegrityViolationException.class
-            },
-            backoff = @Backoff(delay = 100, multiplier = 2, maxDelay = 800, random = true)
-    )
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void afterPointRefunded(PointRefundedInternalEvent event) {
+    @Transactional
+    public void afterPointRefunded(PointRefundedReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
 
@@ -153,8 +113,5 @@ public class PointStepService {
                 causationEventId
         );
     }
-    @Recover
-    public void recoverOnTransient(Exception ex, Object event) {
-        log.warn("[Saga] 포인트 단계 재시도 소진. event={}, err={}", event, ex.getMessage(), ex);
-    }
+
 }
