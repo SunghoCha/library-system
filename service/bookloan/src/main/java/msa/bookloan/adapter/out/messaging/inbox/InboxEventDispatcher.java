@@ -8,12 +8,10 @@ import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.common.config.properties.InboxProcessingProps;
 import msa.common.exception.BusinessNotRetryableException;
-import msa.common.snowflake.InstanceIdentity;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.apache.commons.lang3.StringUtils.abbreviate;
@@ -23,7 +21,6 @@ import static org.apache.commons.lang3.StringUtils.abbreviate;
 public class InboxEventDispatcher {
 
     private final ObjectMapper objectMapper;
-    private final InstanceIdentity instanceIdentity;
     private final InboxStatusMarker inboxStatusMarker;
     private final InboxProcessingProps inboxProcessingProps;
     private final InboxEventRecordRepository recordRepository;
@@ -33,8 +30,7 @@ public class InboxEventDispatcher {
                                 InboxEventRecordRepository recordRepository,
                                 ObjectMapper objectMapper,
                                 InboxStatusMarker inboxStatusMarker,
-                                InboxProcessingProps inboxProcessingProps,
-                                InstanceIdentity instanceIdentity) {
+                                InboxProcessingProps inboxProcessingProps) {
 
         HashMap<String, InboxEventHandler<?>> map = new HashMap<>();
         for (InboxEventHandler<?> handler : handlers) {
@@ -45,7 +41,6 @@ public class InboxEventDispatcher {
             }
         }
         this.objectMapper = objectMapper;
-        this.instanceIdentity = instanceIdentity;
         this.inboxStatusMarker = inboxStatusMarker;
         this.inboxProcessingProps = inboxProcessingProps;
         this.recordRepository = recordRepository;
@@ -53,16 +48,15 @@ public class InboxEventDispatcher {
     }
 
     @Transactional
-    public void processEvent(Long eventId, LocalDateTime pickedAt) {
+    public void processEvent(Long eventId, String leaseId) {
         Objects.requireNonNull(eventId, "eventId must not be null");
-        Objects.requireNonNull(pickedAt, "pickedAt must not be null");
+        Objects.requireNonNull(leaseId, "leaseId must not be null");
 
-        String workerId = Objects.requireNonNull(instanceIdentity.workerId(), "workerId null");
         int maxLength = inboxProcessingProps.errorMaxLength();
 
         InboxEventRecord record = recordRepository.findByEventId(eventId).orElse(null);
         if (record == null) {
-            log.info("[Inbox] 선점 무효(레코드 없음): eventId={} workerId={}", eventId, workerId);
+            log.info("[Inbox] 선점 무효(레코드 없음): eventId={} leaseId={}", eventId, leaseId);
             return;
         }
 
@@ -71,38 +65,38 @@ public class InboxEventDispatcher {
 
         if (eventHandler == null) {
             String reason = abbreviate("NO_HANDLER:" + eventType, maxLength);
-            inboxStatusMarker.markDeadLetter(eventId, workerId, pickedAt, reason);
-            log.warn("[Inbox] 핸들러가 없어 DLT로 전송 (eventId={}, eventType={}, workerId={})",
-                    eventId, eventType, workerId);
+            inboxStatusMarker.markDeadLetter(eventId, leaseId, reason);
+            log.warn("[Inbox] 핸들러가 없어 DLT로 전송 (eventId={}, eventType={}, leaseId={})",
+                    eventId, eventType, leaseId);
             return;
         }
 
         try {
             Object payload = objectMapper.readValue(record.getPayload(), eventHandler.payloadType());
             dispatch(eventHandler, record, payload);
-            inboxStatusMarker.markProcessed(eventId, workerId, pickedAt);
+            inboxStatusMarker.markProcessed(eventId, leaseId);
 
         } catch (BusinessNotRetryableException bizEx) {
-            inboxStatusMarker.markDeadLetter(eventId, workerId, pickedAt, bizEx.getMessage()); // REQUIRES_NEW 커밋
+            inboxStatusMarker.markDeadLetter(eventId, leaseId, bizEx.getMessage()); // REQUIRES_NEW 커밋
             log.warn("[Inbox] 비재시도 오류 DLT 전송: eventId={}, type={}, err={}", eventId, eventType, bizEx.toString());
 
             throw bizEx;
 
         } catch (JsonProcessingException jsonEx) {
             String reason = abbreviate("DESERIALIZATION_ERROR: " + jsonEx.getOriginalMessage(), maxLength);
-            inboxStatusMarker.markDeadLetter(eventId, workerId, pickedAt, reason);
+            inboxStatusMarker.markDeadLetter(eventId, leaseId, reason);
             log.warn("[Inbox] JSON 파싱 실패. eventId={}", eventId, jsonEx);
 
-            throw new RuntimeException("JSON parsing failed, rolling back T1", jsonEx);
+            throw new RuntimeException("JSON parsing failed, rolling back", jsonEx);
 
         } catch (OptimisticLockingFailureException olfEx) { // 처리권 상실이므로 마킹하면 안될듯
-            log.info("[Inbox] 경합으로 처리권 상실, 롤백: eventId={}, workerId={}, pickedAt={}", eventId, workerId, pickedAt);
+            log.info("[Inbox] 경합으로 처리권 상실, 롤백: eventId={}, leaseId={}", eventId, leaseId);
             throw olfEx;
 
         } catch (Exception ex) {
             String reason = abbreviate(ex.getClass().getSimpleName() + ": " +
                     Objects.toString(ex.getMessage(), ex.toString()), maxLength);
-            inboxStatusMarker.markFailed(eventId, workerId, pickedAt, reason);
+            inboxStatusMarker.markFailed(eventId, leaseId, reason);
             log.warn("[Inbox] 처리 실패(재시도 예정) (eventId={}, type={}, err={})",
                     eventId, eventType, ex.toString());
 

@@ -1,155 +1,257 @@
 package msa.bookloan.adapter.out.messaging.inbox;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import msa.bookloan.adapter.out.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
-import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
-import msa.bookloan.application.saga.reply.SagaReplyType;
-import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
-import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
-import msa.bookloan.domain.saga.LoanSaga;
-import msa.bookloan.domain.saga.LoanSagaStep;
-import msa.bookloan.domain.saga.SagaStatus;
-import msa.common.domain.model.InboxSource;
-import msa.common.events.inbox.dto.ConsumerRecordMetadata;
+import msa.bookloan.testsupport.time.TestClocks;
+import msa.common.config.properties.InboxProcessingProps;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
+import msa.common.exception.BusinessNotRetryableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.apache.commons.lang3.StringUtils.abbreviate;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 class InboxEventDispatcherTest {
 
-    @Autowired
-    private InboxEventDispatcher inboxEventDispatcher;
+    private InboxEventDispatcher dispatcher;
 
-    @Autowired
-    private InboxEventRecordRepository inboxRepository;
+    @Mock
+    private InboxEventRecordRepository recordRepository;
 
-    @Autowired
-    private LoanSagaRepository sagaRepository;
+    @Mock
+    private InboxStatusMarker inboxStatusMarker;
 
-    @Autowired
-    private OutboxEventRecordRepository outboxRepository;
+    @Mock
+    private InboxProcessingProps inboxProcessingProps;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Mock
+    private InboxEventHandler<TestPayload> testEventHandler;
 
-    private static final String SAGA_ID = "test-saga-" + UUID.randomUUID();
-    private static final Long INBOX_ID = 1L;
-    private static final Long EVENT_ID = 12345L;
-    private static final Long LOAN_ID = 99L;
-    private static final Long MEMBER_ID = 88L;
-    private static final Long BOOK_ID = 77L;
-    private static final Long AGGREGATE_VERSION = 1L; // BookLoan의 @Version 값
-    private static final Long TRIGGER_EVENT_ID = 111L; // 사가 시작 이벤트 ID
-    private static final Long CAUSATION_COMMAND_ID = 222L; // MemberCheckedReply를 유발한 커맨드 ID
-    private static final String WORKER_ID = "test-worker";
-    private final LocalDateTime pickedAt = LocalDateTime.now().withNano(0);
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
+
+    private final ObjectMapper objectMapper = new Jackson2ObjectMapperBuilder().build();
+
+    record TestPayload(String message) {}
+
+    private final Long eventId = 1L;
+    private final String leaseId = UUID.randomUUID().toString();
+    private final String eventType = "TEST_EVENT";
+    private final int ERROR_MAX_LENGTH = 2000;
 
     @BeforeEach
-    void setUp() throws Exception {
-        outboxRepository.deleteAllInBatch();
-        inboxRepository.deleteAllInBatch();
-        sagaRepository.deleteAllInBatch();
+    void setUp() {
+        // 핸들러 기본 설정
+        lenient().when(testEventHandler.eventType()).thenReturn(eventType);
+        lenient().when(testEventHandler.payloadType()).thenReturn(TestPayload.class);
+        lenient().when(inboxProcessingProps.errorMaxLength()).thenReturn(ERROR_MAX_LENGTH);
 
-        createProcessingSaga(SAGA_ID, LOAN_ID, LoanSagaStep.MEMBER_CHECKING, AGGREGATE_VERSION);
-        MemberCheckedReply reply = createMemberCheckedReply(EVENT_ID, SAGA_ID, false, CAUSATION_COMMAND_ID, AGGREGATE_VERSION);
-        createProcessingInboxEvent(reply, SagaReplyType.MEMBER_CHECKED, WORKER_ID, pickedAt);
+        dispatcher = new InboxEventDispatcher(
+                List.of(testEventHandler),
+                recordRepository,
+                objectMapper,
+                inboxStatusMarker,
+                inboxProcessingProps
+        );
     }
 
     @Test
-    @DisplayName("시나리오 1: 성공 경로 - T-Step과 T-Status가 원자적으로 커밋된다")
-    void testProcessEvent_Success() {
+    @DisplayName("이벤트가 성공적으로 처리되고 leaseId를 사용해 PROCESSED 마킹")
+    void processEventSuccessfully() throws JsonProcessingException {
+        // given
+        TestPayload payload = new TestPayload("Success");
+        String payloadJson = objectMapper.writeValueAsString(payload);
+        InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
 
         // when
-        assertDoesNotThrow(() ->
-                inboxEventDispatcher.processEvent(EVENT_ID, pickedAt)
-        );
+        dispatcher.processEvent(eventId, leaseId);
 
         // then
-        // 1. 인박스(T-Status) 검증: PROCESSED로 변경, 토큰 정리
-        InboxEventRecord processedEvent = inboxRepository.findById(INBOX_ID).orElseThrow();
-        assertEquals(InboxEventRecordStatus.PROCESSED, processedEvent.getInboxEventRecordStatus());
-        assertNull(processedEvent.getWorkerId());
-        assertNull(processedEvent.getPickedAt());
+        ArgumentCaptor<TestPayload> argumentCaptor = ArgumentCaptor.forClass(TestPayload.class);
+        verify(testEventHandler).handle(argumentCaptor.capture());
+        assertThat(argumentCaptor.getValue().message()).isEqualTo("Success");
 
-        // 2. 사가(T-Step) 검증: 다음 단계(INVENTORY_RESERVING)로 전이
-        LoanSaga advancedSaga = sagaRepository.findById(SAGA_ID).orElseThrow();
-        assertEquals(LoanSagaStep.INVENTORY_RESERVING, advancedSaga.getCurrentStep());
+        verify(inboxStatusMarker).markProcessed(eventId, leaseId);
+    }
 
-        // 3. 아웃박스(T-Step) 검증: 다음 커맨드 발행
-        var outboxEvents = outboxRepository.findAll();
-        assertEquals(1, outboxEvents.size());
-        assertEquals("ReserveInventoryCommand", outboxEvents.get(0).getEventType());
+    @Test
+    @DisplayName("레코드를 찾을 수 없으면 아무 동작도 하지 않음")
+    void shouldDoNothingWhenRecordNotFound() {
+        // given
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.empty());
+
+        // when
+        dispatcher.processEvent(eventId, leaseId);
+
+        // then
+        verify(testEventHandler, never()).handle(any());
+        verifyNoInteractions(inboxStatusMarker);
+    }
+
+    @Test
+    @DisplayName("이벤트 핸들러가 없으면 DLT로 마킹")
+    void shouldMarkDeadLetterWhenNoHandlerFound() throws JsonProcessingException {
+        // given
+        String unknownEventType = "UnknownEventType";
+        TestPayload payload = new TestPayload("Success");
+        InboxEventRecord record = createTestRecord(eventId, unknownEventType, objectMapper.writeValueAsString(payload));
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+
+        // when
+        dispatcher.processEvent(eventId, leaseId);
+
+        // then
+        String expectedReason = abbreviate("NO_HANDLER:" + unknownEventType, ERROR_MAX_LENGTH);
+        verify(inboxStatusMarker).markDeadLetter(eventId, leaseId, expectedReason);
+
+        verify(testEventHandler, never()).handle(any());
+        verifyNoMoreInteractions(inboxStatusMarker);
+
+    }
+
+    @Test
+    @DisplayName("JSON 역직렬화 실패 시 DLT로 마킹하고 RuntimeException 발생")
+    void shouldMarkDeadLetterOnDeserializationError() {
+        // given
+        String malformedJson = "{message: \"hello\"}";
+        InboxEventRecord record = createTestRecord(eventId, eventType, malformedJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+
+        // when
+        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("JSON parsing failed, rolling back T1")
+                .hasCauseInstanceOf(JsonProcessingException.class);
+
+        // then
+        verify(inboxStatusMarker).markDeadLetter(eq(eventId), eq(leaseId), contains("DESERIALIZATION_ERROR:"));
+        verify(testEventHandler, never()).handle(any());
+    }
+
+    @Test
+    @DisplayName("비즈니스 예외(재시도 불가) 발생 시 DLT로 마킹하고 예외 전파")
+    void shouldMarkDeadLetterOnBusinessNotRetryableException() throws JsonProcessingException {
+        // given
+        String errMessage = "biz error";
+        TestPayload payload = new TestPayload("test");
+        String payloadJson = objectMapper.writeValueAsString(payload);
+        InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+        doThrow(new BusinessNotRetryableException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+
+        // when & then
+        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
+                .isInstanceOf(BusinessNotRetryableException.class)
+                .hasMessage(errMessage);
+
+        verify(inboxStatusMarker).markDeadLetter(eventId, leaseId, errMessage);
+
+    }
+
+    @Test
+    @DisplayName("처리 중 일반 예외 발생 시 FAILED 마킹하고 예외 전파")
+    void shouldMarkFailedOnGenericException() throws JsonProcessingException {
+        // given
+        String errMessage = "error";
+        RuntimeException runtimeException = new RuntimeException(errMessage);
+        TestPayload payload = new TestPayload("test");
+        String payloadJson = objectMapper.writeValueAsString(payload);
+        InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+        doThrow(runtimeException).when(testEventHandler).handle(any(TestPayload.class));
+        // when
+        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage(errMessage);
+
+        String reason = abbreviate(runtimeException.getClass().getSimpleName() + ": " +
+                Objects.toString(runtimeException.getMessage(), runtimeException.toString()),ERROR_MAX_LENGTH);
+        verify(inboxStatusMarker).markFailed(eventId, leaseId, reason);
+    }
+
+    @Test
+    @DisplayName("낙관적 락 예외 발생 시 아무것도 마킹하지 않고 예외 전파")
+    void shouldNotMarkAnythingOnOptimisticLockingFailure() throws JsonProcessingException {
+        // given
+        String errMessage = "낙관적 락 예외";
+        TestPayload payload = new TestPayload("test");
+        String payloadJson = objectMapper.writeValueAsString(payload);
+        InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+        doThrow(new OptimisticLockingFailureException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        // when
+        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
+                .isInstanceOf(OptimisticLockingFailureException.class)
+                .hasMessage(errMessage);
+
+        verifyNoInteractions(inboxStatusMarker);
+
+    }
+
+    @Test
+    @DisplayName("Payload가 JSON 'null'일 경우 DLT 마킹 (dispatch null check)")
+    void shouldMarkDeadLetterWhenPayloadIsJsonNull() throws JsonProcessingException {
+        // given
+        // ObjectMapper.readValue("null", TestPayload.class)는 null 객체를 반환함. 좀 특이한듯 "null"은 null객체 반환해줌
+        String payloadJson = "null";
+        InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
+
+        when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
+
+        // when & then
+        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
+                .isInstanceOf(BusinessNotRetryableException.class)
+                .hasMessageContaining("Payload is null: expected=");
+
+        // then
+        // processEvent의 바깥쪽 catch (BusinessNotRetryableException) 블록이 실행됨
+        verify(inboxStatusMarker).markDeadLetter(eq(eventId), eq(leaseId), contains("Payload is null: expected="));
+        verify(testEventHandler, never()).handle(any()); // 핸들러는 호출되면 안 됨
+        verifyNoMoreInteractions(inboxStatusMarker);
     }
 
 
-    private LoanSaga createProcessingSaga(String sagaId, Long loanId, LoanSagaStep currentStep, Long aggregateVersion) {
-        LoanSaga saga = LoanSaga.builder()
-                .sagaId(sagaId)
-                .loanId(loanId)
-                .memberId(MEMBER_ID)
-                .bookId(BOOK_ID)
-                .aggregateVersion(aggregateVersion)
-                .triggerEventId(TRIGGER_EVENT_ID)
-                .status(SagaStatus.PROCESSING)
-                .currentStep(currentStep)
-                .build();
-
-        return sagaRepository.saveAndFlush(saga);
-    }
-
-     // 선점 완료(PROCESSING) 상태의 인박스 이벤트 생성
-    private Long createProcessingInboxEvent(Object payloadDto,
-                                            SagaReplyType eventType,
-                                            String workerId,
-                                            LocalDateTime pickedAt) throws Exception {
-
-        ConsumerRecordMetadata metadata = new ConsumerRecordMetadata(
-                "test-topic", // topic
-                0,            // partitionNo
-                123L          // recordOffset
-        );
-
-        InboxEventRecord inboxEvent = InboxEventRecord.builder()
-                .id(INBOX_ID)
-                .eventId(EVENT_ID)
-                .aggregateId(LOAN_ID)
-                .aggregateVersion(AGGREGATE_VERSION)
-                .eventType(eventType.getValue())
-                .payload(objectMapper.writeValueAsString(payloadDto))
-                .source(InboxSource.MEMBER)
+    private InboxEventRecord createTestRecord(Long eventId, String eventType, String payloadJson) {
+        return InboxEventRecord.builder()
+                .id(eventId)
+                .eventId(eventId)
+                .aggregateId(100L)
+                .eventType(eventType)
+                .payload(payloadJson)
                 .inboxEventRecordStatus(InboxEventRecordStatus.PROCESSING)
-                .workerId(workerId)
-                .pickedAt(pickedAt)
-                .lastSeenAt(pickedAt)
-                .consumerRecordMetadata(metadata)
+                .leaseId(leaseId)
+                .leaseUntil(LocalDateTime.now(fixedClock).plusMinutes(5))
+                .workerId("test-worker")
+                .createdAt(LocalDateTime.now(fixedClock))
                 .build();
-
-        InboxEventRecord savedInbox = inboxRepository.saveAndFlush(inboxEvent);
-        return savedInbox.getId();
     }
 
-    private MemberCheckedReply createMemberCheckedReply(Long eventId, String sagaId, boolean blacklisted,
-                                                        Long causationCommandId, Long sourceAggregateVersion) {
 
-        MemberCheckedPayload payload = new MemberCheckedPayload(MEMBER_ID, blacklisted, null);
-
-        return new MemberCheckedReply(
-                eventId,
-                sagaId,
-                causationCommandId,
-                sourceAggregateVersion,
-                payload
-        );
-    }
 }

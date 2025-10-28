@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,10 +36,12 @@ public class InboxClaimerService {
 
         if (ids.isEmpty()) return List.of();
 
+        String leaseId = UUID.randomUUID().toString();
         String workerId = instanceIdentity.workerId();
-        long updated = inboxRepository.markProcessing(ids, workerId, now, leaseUntil);
+
+        long updated = inboxRepository.markProcessing(ids, leaseId, workerId, now, leaseUntil);
         if (updated == 0) return List.of();
 
-        return inboxRepository.findProcessingByIdsOrderByLastSeen(ids);
+        return inboxRepository.findProcessingByIdsOrderByUpdatedAt(ids);
     }
 }

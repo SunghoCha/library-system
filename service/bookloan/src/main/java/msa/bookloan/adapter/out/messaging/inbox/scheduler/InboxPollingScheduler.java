@@ -43,7 +43,7 @@ public class InboxPollingScheduler {
         int failureCount = 0;
         for (InboxEventRecord record : claimedRecords) {
             try {
-                inboxEventDispatcher.processEvent(record.getEventId(), record.getPickedAt());
+                inboxEventDispatcher.processEvent(record.getEventId(), record.getLeaseId());
                 successCount++;
             } catch (OptimisticLockingFailureException ole) {
                 // 경합은 정상 플로우니까 실패 카운트에 안 넣고 조용히 넘기는게 나은거 같음

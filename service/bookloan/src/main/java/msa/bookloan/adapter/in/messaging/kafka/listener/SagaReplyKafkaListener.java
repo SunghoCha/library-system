@@ -73,6 +73,7 @@ public class SagaReplyKafkaListener {
             return;
         }
 
+        // TODO : 삭제 해야할듯. 더이상 발행 방식 아님
         // 스프링 내부 이벤트 발행
         if (isNew) {
             log.info("[Replies] 내부 이벤트 발행: sagaId={}, type={}, eventId={}",

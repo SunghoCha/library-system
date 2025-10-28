@@ -49,17 +49,9 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     @Column(name = "seen_count", nullable = false)
     private int seenCount = 1;
 
-    @Column(name = "last_seen_at", nullable = false, columnDefinition = "datetime(6)")
-    private LocalDateTime lastSeenAt;
-
     @Builder.Default
     @Column(name = "retry_count", nullable = false)
     private int retryCount = 0;
-
-    // TODO : next_attempt_at, worker_id, lease_until 추가 예정
-    // 재시도 백오프 용인데 이건 일단 보류
-    @Column(name = "next_attempt_at", columnDefinition = "datetime(6)")
-    private LocalDateTime nextAttemptAt;
 
     @Column(name = "worker_id")
     private String workerId;
@@ -69,10 +61,6 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
 
     @Column(name = "lease_id")
     private String leaseId; // 새롭게 추가된 식별자 토큰
-
-//    @Setter // 기존 식별자 토큰에서 제외. 시간값이라 불안정함
-//    @Column(name = "picked_at", columnDefinition = "datetime(6)")
-//    private LocalDateTime pickedAt;
 
     @Lob
     @Column(name = "last_error")
@@ -86,19 +74,6 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     })
     private ConsumerRecordMetadata consumerRecordMetadata;
 
-    public void updateStatus(InboxEventRecordStatus inboxEventRecordStatus) {
-        this.inboxEventRecordStatus = inboxEventRecordStatus;
-    }
-
-    public void incrementRetryCount() {
-        retryCount++;
-    }
-
-    public void incrementSeenCount() {
-        this.seenCount++;
-        this.lastSeenAt = LocalDateTime.now();
-    }
-
     @Override
     public boolean isNew() {
         return getCreatedAt() == null;
@@ -109,16 +84,5 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
         return id;
     }
 
-    @PrePersist
-    protected void onCreateDefaults() {
-        LocalDateTime now = LocalDateTime.now();
-        if (this.lastSeenAt == null) this.lastSeenAt = now;
-        if (this.nextAttemptAt == null) this.nextAttemptAt = now;
-    }
-
-    @PreUpdate
-    protected void onUpdateDefaults() {
-        this.lastSeenAt = LocalDateTime.now(); // 선택: 매 업데이트에 최근 시각 갱신
-    }
 }
 

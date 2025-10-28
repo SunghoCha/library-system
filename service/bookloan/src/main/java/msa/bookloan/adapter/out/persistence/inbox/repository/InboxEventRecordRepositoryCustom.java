@@ -14,15 +14,15 @@ public interface InboxEventRecordRepositoryCustom {
 
     long incrementRetryCountIfBelowMax(Long eventId, int maxRetryCount, String lastError);
 
-    List<InboxEventRecord> findProcessingByIdsOrderByLastSeen(Collection<Long> ids);
+    List<InboxEventRecord> findProcessingByIdsOrderByUpdatedAt(Collection<Long> ids);
 
-    long markProcessing(Collection<Long> ids, String workerId, LocalDateTime pickedAt, LocalDateTime leaseUntil);
+    long markProcessing(Collection<Long> ids, String leaseId, String workerId, LocalDateTime now, LocalDateTime leaseUntil);
 
-    long markProcessedByEventId(Long eventId, String leaseId, String workerId, LocalDateTime pickedAt, LocalDateTime now);
+    long markProcessedByEventId(Long eventId, String leaseId, LocalDateTime now);
 
-    long markFailedByEventId(Long eventId, String workerId, LocalDateTime pickedAt, String lastError, LocalDateTime now);
+    long markFailedByEventId(Long eventId, String leaseId, String lastError, LocalDateTime now);
 
     long markDeadFromFailed(Long eventId, String reason, LocalDateTime now);
 
-    long markDeadLetter(Long eventId, String workerId, LocalDateTime pickedAt, String reason, LocalDateTime now);
+    long markDeadLetter(Long eventId, String leaseId, String reason, LocalDateTime now);
 }

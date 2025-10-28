@@ -59,7 +59,7 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
     }
 
     @Override
-    public List<InboxEventRecord> findProcessingByIdsOrderByLastSeen(Collection<Long> ids) {
+    public List<InboxEventRecord> findProcessingByIdsOrderByUpdatedAt(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
 
         return queryFactory.
@@ -68,16 +68,17 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
                         idInOrNull(ids),
                         eqStatusOrNull(PROCESSING)
                 )
-                .orderBy(record.lastSeenAt.asc(), record.id.asc())
+                .orderBy(record.updatedAt.asc(), record.id.asc())
                 .fetch();
     }
 
     // 스킵락 건 상태에서 사용하는 메서드라 where조건이 간단한 상태임에 주의 (범용적이지 않음)
     @Override
-    public long markProcessing(Collection<Long> ids, String workerId,
-                               LocalDateTime pickedAt, LocalDateTime leaseUntil) {
+    public long markProcessing(Collection<Long> ids, String leaseId, String workerId,
+                               LocalDateTime now, LocalDateTime leaseUntil) {
+        Objects.requireNonNull(leaseId, "leaseId");
         Objects.requireNonNull(workerId,  "workerId");
-        Objects.requireNonNull(pickedAt,  "pickedAt");
+        Objects.requireNonNull(now,  "now");
         Objects.requireNonNull(leaseUntil,"leaseUntil");
 
         // 빈 배치로 오면 0건 업데이트니까 의미적으로 맞음
@@ -86,20 +87,18 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
         return queryFactory
                 .update(record)
                 .set(record.inboxEventRecordStatus, PROCESSING)
+                .set(record.leaseId, leaseId)
                 .set(record.workerId, workerId)
-                .set(record.pickedAt, pickedAt)
                 .set(record.leaseUntil, leaseUntil)
-                .set(record.lastSeenAt, pickedAt)
-                .set(record.updatedAt, pickedAt)
+                .set(record.updatedAt, now)
                 .where(idInOrFalse(ids))
                 .execute();
     }
 
     @Override
-    public long markProcessedByEventId(Long eventId, String workerId, LocalDateTime pickedAt, LocalDateTime now) {
+    public long markProcessedByEventId(Long eventId, String leaseId, LocalDateTime now) {
         Objects.requireNonNull(eventId, "eventId");
-        Objects.requireNonNull(workerId, "workerId");
-        Objects.requireNonNull(pickedAt,"pickedAt");
+        Objects.requireNonNull(leaseId, "leaseId");
         Objects.requireNonNull(now, "now");
 
         return queryFactory
@@ -107,22 +106,21 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
                 .set(record.inboxEventRecordStatus, InboxEventRecordStatus.PROCESSED)
                 .setNull(record.workerId)
                 .setNull(record.leaseUntil)
-                .setNull(record.pickedAt)
+                .setNull(record.leaseId)
+                .setNull(record.lastError)
                 .set(record.updatedAt, now)
                 .where(
                         eqEventIdOrFalse(eventId),
                         eqStatusOrFalse(PROCESSING),
-                        eqWorkerIdOrFalse(workerId),
-                        eqPickedAtOrFalse(pickedAt)
+                        eqLeaseIdOrFalse(leaseId)
                 )
                 .execute();
     }
 
     @Override
-    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime pickedAt, String lastError, LocalDateTime now) {
+    public long markFailedByEventId(Long eventId, String leaseId, String lastError, LocalDateTime now) {
         Objects.requireNonNull(eventId, "eventId");
-        Objects.requireNonNull(workerId, "workerId");
-        Objects.requireNonNull(pickedAt, "pickedAt");
+        Objects.requireNonNull(leaseId, "leaseId");
         Objects.requireNonNull(now, "now");
 
         return queryFactory
@@ -131,14 +129,13 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
                 .set(record.retryCount, record.retryCount.add(1))
                 .setNull(record.workerId)
                 .setNull(record.leaseUntil)
-                .setNull(record.pickedAt)
+                .setNull(record.leaseId)
                 .set(record.lastError, lastError)
                 .set(record.updatedAt, now)
                 .where(
                         eqEventIdOrFalse(eventId),
                         eqStatusOrFalse(PROCESSING),
-                        eqWorkerIdOrFalse(workerId),
-                        eqPickedAtOrFalse(pickedAt)
+                        eqLeaseIdOrFalse(leaseId)
                 )
                 .execute();
     }
@@ -153,7 +150,7 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
                 .set(record.inboxEventRecordStatus, InboxEventRecordStatus.DEAD_LETTER)
                 .setNull(record.workerId)
                 .setNull(record.leaseUntil)
-                .setNull(record.pickedAt)
+                .setNull(record.leaseId)
                 .set(record.lastError, reason)
                 .set(record.updatedAt, now)
                 .where(
@@ -164,11 +161,11 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
     }
 
     @Override
-    public long markDeadLetter(Long eventId, String workerId, LocalDateTime pickedAt, String reason, LocalDateTime now) {
+    public long markDeadLetter(Long eventId, String leaseId, String reason, LocalDateTime now) {
 
         Objects.requireNonNull(eventId, "eventId");
-        Objects.requireNonNull(workerId, "workerId");
-        Objects.requireNonNull(pickedAt, "pickedAt");
+        Objects.requireNonNull(leaseId, "leaseId");
+        Objects.requireNonNull(now, "now");
 
         return queryFactory
                 .update(record)
@@ -177,11 +174,11 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
                 .set(record.updatedAt, now)
                 .setNull(record.workerId)
                 .setNull(record.leaseUntil)
-                .setNull(record.pickedAt)
+                .setNull(record.leaseId)
                 .where(
                         eqEventIdOrFalse(eventId),
-                        eqWorkerIdOrFalse(workerId),
-                        eqPickedAtOrFalse(pickedAt)
+                        eqStatusOrFalse(PROCESSING),
+                        eqLeaseIdOrFalse(leaseId)
                 )
                 .execute();
 
@@ -199,12 +196,8 @@ public class InboxEventRecordRepositoryImpl implements InboxEventRecordRepositor
         return (status == null) ? Expressions.FALSE : record.inboxEventRecordStatus.eq(status);
     }
 
-    private BooleanExpression eqPickedAtOrFalse(LocalDateTime pickedAt) {
-        return (pickedAt == null) ? Expressions.FALSE : record.pickedAt.eq(pickedAt);
-    }
-
-    private BooleanExpression eqWorkerIdOrFalse(String workerId) {
-        return (workerId == null) ? Expressions.FALSE : record.workerId.eq(workerId);
+    private BooleanExpression eqLeaseIdOrFalse(String leaseId) {
+        return (leaseId == null) ? Expressions.FALSE : record.leaseId.eq(leaseId);
     }
 
     private BooleanExpression eqEventIdOrFalse(Long eventId) {
