@@ -7,7 +7,6 @@ import msa.common.domain.base.BaseTimeEntity;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.exception.FailureCategory;
-import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDateTime;
 
@@ -16,7 +15,7 @@ import java.time.LocalDateTime;
 @MappedSuperclass
 @ToString(exclude = {"payload","lastError"})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements Persistable<Long> {
+public abstract class PayloadInboxEventRecord extends BaseTimeEntity {
 
     @Id
     @Column(name = "id", updatable = false, nullable = false)
@@ -74,15 +73,6 @@ public abstract class PayloadInboxEventRecord extends BaseTimeEntity implements 
     })
     private ConsumerRecordMetadata consumerRecordMetadata;
 
-    @Override
-    public boolean isNew() {
-        return getCreatedAt() == null;
-    }
-
-    @Override
-    public Long getId() {
-        return id;
-    }
 
 }
 

@@ -3,12 +3,12 @@ package msa.bookloan.application.saga.steps;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
-import msa.bookloan.application.saga.command.ScheduleShippingCommand;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedPayload;
-import msa.bookloan.application.saga.reply.point.PointChargedReply;
-import msa.bookloan.application.saga.reply.point.PointRefundedReply;
+import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
+import msa.common.events.bookloan.saga.command.ScheduleShippingCommand;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedPayload;
+import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.time.TestClocks;
@@ -40,12 +40,18 @@ class PointStepServiceTest {
 
     @Mock
     private Snowflake snowflake;
+
     @Mock
     private SagaTimeouts sagaTimeouts;
+
     @Mock
     private LoanSagaRepository sagaRepository;
+
     @Mock
     private CommandOutboxRecorder commandOutboxRecorder;
+
+    @Mock
+    private Clock clock;
 
     private LoanSaga testSaga;
     private final Clock fixedClock = TestClocks.FIXED_CLOCK;
@@ -54,6 +60,9 @@ class PointStepServiceTest {
     @BeforeEach
     void setUp() {
         testSaga = LoanSaga.startNew(SAGA_ID, 1L, 100L, 200L, 0L, 99L, now(fixedClock));
+
+        lenient().when(clock.instant()).thenReturn(fixedClock.instant());
+        lenient().when(clock.getZone()).thenReturn(fixedClock.getZone());
     }
 
     @Nested
@@ -65,7 +74,8 @@ class PointStepServiceTest {
         void shouldTransitionToNextStepAndRecordCommand() {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
-            PointChargedReply event = new PointChargedReply(1L, SAGA_ID, 2L, 0L, null);
+            PointChargedReply event = new PointChargedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(SHIPPING_SCHEDULING)).thenReturn(Duration.ofMinutes(10));
@@ -89,7 +99,8 @@ class PointStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 이전 단계
-            PointChargedReply event = new PointChargedReply(1L, SAGA_ID, 2L, 0L, null);
+            PointChargedReply event = new PointChargedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -110,8 +121,8 @@ class PointStepServiceTest {
         void shouldEnterCompensatingAndRecordCompensationCommand() {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
-            PointChargeFailedPayload payload = new PointChargeFailedPayload("INSUFFICIENT_FUNDS", "잔액 부족");
-            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID, 2L, 0L, payload);
+            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID,
+                    2L, 0L, "INSUFFICIENT_FUNDS", "잔액 부족");
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.compensationTimeoutFor()).thenReturn(Duration.ofMinutes(30));
@@ -135,7 +146,8 @@ class PointStepServiceTest {
         void shouldDoNothing_whenSagaIsTerminal() {
             // given
             testSaga.markFailed(null); // FAILED 상태
-            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID, 2L, 0L, null);
+            PointChargeFailedReply event = new PointChargeFailedReply(1L, SAGA_ID,
+                    2L, 0L, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -159,7 +171,8 @@ class PointStepServiceTest {
             testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, SHIPPING_SCHEDULING
 
-            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID, 2L, 0L, null);
+            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(POINT_CHARGING)).thenReturn(Duration.ofMinutes(5));
@@ -188,7 +201,8 @@ class PointStepServiceTest {
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, POINT_CHARGING
 
-            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID, 2L, 0L, null);
+            PointRefundedReply event = new PointRefundedReply(1L, SAGA_ID, 2L,
+                    0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when

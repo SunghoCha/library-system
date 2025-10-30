@@ -1,5 +1,6 @@
 package msa.common.events;
 
+@Deprecated
 public interface DomainEvent {
 
     long getAggregateId();

@@ -4,21 +4,25 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
-import msa.bookloan.application.saga.command.*;
-import msa.bookloan.application.saga.reply.inventory.InventoryReleasedReply;
-import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedReply;
-import msa.bookloan.application.saga.reply.inventory.InventoryReservedReply;
-import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
-import msa.bookloan.application.saga.reply.point.PointChargedReply;
-import msa.bookloan.application.saga.reply.point.PointRefundedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
+import msa.bookloan.application.saga.steps.InventoryStepService;
+import msa.bookloan.application.saga.steps.MemberStepService;
+import msa.bookloan.application.saga.steps.PointStepService;
+import msa.bookloan.application.saga.steps.ShippingStepService;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.common.events.bookloan.saga.command.*;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReserveFailedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
+import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingAcceptedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,16 +72,16 @@ class LoanRequestSagaOrchestratorTest {
     private BookLoanRepository bookLoanRepository;
 
     @Mock
-    private msa.bookloan.application.saga.steps.MemberStepService memberStepService;
+    private MemberStepService memberStepService;
 
     @Mock
-    private msa.bookloan.application.saga.steps.InventoryStepService inventoryStepService;
+    private InventoryStepService inventoryStepService;
 
     @Mock
-    private msa.bookloan.application.saga.steps.PointStepService pointStepService;
+    private PointStepService pointStepService;
 
     @Mock
-    private msa.bookloan.application.saga.steps.ShippingStepService shippingStepService;
+    private ShippingStepService shippingStepService;
 
     @Captor
     private ArgumentCaptor<CheckMemberCommand> commandCaptor;

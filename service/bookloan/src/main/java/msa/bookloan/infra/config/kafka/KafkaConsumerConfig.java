@@ -1,6 +1,6 @@
 package msa.bookloan.infra.config.kafka;
 
-import msa.common.events.bookcatalog.BookCatalogChangedPayload;
+import msa.common.events.MessageEnvelope;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,7 +28,7 @@ public class KafkaConsumerConfig {
 
     @Bean
     @ConditionalOnBean(KafkaProperties.class)
-    public ConsumerFactory<String, BookCatalogChangedPayload> consumerFactory(
+    public ConsumerFactory<String, MessageEnvelope> consumerFactory(
             KafkaProperties kafkaProperties,
             ObjectProvider<SslBundles> sslBundlesProvider
     ) {
@@ -43,18 +43,18 @@ public class KafkaConsumerConfig {
         return new DefaultKafkaConsumerFactory<>(
                 props,
                 new StringDeserializer(),
-                new JsonDeserializer<>(BookCatalogChangedPayload.class, false)
+                new JsonDeserializer<>(MessageEnvelope.class, false)
         );
     }
 
-    @Bean(name = "bookCatalogListenerFactory")
+    @Bean(name = "envelopeListenerFactory")
     @ConditionalOnBean(ConsumerFactory.class)
-    public ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedPayload>
+    public ConcurrentKafkaListenerContainerFactory<String, MessageEnvelope>
     kafkaListenerContainerFactory(
-            ConsumerFactory<String, BookCatalogChangedPayload> consumerFactory,
+            ConsumerFactory<String, MessageEnvelope> consumerFactory,
             DefaultErrorHandler errorHandler) {
 
-        ConcurrentKafkaListenerContainerFactory<String, BookCatalogChangedPayload> factory =
+        ConcurrentKafkaListenerContainerFactory<String, MessageEnvelope> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
 
         factory.setConsumerFactory(consumerFactory);

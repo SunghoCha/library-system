@@ -4,17 +4,16 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedPayload;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.time.TestClocks;
+import msa.common.events.bookloan.saga.command.RefundPointCommand;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingAcceptedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,14 +45,21 @@ class ShippingStepServiceTest {
 
     @Mock
     private Snowflake snowflake;
+
     @Mock
     private SagaTimeouts sagaTimeouts;
+
     @Mock
     private LoanSagaRepository sagaRepository;
+
     @Mock
     private BookLoanRepository bookLoanRepository;
+
     @Mock
     private CommandOutboxRecorder commandOutboxRecorder;
+
+    @Mock
+    Clock clock;
 
     private LoanSaga testSaga;
     private final Clock fixedClock = TestClocks.FIXED_CLOCK;
@@ -63,6 +69,8 @@ class ShippingStepServiceTest {
     @BeforeEach
     void setUp() {
         testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, 100L, 200L, 0L, 99L, now(fixedClock));
+        lenient().when(clock.instant()).thenReturn(fixedClock.instant());
+        lenient().when(clock.getZone()).thenReturn(fixedClock.getZone());
     }
 
     @Nested
@@ -74,7 +82,8 @@ class ShippingStepServiceTest {
         void shouldTransitionStateWithoutIssuingCommand() {
             // given
             testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
-            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(SHIPPING_ACCEPTED)).thenReturn(Duration.ofMinutes(10));
@@ -94,7 +103,8 @@ class ShippingStepServiceTest {
         @DisplayName("실패: 사가를 찾을 수 없으면 SagaNotFoundException을 던진다")
         void shouldThrowException_whenSagaNotFound() {
             // given
-            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.empty());
 
             // when & then
@@ -107,7 +117,8 @@ class ShippingStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock)); // 잘못된 단계
-            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingAcceptedReply event = new ShippingAcceptedReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -128,7 +139,8 @@ class ShippingStepServiceTest {
         void shouldMarkSagaAsCompleted(LoanSagaStep currentStep) {
             // given
             testSaga.markProcessing(currentStep, Duration.ofMinutes(5), now(fixedClock));
-            ShippingScheduledReply event = new ShippingScheduledReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingScheduledReply event = new ShippingScheduledReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -147,7 +159,8 @@ class ShippingStepServiceTest {
         void shouldDoNothing_whenSagaIsTerminal() {
             // given
             testSaga.markFailed(SagaAbortReason.UNKNOWN); // FAILED 상태
-            ShippingScheduledReply event = new ShippingScheduledReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingScheduledReply event = new ShippingScheduledReply(1L, SAGA_ID,
+                    2L, 0L, null, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -169,8 +182,8 @@ class ShippingStepServiceTest {
         void shouldEnterCompensatingAndIssueRefundCommand(LoanSagaStep currentStep) {
             // given
             testSaga.markProcessing(currentStep, Duration.ofMinutes(5), now(fixedClock));
-            ShippingScheduleFailedPayload payload = new ShippingScheduleFailedPayload("ADDRESS_INVALID", "주소 오류");
-            ShippingScheduleFailedReply event = new ShippingScheduleFailedReply(1L, SAGA_ID, 2L, 0L, payload);
+            ShippingScheduleFailedReply event = new ShippingScheduleFailedReply(1L, SAGA_ID,
+                    2L, 0L, "ADDRESS_INVALID", "주소 오류");
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.compensationTimeoutFor()).thenReturn(Duration.ofMinutes(30));
@@ -194,7 +207,8 @@ class ShippingStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock)); // 잘못된 단계
-            ShippingScheduleFailedReply event = new ShippingScheduleFailedReply(1L, SAGA_ID, 2L, 0L, null);
+            ShippingScheduleFailedReply event = new ShippingScheduleFailedReply(1L, SAGA_ID,
+                    2L, 0L, null, null);
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when

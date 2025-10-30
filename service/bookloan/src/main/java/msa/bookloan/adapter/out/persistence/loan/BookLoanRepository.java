@@ -44,7 +44,7 @@ public interface BookLoanRepository extends JpaRepository<BookLoan, Long> {
            AND b.currentSagaId = :sagaId
         """)
     int clearSagaIfMatches(@Param("loanId") Long loanId,
-                           @Param("sagaId") String sagaId);
+                           @Param("sagaId") Long sagaId);
 
     // 취소 진입 시 조회용
     @Query("select b.currentSagaId from BookLoan b where b.id = :loanId")

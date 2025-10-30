@@ -2,8 +2,12 @@ package msa.bookloan.adapter.out.messaging.inbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import msa.bookloan.adapter.out.messaging.inbox.handler.InboxEventHandler;
+import msa.bookloan.adapter.in.messaging.inbox.InboxEventDispatcher;
+import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
+import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
+import msa.bookloan.adapter.in.messaging.kafka.util.validator.EventPayloadValidator;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
+import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxStatusMarker;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.config.properties.InboxProcessingProps;
@@ -40,6 +44,9 @@ class InboxEventDispatcherTest {
     private InboxEventRecordRepository recordRepository;
 
     @Mock
+    private EventPayloadValidator validator;
+
+    @Mock
     private InboxStatusMarker inboxStatusMarker;
 
     @Mock
@@ -65,13 +72,15 @@ class InboxEventDispatcherTest {
         lenient().when(testEventHandler.eventType()).thenReturn(eventType);
         lenient().when(testEventHandler.payloadType()).thenReturn(TestPayload.class);
         lenient().when(inboxProcessingProps.errorMaxLength()).thenReturn(ERROR_MAX_LENGTH);
+        lenient().doNothing().when(validator).validateOrThrow(any());
 
         dispatcher = new InboxEventDispatcher(
-                List.of(testEventHandler),
-                recordRepository,
                 objectMapper,
+                validator,
                 inboxStatusMarker,
-                inboxProcessingProps
+                inboxProcessingProps,
+                recordRepository,
+                List.of(testEventHandler)
         );
     }
 
@@ -89,9 +98,9 @@ class InboxEventDispatcherTest {
         dispatcher.processEvent(eventId, leaseId);
 
         // then
-        ArgumentCaptor<TestPayload> argumentCaptor = ArgumentCaptor.forClass(TestPayload.class);
+        ArgumentCaptor<InboxMessage<TestPayload>> argumentCaptor = ArgumentCaptor.captor();
         verify(testEventHandler).handle(argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().message()).isEqualTo("Success");
+        assertThat(argumentCaptor.getValue().payload().message()).isEqualTo("Success");
 
         verify(inboxStatusMarker).markProcessed(eventId, leaseId);
     }
@@ -124,7 +133,7 @@ class InboxEventDispatcherTest {
         dispatcher.processEvent(eventId, leaseId);
 
         // then
-        String expectedReason = abbreviate("NO_HANDLER:" + unknownEventType, ERROR_MAX_LENGTH);
+        String expectedReason = abbreviate("NO_HANDLER: " + unknownEventType, ERROR_MAX_LENGTH);
         verify(inboxStatusMarker).markDeadLetter(eventId, leaseId, expectedReason);
 
         verify(testEventHandler, never()).handle(any());
@@ -144,7 +153,7 @@ class InboxEventDispatcherTest {
         // when
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("JSON parsing failed, rolling back T1")
+                .hasMessageContaining("JSON parsing failed, rolling back")
                 .hasCauseInstanceOf(JsonProcessingException.class);
 
         // then
@@ -162,7 +171,7 @@ class InboxEventDispatcherTest {
         InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
 
         when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
-        doThrow(new BusinessNotRetryableException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(new BusinessNotRetryableException(errMessage)).when(testEventHandler).handle(any());
 
         // when & then
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
@@ -184,7 +193,7 @@ class InboxEventDispatcherTest {
         InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
 
         when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
-        doThrow(runtimeException).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(runtimeException).when(testEventHandler).handle(any());
         // when
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
                 .isInstanceOf(RuntimeException.class)
@@ -205,7 +214,7 @@ class InboxEventDispatcherTest {
         InboxEventRecord record = createTestRecord(eventId, eventType, payloadJson);
 
         when(recordRepository.findByEventId(eventId)).thenReturn(Optional.of(record));
-        doThrow(new OptimisticLockingFailureException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(new OptimisticLockingFailureException(errMessage)).when(testEventHandler).handle(any());
         // when
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
                 .isInstanceOf(OptimisticLockingFailureException.class)
@@ -217,7 +226,7 @@ class InboxEventDispatcherTest {
 
     @Test
     @DisplayName("Payload가 JSON 'null'일 경우 DLT 마킹 (dispatch null check)")
-    void shouldMarkDeadLetterWhenPayloadIsJsonNull() throws JsonProcessingException {
+    void shouldMarkDeadLetterWhenPayloadIsJsonNull() {
         // given
         // ObjectMapper.readValue("null", TestPayload.class)는 null 객체를 반환함. 좀 특이한듯 "null"은 null객체 반환해줌
         String payloadJson = "null";

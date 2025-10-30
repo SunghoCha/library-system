@@ -6,14 +6,15 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.RefundPointCommand;
+import msa.common.events.bookloan.saga.command.RefundPointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedReply;
-import msa.bookloan.application.saga.reply.shipping.ShippingScheduledReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingAcceptedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduleFailedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -35,10 +36,10 @@ public class ShippingStepService {
     private final CommandOutboxRecorder commandOutboxRecorder;
 
     // 상태만 SHIPPING_ACCEPTED로 갱신하고 커맨드 보내지않음
-    @Transactional
-    public void afterShippingAccepted(ShippingAcceptedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterShippingAccepted(ShippingAcceptedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(SHIPPING_SCHEDULING)) return;
@@ -47,10 +48,10 @@ public class ShippingStepService {
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);
-        log.info("[Saga] 배송 접수(Ack): sagaId={}, loanId={}", event.sagaId(), saga.getLoanId());
+        log.info("[Saga] 배송 접수(Ack): sagaId={}, loanId={}", reply.sagaId(), saga.getLoanId());
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.MANDATORY)
     public void afterShippingScheduled(ShippingScheduledReply event) {
         LoanSaga saga = sagaRepository.findById(event.sagaId())
                 .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
@@ -66,10 +67,10 @@ public class ShippingStepService {
         log.info("[Saga] 완료(ShippingScheduled): sagaId={}, loanId={}", event.sagaId(), saga.getLoanId());
     }
 
-    @Transactional
-    public void afterShippingScheduleFailed(ShippingScheduleFailedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterShippingScheduleFailed(ShippingScheduleFailedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAtAny(SHIPPING_SCHEDULING, SHIPPING_ACCEPTED)) return;
@@ -79,11 +80,11 @@ public class ShippingStepService {
 
         sagaRepository.saveAndFlush(saga);
 
-        RefundPointCommand command = createRefundPointCommand(saga, event.eventId());
+        RefundPointCommand command = createRefundPointCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
 
         log.info("[Saga] 배송 스케줄 실패: 보상 시작(RefundPoint): sagaId={}, reason={}",
-                event.sagaId(), event.payload().reasonCode());
+                reply.sagaId(), reply.reasonCode());
     }
 
     private RefundPointCommand createRefundPointCommand(LoanSaga saga, Long causationEventId) {

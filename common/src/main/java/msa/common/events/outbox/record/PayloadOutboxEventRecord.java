@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @SuperBuilder
 @MappedSuperclass
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements Persistable<Long> {
+public abstract class PayloadOutboxEventRecord extends BaseTimeEntity {
 
     @Id
     @Column(name = "id", updatable = false, nullable = false)
@@ -27,7 +27,7 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     private String aggregateType;
 
     @Column(name = "aggregate_id",   nullable = false)
-    private String aggregateId;
+    private Long aggregateId;
 
     @Column(name = "aggregate_version", updatable = false) // 사가커맨드는 null 허용
     private Long aggregateVersion;
@@ -60,9 +60,8 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     @Column(name = "lease_until", columnDefinition = "datetime(6)")
     private LocalDateTime leaseUntil;
 
-    @Setter
-    @Column(name = "picked_at", columnDefinition = "datetime(6)")
-    private LocalDateTime pickedAt;
+    @Column(name = "lease_id")
+    private String leaseId;
 
     @Lob
     @Column(name = "last_error")
@@ -75,26 +74,6 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity implements
     })
     private OutboxRouting routing;
 
-    @Transient
-    @Builder.Default
-    private boolean isNew = true;
-
-    @Override
-    public boolean isNew() {
-        return this.isNew;
-    }
-
-    @PostLoad
-    @PostPersist
-    void markNotNew() {
-        this.isNew = false;
-    }
-
-    @PrePersist
-    protected void onCreateDefaults() {
-        LocalDateTime now = LocalDateTime.now();
-        if (this.occurredAt == null) this.occurredAt = now;
-    }
 
 }
 

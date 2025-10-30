@@ -7,10 +7,10 @@ public class Snowflake {
     private static final long MAX_SEQUENCE = (1L << SEQUENCE_BITS) - 1;
 
     private final long nodeId;
-    private final long epochMillis; // 예: 2024-01-01T00:00:00Z
+    private final long epochMillis;
     private long lastMillis;
     private long sequence;
-
+    // 63비트 사용으로 long(64비트) 안 넘어서 안전
     public Snowflake(long nodeId, long epochMillis) {
         if (nodeId < 0 || nodeId > MAX_NODE_ID) {
             throw new IllegalArgumentException("nodeId out of range: " + nodeId);

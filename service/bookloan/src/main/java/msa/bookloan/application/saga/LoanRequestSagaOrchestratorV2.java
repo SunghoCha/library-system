@@ -392,7 +392,7 @@
 //                .sagaId(saga.getSagaId())
 //                .loanId(saga.getLoanId())
 //                .bookId(saga.getBookId())
-//                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
+//                .loanVersion(saga.getAggregateVersion()) // BookLoan의 버전
 //                .causationEventId(causationEventId) // 직전 내부 이벤트 ID
 //                .build();
 //    }
@@ -403,7 +403,7 @@
 //                .sagaId(event.sagaId())
 //                .loanId(event.loanId())
 //                .memberId(event.memberId())
-//                .sourceAggregateVersion(event.aggregateVersion()) // BookLoan의 버전
+//                .loanVersion(event.aggregateVersion()) // BookLoan의 버전
 //                .causationEventId(event.eventId()) // 직전 내부 이벤트 ID
 //                .build();
 //    }
@@ -414,7 +414,7 @@
 //                .sagaId(saga.getSagaId())
 //                .loanId(saga.getLoanId())
 //                .memberId(saga.getMemberId())
-//                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
+//                .loanVersion(saga.getAggregateVersion()) // BookLoan의 버전
 //                .causationEventId(causationEventId) // 직전 내부 이벤트 ID
 //                .build();
 //    }
@@ -425,7 +425,7 @@
 //                .sagaId(saga.getSagaId())
 //                .loanId(saga.getLoanId())
 //                .bookId(saga.getBookId())
-//                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
+//                .loanVersion(saga.getAggregateVersion()) // BookLoan의 버전
 //                .causationEventId(causationEventId) // 직전 내부 이벤트 ID
 //                .build();
 //    }
@@ -436,7 +436,7 @@
 //                .sagaId(saga.getSagaId())
 //                .loanId(saga.getLoanId())
 //                .memberId(saga.getMemberId())
-//                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
+//                .loanVersion(saga.getAggregateVersion()) // BookLoan의 버전
 //                .causationEventId(causationEventId)                 // 직전 내부 이벤트 ID
 //                .build();
 //    }
@@ -447,7 +447,7 @@
 //                .sagaId(saga.getSagaId())
 //                .loanId(saga.getLoanId())
 //                .bookId(saga.getBookId())
-//                .sourceAggregateVersion(saga.getAggregateVersion()) // BookLoan의 버전
+//                .loanVersion(saga.getAggregateVersion()) // BookLoan의 버전
 //                .causationEventId(causationEventId)                 // 직전 내부 이벤트 ID
 //                .build();
 //    }

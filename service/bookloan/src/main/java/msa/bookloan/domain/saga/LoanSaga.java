@@ -13,8 +13,7 @@ import java.time.LocalDateTime;
 public class LoanSaga extends BaseTimeEntity {
 
     @Id
-    @Column(name = "saga_id",  nullable = false)
-    private String sagaId;  // 스노우플레이크 기반으로 만들고 String으로 변환
+    private Long id;
 
     @Column(name = "loan_id", nullable = false)
     private Long loanId;
@@ -62,12 +61,12 @@ public class LoanSaga extends BaseTimeEntity {
     private LocalDateTime stepDeadlineAt; //
 
     @Builder
-    public LoanSaga(String sagaId, Long loanId, Long memberId, Long bookId,
+    public LoanSaga(Long sagaId, Long loanId, Long memberId, Long bookId,
                     Long aggregateVersion, Long triggerEventId, SagaStatus status,
                     LoanSagaStep currentStep, String lastError, String workerId,
                     LocalDateTime leaseUntil, LocalDateTime stepStartedAt,
                     LocalDateTime stepDeadlineAt) {
-        this.sagaId = sagaId;
+        this.id = sagaId;
         this.loanId = loanId;
         this.memberId = memberId;
         this.bookId = bookId;
@@ -82,7 +81,7 @@ public class LoanSaga extends BaseTimeEntity {
         this.stepDeadlineAt = stepDeadlineAt;
     }
 
-    public static LoanSaga startNew(String sagaId,
+    public static LoanSaga startNew(Long sagaId,
                                     Long loanId,
                                     Long memberId,
                                     Long bookId,

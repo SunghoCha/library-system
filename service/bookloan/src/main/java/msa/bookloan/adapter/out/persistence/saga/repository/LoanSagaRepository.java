@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface LoanSagaRepository extends JpaRepository<LoanSaga, String> {
+public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
@@ -74,7 +74,6 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, String> {
     })
     @Query("select s from LoanSaga s where s.sagaId = :id")
     Optional<LoanSaga> findForUpdate(@Param("id") String sagaId);
-
 
     @Query(value = """
                 SELECT s.saga_id

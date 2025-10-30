@@ -2,8 +2,12 @@ package msa.bookloan.adapter.out.messaging.inbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import msa.bookloan.adapter.out.messaging.inbox.handler.InboxEventHandler;
+import jakarta.validation.ConstraintViolationException;
+import msa.bookloan.adapter.in.messaging.inbox.InboxEventDispatcher;
+import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
+import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
+import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxStatusMarker;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.common.domain.model.InboxSource;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
@@ -48,9 +52,6 @@ public class InboxEventDispatcherIntegrationTest {
     @SpyBean(name = "testEventHandler")
     private InboxEventHandler<TestPayload> testEventHandler;
 
-    @Autowired
-    private InboxStatusMarker inboxStatusMarker;
-
     record TestPayload(String message) {
     }
 
@@ -70,7 +71,7 @@ public class InboxEventDispatcherIntegrationTest {
                 }
 
                 @Override
-                public void handle(TestPayload payload) {
+                public void handle(InboxMessage<TestPayload> message) {
                     // 어차피 Mock으로 대체되므로 내용은 중요하지 않음
                 }
             };
@@ -92,7 +93,7 @@ public class InboxEventDispatcherIntegrationTest {
         TestPayload payload = new TestPayload("Success");
         InboxEventRecord record = createAndSaveTestRecord(eventType, objectMapper.writeValueAsString(payload));
         Long eventId = record.getEventId();
-        doNothing().when(testEventHandler).handle(any(TestPayload.class));
+        doNothing().when(testEventHandler).handle(any());
         // when
         dispatcher.processEvent(eventId, leaseId);
 
@@ -100,7 +101,7 @@ public class InboxEventDispatcherIntegrationTest {
         InboxEventRecord processedRecord = recordRepository.findById(record.getId()).orElseThrow();
 
         assertThat(processedRecord.getInboxEventRecordStatus()).isEqualTo(InboxEventRecordStatus.PROCESSED);
-        verify(testEventHandler).handle(any(TestPayload.class));
+        verify(testEventHandler).handle(any());
     }
 
     @Test
@@ -111,7 +112,7 @@ public class InboxEventDispatcherIntegrationTest {
         TestPayload payload = new TestPayload("Fail");
         InboxEventRecord record = createAndSaveTestRecord(eventType, objectMapper.writeValueAsString(payload));
         Long eventId = record.getEventId();
-        doThrow(new BusinessNotRetryableException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(new BusinessNotRetryableException(errMessage)).when(testEventHandler).handle(any());
 
         // when
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
@@ -132,7 +133,7 @@ public class InboxEventDispatcherIntegrationTest {
         TestPayload payload = new TestPayload("Fail");
         InboxEventRecord record = createAndSaveTestRecord(eventType, objectMapper.writeValueAsString(payload));
         Long eventId = record.getEventId();
-        doThrow(new RuntimeException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(new RuntimeException(errMessage)).when(testEventHandler).handle(any());
 
         // when
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
@@ -196,7 +197,7 @@ public class InboxEventDispatcherIntegrationTest {
 
         // then
         assertThat(recordRepository.findByEventId(wrongEventId)).isEmpty();
-        verify(testEventHandler, never()).handle(any(TestPayload.class));
+        verify(testEventHandler, never()).handle(any());
     }
 
     @Test
@@ -207,7 +208,7 @@ public class InboxEventDispatcherIntegrationTest {
         String payloadJson = objectMapper.writeValueAsString(new TestPayload("olf"));
         InboxEventRecord record = createAndSaveTestRecord(eventType, payloadJson);
         Long eventId = record.getEventId();
-        doThrow(new OptimisticLockingFailureException(errMessage)).when(testEventHandler).handle(any(TestPayload.class));
+        doThrow(new OptimisticLockingFailureException(errMessage)).when(testEventHandler).handle(any());
         
         // then
         assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
@@ -221,7 +222,7 @@ public class InboxEventDispatcherIntegrationTest {
     }
 
     @Test
-    @DisplayName("DLT: Payload가 JSON 'null'일 경우 DLT 마킹 (dispatch null check)")
+    @DisplayName("DLT: Payload가 JSON 'null'일 경우 DLT 마킹)")
     void shouldMarkDeadLetterWhenPayloadIsJsonNull() {
         // given
         String payloadJson = "null";
@@ -229,17 +230,16 @@ public class InboxEventDispatcherIntegrationTest {
         long eventId = record.getEventId();
 
         // when
-        assertThatThrownBy(() -> dispatcher.processEvent(eventId, leaseId))
-                .isInstanceOf(BusinessNotRetryableException.class)
-                .hasMessageContaining("Payload is null: expected=");
+        dispatcher.processEvent(eventId, leaseId);
 
         // then
         InboxEventRecord dltRecord = recordRepository.findByEventId(eventId).orElseThrow();
         assertThat(dltRecord.getInboxEventRecordStatus()).isEqualTo(InboxEventRecordStatus.DEAD_LETTER);
-        assertThat(dltRecord.getLastError()).contains("Payload is null: expected=");
-        verify(testEventHandler, never()).handle(any(TestPayload.class));
+        assertThat(dltRecord.getLastError()).contains("payload must not be null");
+        verify(testEventHandler, never()).handle(any());
 
     }
+
     private InboxEventRecord createAndSaveTestRecord(String eventType, String payloadJson) {
         ConsumerRecordMetadata metadata = ConsumerRecordMetadata.builder()
                 .topic("test-topic")

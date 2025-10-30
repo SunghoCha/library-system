@@ -6,12 +6,13 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.ReserveInventoryCommand;
+import msa.common.events.bookloan.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
+import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -23,6 +24,7 @@ import static msa.bookloan.domain.saga.SagaAbortReason.BLACKLISTED;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class MemberStepService {
 
@@ -33,15 +35,15 @@ public class MemberStepService {
     private final BookLoanRepository bookLoanRepository;
     private final Snowflake snowflake;
 
-    @Transactional
-    public void afterMemberChecked(MemberCheckedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterMemberChecked(MemberCheckedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(MEMBER_CHECKING)) return;
 
-        if (event.payload().blacklisted()) {
+        if (reply.blacklisted()) {
             boolean changed = saga.markFailed(BLACKLISTED);
             if (!changed) return;
 
@@ -49,7 +51,7 @@ public class MemberStepService {
             sagaRepository.saveAndFlush(saga);
 
             bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
-            log.info("[Saga] 블랙리스트로 종료: sagaId={}", event.sagaId());
+            log.info("[Saga] 블랙리스트로 종료: sagaId={}", reply.sagaId());
             return;
         }
 
@@ -57,9 +59,9 @@ public class MemberStepService {
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);
-        ReserveInventoryCommand command = createInventoryCommand(saga, event.eventId());
+        ReserveInventoryCommand command = createInventoryCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
-        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", event.sagaId(), saga.getBookId());
+        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", reply.sagaId(), saga.getBookId());
 
     }
 

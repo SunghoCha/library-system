@@ -5,16 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.ReleaseInventoryCommand;
-import msa.bookloan.application.saga.command.ScheduleShippingCommand;
+import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
+import msa.common.events.bookloan.saga.command.ScheduleShippingCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.point.PointChargeFailedReply;
-import msa.bookloan.application.saga.reply.point.PointChargedReply;
-import msa.bookloan.application.saga.reply.point.PointRefundedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.common.snowflake.Snowflake;
-import org.springframework.retry.annotation.Recover;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -34,10 +34,10 @@ public class PointStepService {
     private final LoanSagaRepository sagaRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
 
-    @Transactional
-    public void afterPointChargeFailed(PointChargeFailedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterPointChargeFailed(PointChargeFailedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(POINT_CHARGING)) return;
@@ -47,17 +47,17 @@ public class PointStepService {
 
         sagaRepository.saveAndFlush(saga);
 
-        ReleaseInventoryCommand command = createReleaseInventoryCommand(saga, event.eventId());
+        ReleaseInventoryCommand command = createReleaseInventoryCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
 
         log.info("[Saga] 포인트 차징 실패: 보상 시작(ReleaseInventory). sagaId={}, reason={}",
-                event.sagaId(), event.payload().reasonCode());
+                reply.sagaId(), reply.reasonCode());
     }
 
-    @Transactional
-    public void afterPointCharged(PointChargedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterPointCharged(PointChargedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(POINT_CHARGING)) return;
@@ -67,17 +67,17 @@ public class PointStepService {
 
         sagaRepository.saveAndFlush(saga);
 
-        ScheduleShippingCommand command = createScheduleShippingCommand(saga, event.eventId());
+        ScheduleShippingCommand command = createScheduleShippingCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
 
         log.info("[Saga] 배송 스케줄링 커맨드 발행 준비: sagaId={}, loanId={}",
-                event.sagaId(), saga.getLoanId());
+                reply.sagaId(), saga.getLoanId());
     }
 
-    @Transactional
-    public void afterPointRefunded(PointRefundedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterPointRefunded(PointRefundedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) return;
         if (!saga.isCompensatingFrom(SHIPPING_SCHEDULING)) return;
@@ -87,11 +87,11 @@ public class PointStepService {
 
         sagaRepository.saveAndFlush(saga);
 
-        ReleaseInventoryCommand command = createReleaseInventoryCommand(saga, event.eventId());
+        ReleaseInventoryCommand command = createReleaseInventoryCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
 
         log.info("[Saga] 보상 진행: 포인트 환불 완료 -> 재고 해제 발행. sagaId={}, loanId={}",
-                event.sagaId(), saga.getLoanId());
+                reply.sagaId(), saga.getLoanId());
     }
 
     private ScheduleShippingCommand createScheduleShippingCommand(LoanSaga saga, Long causationEventId) {

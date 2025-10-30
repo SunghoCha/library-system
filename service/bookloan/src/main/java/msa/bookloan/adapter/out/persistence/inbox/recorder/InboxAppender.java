@@ -8,8 +8,8 @@ import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRep
 import msa.bookloan.application.event.SagaReplyEnvelope;
 import msa.common.domain.model.InboxSource;
 import msa.common.events.EventTypeV1;
+import msa.common.events.MessageEnvelope;
 import msa.common.events.bookcatalog.BookCatalogChangedPayload;
-import msa.common.events.inbox.InboxRecordableEvent;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -35,19 +35,23 @@ public class InboxAppender {
     private final ObjectMapper objectMapper;
     private final Snowflake snowflake;
 
-    public <T extends InboxRecordableEvent> boolean upsertRecord(ConsumerRecord<String, T> record, InboxSource source) {
-
-        T payload = record.value();
-        long eventId = toLong(payload.getEventId());
-
-        final String payloadJson = toJson(record, payload, eventId);
+    public boolean upsertRecord(ConsumerRecord<String, MessageEnvelope> record, InboxSource source) {
+        MessageEnvelope envelope = record.value();
+        if (envelope.payload() == null) {
+            throw new IllegalStateException("Inbox serialize fail: payload is null");
+        }
+        long eventId = toLong(envelope.eventId());
+        long aggregateId = toLong(envelope.aggregateId());
+        Long aggregateVersion = envelope.aggregateVersion(); // 사가는 null 가능
+        String eventType = envelope.eventType();
+        String payloadJson = serializePayload(record, envelope);
 
         int affected = eventRecordRepository.upsertInbox(
                 snowflake.nextId(),
                 eventId,
-                toLong(payload.getAggregateId()),
-                payload.getAggregateVersion(),
-                payload.getEventType(),
+                aggregateId,
+                aggregateVersion,
+                eventType,
                 payloadJson,
                 source.name(),
                 record.topic(),
@@ -57,7 +61,7 @@ public class InboxAppender {
 
         boolean isNew = (affected == 1);
         log.debug("Inbox UPSERT: affected={}, isNew={}, eventId={} type={} topic={}",
-                affected, isNew, eventId, payload.getEventType(), record.topic());
+                affected, isNew, eventId, envelope.eventType(), record.topic());
 
         return isNew;
     }
@@ -91,32 +95,14 @@ public class InboxAppender {
         }
     }
 
-    private String toJson(ConsumerRecord<String, ?> record, Object payload, long eventId) {
+    private String serializePayload(ConsumerRecord<String, ?> record, MessageEnvelope envelope) {
         try {
-            return objectMapper.writeValueAsString(payload);
+            return objectMapper.writeValueAsString(envelope.payload());
         } catch (JsonProcessingException e) {
             log.info("Inbox serialize fail: eventId={} topic={} partition={} offset={} error={}",
-                    eventId, record.topic(), record.partition(), record.offset(), e.getMessage());
+                    envelope.eventId(), record.topic(), record.partition(), record.offset(), e.getMessage());
             throw new IllegalStateException("Inbox serialize fail", e);
         }
-    }
-
-    @Deprecated
-    private Long markAsProcessed(Long eventId) {
-        logStatusUpdate(eventId, PROCESSED);
-        return eventRecordRepository.updateStatusIfPending(eventId, PROCESSED, List.of(NEW, FAILED));
-    }
-
-    @Deprecated
-    private Long markAsFailed(Long eventId) {
-        logStatusUpdate(eventId, FAILED);
-        return eventRecordRepository.updateStatusIfPending(eventId, FAILED, List.of(NEW, FAILED));
-    }
-
-    @Deprecated
-    private Long markAsDeadLetter(Long eventId) {
-        logStatusUpdate(eventId, DEAD_LETTER);
-        return eventRecordRepository.updateStatusIfPending(eventId, DEAD_LETTER, List.of(NEW, FAILED));
     }
 
     @Deprecated
@@ -200,9 +186,6 @@ public class InboxAppender {
         return Long.parseLong(s.trim());
     }
 
-    private static void logStatusUpdate(Long eventId, InboxEventRecordStatus status) {
-        log.debug("EventRecordStatus updated [eventId={}, EventRecordStatus={}]",
-                eventId, status);
-    }
+
 
 }

@@ -6,15 +6,16 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.bookloan.application.saga.command.ChargePointCommand;
+import msa.common.events.bookloan.saga.command.ChargePointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.bookloan.application.saga.reply.inventory.InventoryReleasedReply;
-import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedReply;
-import msa.bookloan.application.saga.reply.inventory.InventoryReservedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReserveFailedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -35,10 +36,10 @@ public class InventoryStepService {
     private final BookLoanRepository bookLoanRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
 
-    @Transactional
-    public void afterInventoryReserved(InventoryReservedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterInventoryReserved(InventoryReservedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) {
             log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
@@ -51,18 +52,18 @@ public class InventoryStepService {
 
         sagaRepository.saveAndFlush(saga);
 
-        ChargePointCommand command = createChargePointCommand(saga, event.eventId());
+        ChargePointCommand command = createChargePointCommand(saga, reply.eventId());
         commandOutboxRecorder.save(command);
 
         log.info("[Saga] 포인트 차징 커맨드 발행 준비: sagaId={}, memberId={}",
-                event.sagaId(), saga.getMemberId());
+                reply.sagaId(), saga.getMemberId());
 
     }
 
-    @Transactional
-    public void afterInventoryReserveFailed(InventoryReserveFailedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterInventoryReserveFailed(InventoryReserveFailedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) {
             log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
@@ -78,13 +79,13 @@ public class InventoryStepService {
         bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
 
         log.info("[Saga] 재고 예약 실패 처리 완료: sagaId={}, loanId={}, causeEventId={}, reason={}",
-                event.sagaId(), saga.getLoanId(), event.eventId(), event.payload().reasonCode());
+                reply.sagaId(), saga.getLoanId(), reply.eventId(), reply.reasonCode());
     }
 
-    @Transactional
-    public void afterInventoryReleased(InventoryReleasedReply event) {
-        LoanSaga saga = sagaRepository.findById(event.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(event.sagaId()));
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterInventoryReleased(InventoryReleasedReply reply) {
+        LoanSaga saga = sagaRepository.findById(reply.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
 
         if (saga.isTerminal()) {
             log.debug("[Saga] 종료된 사가로 처리 건너뜀: sagaId={}, status={}", saga.getSagaId(), saga.getStatus());
@@ -98,7 +99,7 @@ public class InventoryStepService {
         sagaRepository.saveAndFlush(saga);
         bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
         log.info("[Saga] 보상 종료: 재고 해제 완료 → FAILED 확정, sagaId={}, loanId={}",
-                event.sagaId(), saga.getLoanId());
+                reply.sagaId(), saga.getLoanId());
     }
 
     private ChargePointCommand createChargePointCommand(LoanSaga saga, Long causationEventId) {

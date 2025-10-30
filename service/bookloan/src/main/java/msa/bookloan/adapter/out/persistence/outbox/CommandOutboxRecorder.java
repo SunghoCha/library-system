@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookloan.application.saga.command.SagaCommand;
+import msa.common.events.bookloan.saga.command.SagaCommand;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;

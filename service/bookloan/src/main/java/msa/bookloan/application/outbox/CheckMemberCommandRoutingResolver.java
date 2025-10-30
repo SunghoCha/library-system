@@ -1,7 +1,7 @@
 package msa.bookloan.application.outbox;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.application.saga.command.CheckMemberCommand;
+import msa.common.events.bookloan.saga.command.CheckMemberCommand;
 import msa.bookloan.infra.config.properties.KafkaProps;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;

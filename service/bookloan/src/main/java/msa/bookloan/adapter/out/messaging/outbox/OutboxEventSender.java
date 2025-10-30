@@ -1,8 +1,12 @@
 package msa.bookloan.adapter.out.messaging.outbox;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.common.events.MessageEnvelope;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -16,6 +20,7 @@ import java.time.LocalDateTime;
 @ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true")
 public class OutboxEventSender {
 
+    private final ObjectMapper objectMapper;
     private final OutboxRelayProcessor outboxRelayProcessor;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
@@ -33,6 +38,18 @@ public class OutboxEventSender {
                     record.getEventId(), workerId, claimedAt);
             return;
         }
+
+        JsonNode payloadNode  = toJsonNode(record.getPayload());
+
+        MessageEnvelope envelope = new MessageEnvelope(
+                String.valueOf(record.getEventId()),
+                record.getAggregateId(),
+                record.getAggregateVersion(),
+                record.getEventType(),
+                payloadNode
+        );
+
+        String json = toJson(envelope);
 
         sendAsync(record, workerId, claimedAt);
     }
@@ -64,6 +81,22 @@ public class OutboxEventSender {
                     eventId, workerId, claimedAt, e);
         }
 
+    }
+
+    private JsonNode toJsonNode(String payloadJson) {
+        try {
+            return objectMapper.readTree(payloadJson);   // ← 여기서 String → JsonNode
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Outbox payload is not valid JSON. event cannot be wrapped", e);
+        }
+    }
+
+    private String toJson(MessageEnvelope envelope) {
+        try {
+            return objectMapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize envelope", e);
+        }
     }
 
 }

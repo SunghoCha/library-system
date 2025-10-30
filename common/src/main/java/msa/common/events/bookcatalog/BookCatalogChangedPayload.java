@@ -16,7 +16,7 @@ public record BookCatalogChangedPayload(
         String eventId,
 
         @NotBlank
-        String eventType,                          // CREATED/UPDATED/DELETED 등 문자열
+        String eventType,
 
         @NotBlank
         @Pattern(regexp = "^[0-9]+$")

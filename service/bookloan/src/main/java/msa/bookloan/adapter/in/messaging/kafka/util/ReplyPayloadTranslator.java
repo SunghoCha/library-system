@@ -1,126 +1,126 @@
-package msa.bookloan.adapter.in.messaging.kafka.util;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import msa.bookloan.application.event.ReplyType;
-import msa.bookloan.application.event.SagaReplyEnvelope;
-import msa.bookloan.application.saga.reply.SagaReplyEvent;
-import msa.bookloan.application.saga.reply.inventory.*;
-import msa.bookloan.application.saga.reply.member.MemberCheckedReply;
-import msa.bookloan.application.saga.reply.member.MemberCheckedPayload;
-import msa.bookloan.application.saga.reply.point.*;
-import msa.bookloan.application.saga.reply.shipping.*;
-import org.springframework.stereotype.Component;
-
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.function.Function;
-
-@Component
-public class ReplyPayloadTranslator {
-
-    private final ObjectMapper objectMapper;
-
-    private final Map<ReplyType, Function<SagaReplyEnvelope, SagaReplyEvent>> translators;
-
-    public ReplyPayloadTranslator(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-        EnumMap<ReplyType, Function<SagaReplyEnvelope, SagaReplyEvent>> map = new EnumMap<>(ReplyType.class);
-
-        // MemberChecked
-        map.put(ReplyType.MemberChecked,
-                createTranslator(MemberCheckedPayload.class, MemberCheckedReply::new));
-
-        // InventoryReserved
-        map.put(ReplyType.InventoryReserved,
-                createTranslator(InventoryReservedPayload.class, InventoryReservedReply::new));
-
-        // InventoryReserveFailed
-        map.put(ReplyType.InventoryReserveFailed,
-                createTranslator(InventoryReserveFailedPayload.class, InventoryReserveFailedReply::new));
-
-        // PointCharged
-        map.put(ReplyType.PointCharged,
-                createTranslator(PointChargedPayload.class, PointChargedReply::new));
-
-        // PointChargeFailed
-        map.put(ReplyType.PointChargeFailed,
-                createTranslator(PointChargeFailedPayload.class, PointChargeFailedReply::new));
-
-        // ShippingScheduled
-        map.put(ReplyType.ShippingScheduled,
-                createTranslator(ShippingScheduledPayload.class, ShippingScheduledReply::new));
-
-        // ShippingScheduleFailed
-        map.put(ReplyType.ShippingScheduleFailed,
-                createTranslator(ShippingScheduleFailedPayload.class, ShippingScheduleFailedReply::new));
-
-        // PointRefunded
-        map.put(ReplyType.PointRefunded,
-                createTranslator(PointRefundedPayload.class, PointRefundedReply::new));
-
-        // InventoryReleased
-        map.put(ReplyType.InventoryReleased,
-                createTranslator(InventoryReleasedPayload.class, InventoryReleasedReply::new));
-
-        map.put(ReplyType.ShippingAccepted,
-                createTranslator(ShippingAcceptedPayload.class, ShippingAcceptedReply::new));
-
-        translators = Collections.unmodifiableMap(map);
-
-    }
-
-    public SagaReplyEvent toInternalEvent(SagaReplyEnvelope envelope) {
-        ReplyType type = ReplyType.from(envelope.replyType());
-        if (type == null) throw new IllegalArgumentException("Null/unknown replyType: " + envelope.replyType());
-
-        Function<SagaReplyEnvelope, SagaReplyEvent> function = translators.get(type);
-        if (function == null) throw new IllegalArgumentException("Unknown reply type: " + type);
-
-        return function.apply(envelope);
-    }
-
-    private <P> P read(SagaReplyEnvelope envelope, Class<P> type) {
-        if (envelope.payload() == null) {
-            throw new IllegalStateException("Reply payload is null for type=" + type);
-        }
-
-        try {
-            return objectMapper.convertValue(envelope.payload(), type);
-        } catch (IllegalArgumentException ex) {
-            // dlq 필요할수도
-            throw new IllegalStateException("Payload mapping failed to " + type.getSimpleName()
-                    + ": " + ex.getMessage(), ex);
-        }
-    }
-
-    private <P, R extends SagaReplyEvent> Function<SagaReplyEnvelope, R> createTranslator(
-            Class<P> payloadType,
-            EventFactory<P, R> eventFactory) {
-
-        return e -> eventFactory.create(
-                toLong(e.eventId()),
-                e.sagaId(),
-                toLongOrNull(e.causationCommandId()),
-                e.sourceAggregateVersion(),
-                read(e, payloadType)
-        );
-    }
-
-    private static Long toLong(String s) {
-        try {
-            return Long.parseLong(s);
-        } catch (NumberFormatException ex) {
-            throw new IllegalStateException("Invalid eventId (not a number): " + s, ex);
-        }
-    }
-
-    private static Long toLongOrNull(String s) {
-        if (s == null || s.isBlank()) return null;
-        try {
-            return Long.parseLong(s);
-        } catch (NumberFormatException ignore) {
-            return null;
-        }
-    }
-}
+//package msa.bookloan.adapter.in.messaging.kafka.util;
+//
+//import com.fasterxml.jackson.databind.ObjectMapper;
+//import msa.bookloan.application.event.ReplyType;
+//import msa.bookloan.application.event.SagaReplyEnvelope;
+//import msa.common.events.bookloan.saga.reply.SagaReplyEvent;
+//import msa.common.events.bookloan.saga.reply.inventory.*;
+//import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
+//import msa.common.events.bookloan.saga.reply.member.MemberCheckedPayload;
+//import msa.common.events.bookloan.saga.reply.point.*;
+//import msa.common.events.bookloan.saga.reply.shipping.*;
+//import org.springframework.stereotype.Component;
+//
+//import java.util.Collections;
+//import java.util.EnumMap;
+//import java.util.Map;
+//import java.util.function.Function;
+//
+//@Component
+//public class ReplyPayloadTranslator {
+//
+//    private final ObjectMapper objectMapper;
+//
+//    private final Map<ReplyType, Function<SagaReplyEnvelope, SagaReplyEvent>> translators;
+//
+//    public ReplyPayloadTranslator(ObjectMapper objectMapper) {
+//        this.objectMapper = objectMapper;
+//        EnumMap<ReplyType, Function<SagaReplyEnvelope, SagaReplyEvent>> map = new EnumMap<>(ReplyType.class);
+//
+//        // MemberChecked
+//        map.put(ReplyType.MemberChecked,
+//                createTranslator(MemberCheckedPayload.class, MemberCheckedReply::new));
+//
+//        // InventoryReserved
+//        map.put(ReplyType.InventoryReserved,
+//                createTranslator(InventoryReservedPayload.class, InventoryReservedReply::new));
+//
+//        // InventoryReserveFailed
+//        map.put(ReplyType.InventoryReserveFailed,
+//                createTranslator(InventoryReserveFailedPayload.class, InventoryReserveFailedReply::new));
+//
+//        // PointCharged
+//        map.put(ReplyType.PointCharged,
+//                createTranslator(PointChargedPayload.class, PointChargedReply::new));
+//
+//        // PointChargeFailed
+//        map.put(ReplyType.PointChargeFailed,
+//                createTranslator(PointChargeFailedPayload.class, PointChargeFailedReply::new));
+//
+//        // ShippingScheduled
+//        map.put(ReplyType.ShippingScheduled,
+//                createTranslator(ShippingScheduledPayload.class, ShippingScheduledReply::new));
+//
+//        // ShippingScheduleFailed
+//        map.put(ReplyType.ShippingScheduleFailed,
+//                createTranslator(ShippingScheduleFailedPayload.class, ShippingScheduleFailedReply::new));
+//
+//        // PointRefunded
+//        map.put(ReplyType.PointRefunded,
+//                createTranslator(PointRefundedPayload.class, PointRefundedReply::new));
+//
+//        // InventoryReleased
+//        map.put(ReplyType.InventoryReleased,
+//                createTranslator(InventoryReleasedPayload.class, InventoryReleasedReply::new));
+//
+//        map.put(ReplyType.ShippingAccepted,
+//                createTranslator(ShippingAcceptedPayload.class, ShippingAcceptedReply::new));
+//
+//        translators = Collections.unmodifiableMap(map);
+//
+//    }
+//
+//    public SagaReplyEvent toInternalEvent(SagaReplyEnvelope envelope) {
+//        ReplyType type = ReplyType.from(envelope.replyType());
+//        if (type == null) throw new IllegalArgumentException("Null/unknown replyType: " + envelope.replyType());
+//
+//        Function<SagaReplyEnvelope, SagaReplyEvent> function = translators.get(type);
+//        if (function == null) throw new IllegalArgumentException("Unknown reply type: " + type);
+//
+//        return function.apply(envelope);
+//    }
+//
+//    private <P> P read(SagaReplyEnvelope envelope, Class<P> type) {
+//        if (envelope.payload() == null) {
+//            throw new IllegalStateException("Reply payload is null for type=" + type);
+//        }
+//
+//        try {
+//            return objectMapper.convertValue(envelope.payload(), type);
+//        } catch (IllegalArgumentException ex) {
+//            // dlq 필요할수도
+//            throw new IllegalStateException("Payload mapping failed to " + type.getSimpleName()
+//                    + ": " + ex.getMessage(), ex);
+//        }
+//    }
+//
+//    private <P, R extends SagaReplyEvent> Function<SagaReplyEnvelope, R> createTranslator(
+//            Class<P> payloadType,
+//            EventFactory<P, R> eventFactory) {
+//
+//        return e -> eventFactory.create(
+//                toLong(e.eventId()),
+//                e.sagaId(),
+//                toLongOrNull(e.causationCommandId()),
+//                e.sourceAggregateVersion(),
+//                read(e, payloadType)
+//        );
+//    }
+//
+//    private static Long toLong(String s) {
+//        try {
+//            return Long.parseLong(s);
+//        } catch (NumberFormatException ex) {
+//            throw new IllegalStateException("Invalid eventId (not a number): " + s, ex);
+//        }
+//    }
+//
+//    private static Long toLongOrNull(String s) {
+//        if (s == null || s.isBlank()) return null;
+//        try {
+//            return Long.parseLong(s);
+//        } catch (NumberFormatException ignore) {
+//            return null;
+//        }
+//    }
+//}

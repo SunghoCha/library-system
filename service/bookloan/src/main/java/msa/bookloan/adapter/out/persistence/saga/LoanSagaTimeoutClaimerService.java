@@ -23,6 +23,7 @@ public class LoanSagaTimeoutClaimerService {
     private final InstanceIdentity instanceIdentity;
     private final LoanSagaRepository sagaRepository;
 
+    // TODO : 선점할 떄 leaseId 사용하도록 해야하는데 누락된듯?
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<String> claimProcessingTimeouts() {
         String workerId = instanceIdentity.workerId();
