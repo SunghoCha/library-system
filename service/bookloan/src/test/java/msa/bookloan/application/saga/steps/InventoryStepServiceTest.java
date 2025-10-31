@@ -4,6 +4,9 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
 import msa.common.events.bookloan.saga.command.ChargePointCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
@@ -63,7 +66,6 @@ class InventoryStepServiceTest {
     private LoanSaga testSaga;
     private final Clock fixedClock = TestClocks.FIXED_CLOCK;
     private final Long SAGA_ID = 123456L;
-    private final String SAGA_ID_STR = String.valueOf(SAGA_ID);
     private final Long LOAN_ID = 1L;
     private final Long BOOK_ID = 200L;
 
@@ -71,7 +73,6 @@ class InventoryStepServiceTest {
     void setUp() {
         // 각 테스트에서 재사용할 기본 LoanSaga 객체 생성 (PROCESSING)
         testSaga = LoanSaga.startNew(SAGA_ID, LOAN_ID, 100L, 200L, 0L, 99L, now(fixedClock));
-
         lenient().when(clock.instant()).thenReturn(fixedClock.instant());
         lenient().when(clock.getZone()).thenReturn(fixedClock.getZone());
     }
@@ -86,8 +87,10 @@ class InventoryStepServiceTest {
             // given
             // 사가를 INVENTORY_RESERVING 단계로 설정
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock));
-            InventoryReservedReply event = new InventoryReservedReply(1L, SAGA_ID_STR,
-                    2L, 0L, null, null);
+            // 내부 event생성
+            InventoryReservedInternalEvent event = new InventoryReservedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
 
             // Mock 설정
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
@@ -117,8 +120,9 @@ class InventoryStepServiceTest {
         @DisplayName("실패: 사가를 찾을 수 없으면 SagaNotFoundException을 던진다")
         void shouldThrowException_whenSagaNotFound() {
             // given
-            InventoryReservedReply event = new InventoryReservedReply(1L, SAGA_ID_STR,
-                    2L, 0L, null, null);
+            InventoryReservedInternalEvent event = new InventoryReservedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.empty());
 
             // when & then
@@ -127,7 +131,7 @@ class InventoryStepServiceTest {
 
             // 다른 의존성은 호출되지 않았는지 검증
             verify(commandOutboxRecorder, never()).save(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
 
         @Test
@@ -135,8 +139,9 @@ class InventoryStepServiceTest {
         void shouldDoNothing_whenSagaIsInTerminalState() {
             // given
             testSaga.markFailed(SagaAbortReason.UNKNOWN); // FAILED 상태로 설정
-            InventoryReservedReply event = new InventoryReservedReply(1L, SAGA_ID_STR,
-                    2L, 0L, null, null);
+            InventoryReservedInternalEvent event = new InventoryReservedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -153,8 +158,9 @@ class InventoryStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             // INIT 단계에 머물러 있는 상태
-            InventoryReservedReply event = new InventoryReservedReply(1L, SAGA_ID,
-                    2L, 0L, null, null);
+            InventoryReservedInternalEvent event = new InventoryReservedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -175,8 +181,9 @@ class InventoryStepServiceTest {
         void shouldTransitionToFailedAndClearBinding_whenSagaIsValid() {
             // given
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock));
-            InventoryReserveFailedReply event = new InventoryReserveFailedReply(1L, SAGA_ID, 2L,
-                    0L, BOOK_ID, "no stock", "재고 부족");
+            InventoryReserveFailedInternalEvent event = new InventoryReserveFailedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, "no stock", "재고 부족"
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -199,8 +206,9 @@ class InventoryStepServiceTest {
             // given
             // POINT_CHARGING 단계로 미리 넘어간 상태 (경합에서 이겨서 이미 다음 성공흐름으로 진행됨)
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
-            InventoryReserveFailedReply event = new InventoryReserveFailedReply(1L, SAGA_ID, 2L,
-                    0L, BOOK_ID, "no stock", "재고 부족");
+            InventoryReserveFailedInternalEvent event = new InventoryReserveFailedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, "no stock", "재고 부족"
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -208,7 +216,7 @@ class InventoryStepServiceTest {
 
             // then
             verify(sagaRepository, never()).saveAndFlush(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
     }
 
@@ -223,8 +231,9 @@ class InventoryStepServiceTest {
             // 보상 중인 상태로 설정
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(5), now(fixedClock));
-            InventoryReleasedReply event = new InventoryReleasedReply(1L, SAGA_ID,
-                    2L, 0L, null, null);
+            InventoryReleasedInternalEvent event = new InventoryReleasedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -248,8 +257,9 @@ class InventoryStepServiceTest {
             // given
             // 정상 진행(PROCESSING) 상태
             testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
-            InventoryReleasedReply event = new InventoryReleasedReply(1L, SAGA_ID,
-                    2L, 0L, null, null);
+            InventoryReleasedInternalEvent event = new InventoryReleasedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, BOOK_ID, 88L
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -257,7 +267,7 @@ class InventoryStepServiceTest {
 
             // then
             verify(sagaRepository, never()).saveAndFlush(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
     }
 

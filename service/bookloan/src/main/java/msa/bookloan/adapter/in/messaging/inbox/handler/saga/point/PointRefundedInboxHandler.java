@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
 import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.application.saga.LoanRequestSagaOrchestrator;
+import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,6 @@ public class PointRefundedInboxHandler implements InboxEventHandler<PointRefunde
     @Override
     public void handle(InboxMessage<PointRefundedReply> message) {
         PointRefundedReply payload = message.payload();
-        orchestrator.onPointRefunded(payload);
+        orchestrator.onPointRefunded(PointRefundedInternalEvent.from(payload));
     }
 }

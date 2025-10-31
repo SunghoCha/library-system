@@ -17,20 +17,17 @@ import java.util.List;
 public class OutboxClaimerService {
 
     private final InstanceIdentity instanceIdentity;
-    private final OutboxSchedulerProps properties;
+    private final OutboxSchedulerProps props;
     private final OutboxEventRecordRepository outboxRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<OutboxEventRecord> claimEvents() {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime gracePeriodThreshold = now.minusMinutes(properties.graceSeconds());
-        LocalDateTime staleThreshold = now.minusMinutes(properties.staleTimeoutMinutes());
-
+        LocalDateTime leaseUntil = now.plus(props.lease());
         List<Long> ids = outboxRepository.lockClaimableIds(
-                properties.batchSize(),
-                properties.maxRetryCount(),
-                now, gracePeriodThreshold, staleThreshold
-        );
+                props.batchSize(),
+                props.maxRetryCount(),
+                now);
 
         if (ids.isEmpty()) {
             return List.of();
@@ -38,7 +35,7 @@ public class OutboxClaimerService {
 
         String workerId = instanceIdentity.workerId();
 
-        long updated = outboxRepository.markPublishing(ids, workerId, now, properties.leaseSeconds());
+        long updated = outboxRepository.markPublishing(ids, workerId, now, leaseUntil);
         if (updated == 0) {
             return List.of();
         }

@@ -38,9 +38,9 @@ public class LoanSagaTimeoutProcessor {
     private final CommandOutboxRecorder commandOutboxRecorder;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void handleProcessingTimeout(String sagaId) {
-        LoanSaga saga = sagaRepository.findForUpdate(sagaId)
-                .orElseThrow(() -> new SagaNotFoundException(sagaId));
+    public void handleProcessingTimeout(Long sagaId) {
+        LoanSaga saga = sagaRepository.findForUpdate(sagaId) // 비관적 락
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(sagaId)));
 
         LocalDateTime now = now(clock);
 
@@ -55,36 +55,36 @@ public class LoanSagaTimeoutProcessor {
             case INIT, MEMBER_CHECKING, INVENTORY_RESERVING -> {
                 if (saga.markFailed(SagaAbortReason.TIMEOUT)) {
                     sagaRepository.save(saga);
-                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
+                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
                     log.info("[SagaTimeout] PROCESSING 타임아웃 처리: result=FAILED, sagaId={}, step={}, reason={}, at={}",
-                            saga.getSagaId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT, now);
+                            saga.getId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT, now);
                 }
             }
             case POINT_CHARGING -> {
                 if (saga.enterCompensating(compTo, now)) {
                     sagaRepository.save(saga);
                     commandOutboxRecorder.save(ReleaseInventoryCommand.of(
-                            snowflake.nextId(), saga.getSagaId(), saga.getLoanId(), saga.getBookId(), null));
+                            snowflake.nextId(), saga.getId(), saga.getLoanId(), saga.getBookId(), null));
                     log.info("[SagaTimeout] PROCESSING 타임아웃 처리: result=COMPENSATING, sagaId={}, fromStep={}, action=ReleaseInventory, deadline={}",
-                            saga.getSagaId(), LoanSagaStep.POINT_CHARGING, saga.getStepDeadlineAt());
+                            saga.getId(), LoanSagaStep.POINT_CHARGING, saga.getStepDeadlineAt());
                 }
             }
             case SHIPPING_SCHEDULING, SHIPPING_ACCEPTED -> {
                 if (saga.enterCompensating(compTo, now)) {
                     sagaRepository.save(saga);
                     commandOutboxRecorder.save(RefundPointCommand.of(
-                            snowflake.nextId(), saga.getSagaId(), saga.getLoanId(), saga.getMemberId(), null));
+                            snowflake.nextId(), saga.getId(), saga.getLoanId(), saga.getMemberId(), null));
                     log.info("[SagaTimeout] PROCESSING 타임아웃 처리: result=COMPENSATING, sagaId={}, fromStep={}, action=RefundPoint, deadline={}",
-                            saga.getSagaId(), saga.getCurrentStep(), saga.getStepDeadlineAt());
+                            saga.getId(), saga.getCurrentStep(), saga.getStepDeadlineAt());
                 }
             }
             default -> {
                 // 방어적 기본값: 실패 고정
                 if (saga.markFailed(SagaAbortReason.TIMEOUT)) {
                     sagaRepository.save(saga);
-                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
+                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
                     log.info("[SagaTimeout] PROCESSING 타임아웃 처리: result=FAILED(default), sagaId={}, step={}, reason={}",
-                            saga.getSagaId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT);
+                            saga.getId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT);
                 }
             }
         }
@@ -92,9 +92,9 @@ public class LoanSagaTimeoutProcessor {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void handleCompensatingTimeout(String sagaId) {
+    public void handleCompensatingTimeout(Long sagaId) {
         LoanSaga saga = sagaRepository.findForUpdate(sagaId)
-                .orElseThrow(() -> new SagaNotFoundException(sagaId));
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(sagaId)));
 
         LocalDateTime now = now(clock);
         if (saga.getStatus() != SagaStatus.COMPENSATING) return;
@@ -107,9 +107,9 @@ public class LoanSagaTimeoutProcessor {
             saga.moveCompensatingTo(LoanSagaStep.POINT_CHARGING, compTo, now);
             sagaRepository.save(saga);
             commandOutboxRecorder.save(ReleaseInventoryCommand.of(
-                    snowflake.nextId(), saga.getSagaId(), saga.getLoanId(), saga.getBookId(), null));
+                    snowflake.nextId(), saga.getId(), saga.getLoanId(), saga.getBookId(), null));
             log.info("[SagaTimeout] COMPENSATING 재시도: sagaId={}, fromStep={}, action=ReleaseInventory, deadline={}",
-                    saga.getSagaId(), LoanSagaStep.POINT_CHARGING, saga.getStepDeadlineAt());
+                    saga.getId(), LoanSagaStep.POINT_CHARGING, saga.getStepDeadlineAt());
             return;
         }
 
@@ -118,18 +118,18 @@ public class LoanSagaTimeoutProcessor {
             saga.moveCompensatingTo(saga.getCurrentStep(), compTo, now);
             sagaRepository.save(saga);
             commandOutboxRecorder.save(RefundPointCommand.of(
-                    snowflake.nextId(), saga.getSagaId(), saga.getLoanId(), saga.getMemberId(), null));
+                    snowflake.nextId(), saga.getId(), saga.getLoanId(), saga.getMemberId(), null));
             log.info("[SagaTimeout] COMPENSATING 재시도: sagaId={}, fromStep={}, action=RefundPoint, deadline={}",
-                    saga.getSagaId(), saga.getCurrentStep(), saga.getStepDeadlineAt());
+                    saga.getId(), saga.getCurrentStep(), saga.getStepDeadlineAt());
             return;
         }
 
         // 정의되지 않은 보상 스텝이면 실패 고정(운영 점검 트리거)
         saga.markFailed(SagaAbortReason.TIMEOUT);
         sagaRepository.save(saga);
-        bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
+        bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
         log.info("[SagaTimeout] COMPENSATING 타임아웃 처리: result=FAILED(default), sagaId={}, step={}, reason={}",
-                saga.getSagaId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT);
+                saga.getId(), saga.getCurrentStep(), SagaAbortReason.TIMEOUT);
 
     }
 }

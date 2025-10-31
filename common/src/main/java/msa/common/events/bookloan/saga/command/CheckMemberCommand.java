@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record CheckMemberCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long memberId,
         Long causationEventId,        // (LoanRequestedInternalEvent.eventId) 이 커맨드를 유발한 직전 이벤트의 id
@@ -12,7 +12,7 @@ public record CheckMemberCommand(
 
     public static CheckMemberCommand of(
             Long commandId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long memberId,
             Long causationEventId

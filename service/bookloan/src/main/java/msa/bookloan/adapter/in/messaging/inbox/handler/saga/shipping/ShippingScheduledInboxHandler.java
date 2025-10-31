@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
 import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.application.saga.LoanRequestSagaOrchestrator;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,6 @@ public class ShippingScheduledInboxHandler implements InboxEventHandler<Shipping
     @Override
     public void handle(InboxMessage<ShippingScheduledReply> message) {
         ShippingScheduledReply payload = message.payload();
-        orchestrator.onShippingScheduled(payload);
+        orchestrator.onShippingScheduled(ShippingScheduledInternalEvent.from(payload));
     }
 }

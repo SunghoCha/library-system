@@ -6,20 +6,17 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
-import msa.common.events.bookloan.saga.command.CheckMemberCommand;
-import msa.common.events.bookloan.saga.command.RefundPointCommand;
-import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReserveFailedReply;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
-import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
-import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
-import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
-import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingAcceptedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduleFailedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.bookloan.application.saga.steps.InventoryStepService;
 import msa.bookloan.application.saga.steps.MemberStepService;
 import msa.bookloan.application.saga.steps.PointStepService;
@@ -27,6 +24,9 @@ import msa.bookloan.application.saga.steps.ShippingStepService;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.common.events.bookloan.saga.command.CheckMemberCommand;
+import msa.common.events.bookloan.saga.command.RefundPointCommand;
+import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
 import msa.common.snowflake.Snowflake;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -96,95 +96,95 @@ public class LoanRequestSagaOrchestrator {
     }
 
     // 멤버 확인 리플라이 수신 - 통과 시 재고 예약 커맨드 발행
-    public void onMemberChecked(MemberCheckedReply reply) {
+    public void onMemberChecked(MemberCheckedInternalEvent event) {
         try {
-            memberStepService.afterMemberChecked(reply);
+            memberStepService.afterMemberChecked(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 멤버 확인 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
-                    reply.sagaId(), ex.getMessage());
+                    event.sagaId(), ex.getMessage());
         }
     }
 
     // 재고 예약 성공 리플라이 수신 - 포인트 차징 단계로 전이
-    public void onInventoryReserved(InventoryReservedReply reply) {
+    public void onInventoryReserved(InventoryReservedInternalEvent event) {
         try {
-            inventoryStepService.afterInventoryReserved(reply);
+            inventoryStepService.afterInventoryReserved(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 재고 예약 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
-                    reply.sagaId(), ex.getMessage());
+                    event.sagaId(), ex.getMessage());
         }
     }
 
     // 재고 예약 실패 리플라이 수신 - 보상/실패 전이
-    public void onInventoryReserveFailed(InventoryReserveFailedReply reply) {
+    public void onInventoryReserveFailed(InventoryReserveFailedInternalEvent event) {
         try {
-            inventoryStepService.afterInventoryReserveFailed(reply);
+            inventoryStepService.afterInventoryReserveFailed(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 재고 예약 실패 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
-                    reply.sagaId(), ex.getMessage());
+                    event.sagaId(), ex.getMessage());
         }
     }
 
-    public void onPointCharged(PointChargedReply reply) {
+    public void onPointCharged(PointChargedInternalEvent event) {
         try {
-            pointStepService.afterPointCharged(reply);
+            pointStepService.afterPointCharged(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 포인트 차징 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
-                    reply.sagaId(), ex.getMessage());
+                    event.sagaId(), ex.getMessage());
         }
     }
 
     // 포인트 차징 실패 -> 종료(필요 시 포인트/재고 보상은 다음 단계에서)
-    public void onPointChargeFailed(PointChargeFailedReply reply) {
+    public void onPointChargeFailed(PointChargeFailedInternalEvent event) {
         try {
-            pointStepService.afterPointChargeFailed(reply);
+            pointStepService.afterPointChargeFailed(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 포인트 차징 단계: 중복/경합 드롭. sagaId={}, reason={}",
-                    reply.sagaId(), ex.getMessage());
+                    event.sagaId(), ex.getMessage());
         }
     }
 
-    public void onShippingAccepted(ShippingAcceptedReply reply) {
+    public void onShippingAccepted(ShippingAcceptedInternalEvent event) {
         try {
-            shippingStepService.afterShippingAccepted(reply);
+            shippingStepService.afterShippingAccepted(event);
         } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 배송 ACK 단계: 중복/경합 드롭. sagaId={}, reason={}", reply.sagaId(), ex.getMessage());
+            log.debug("[Saga] 배송 ACK 단계: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
     // 배송 스케줄 성공 -> FINISHED(Pivot 통과)
-    public void onShippingScheduled(ShippingScheduledReply reply) {
+    public void onShippingScheduled(ShippingScheduledInternalEvent event) {
         try {
-            shippingStepService.afterShippingScheduled(reply);
+            shippingStepService.afterShippingScheduled(event);
         } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 배송 스케줄 성공: 중복/경합 드롭. sagaId={}, reason={}", reply.sagaId(), ex.getMessage());
+            log.debug("[Saga] 배송 스케줄 성공: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
     // 배송 스케줄 실패 -> 종료(필요 시 보상 플로우는 별도)
-    public void onShippingScheduleFailed(ShippingScheduleFailedReply reply) {
+    public void onShippingScheduleFailed(ShippingScheduleFailedInternalEvent event) {
         try {
-            shippingStepService.afterShippingScheduleFailed(reply);
+            shippingStepService.afterShippingScheduleFailed(event);
         } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 배송 스케줄 실패: 중복/경합 드롭. sagaId={}, reason={}", reply.sagaId(), ex.getMessage());
+            log.debug("[Saga] 배송 스케줄 실패: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
     // 포인트 환불 성공 -> 인벤토리 해제 커맨드 발행(보상 체인 계속)
-    public void onPointRefunded(PointRefundedReply reply) {
+    public void onPointRefunded(PointRefundedInternalEvent event) {
         try {
-            pointStepService.afterPointRefunded(reply); // 저장안해서 낙관적 락 예외 발생안하는 케이스
+            pointStepService.afterPointRefunded(event); // 저장안해서 낙관적 락 예외 발생안하는 케이스
         } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 포인트 환불 보상 단계: 중복/경합 드롭. sagaId={}, reason={}", reply.sagaId(), ex.getMessage());
+            log.debug("[Saga] 포인트 환불 보상 단계: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
     // 재고 해제 성공 -> 보상 종료(FAILED 확정)
-    public void onInventoryReleased(InventoryReleasedReply reply) {
+    public void onInventoryReleased(InventoryReleasedInternalEvent event) {
         try {
-            inventoryStepService.afterInventoryReleased(reply);
+            inventoryStepService.afterInventoryReleased(event);
         } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 보상 종료 단계 중복/경합 드롭. sagaId={}, reason={}", reply.sagaId(), ex.getMessage());
+            log.debug("[Saga] 보상 종료 단계 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
@@ -243,10 +243,11 @@ public class LoanRequestSagaOrchestrator {
 //        }
 //    }
 
+    // 상태가드 통과하고나서 마킹실패하더라도 true 반환 의미 : 이미 다른 트랜잭션에 의해서 처리되었으므로 true 반환
     @Transactional(propagation = Propagation.MANDATORY)
-    public boolean requestCancel(String sagaId, SagaAbortReason reason, Long causationEventId) {
+    public boolean requestCancel(Long sagaId, SagaAbortReason reason, Long causationEventId) {
         LoanSaga saga = sagaRepository.findForUpdate(sagaId)
-                .orElseThrow(() -> new SagaNotFoundException(sagaId)); // 취소 상태로 업데이트
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(sagaId))); // 취소 상태로 업데이트
 
         // 피벗 이후/터미널 가드
         if (!saga.markCancelRequested(reason)) return false;
@@ -256,31 +257,35 @@ public class LoanRequestSagaOrchestrator {
         switch (saga.getCurrentStep()) {
             case INIT, MEMBER_CHECKING, INVENTORY_RESERVING: {
                 // 외부자원 아직 확정 전 -> 즉시 취소
-                saga.markCancelled(reason);
-                sagaRepository.save(saga);
-                bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                if (saga.markCancelled(reason)) {
+                    sagaRepository.save(saga);
+                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                }
                 return true;
             }
             case POINT_CHARGING: {
                 // 재고가 잡혀있을 수 있음 -> 보상 전이 + ReleaseInventory
-                saga.enterCompensating(to, LocalDateTime.now(clock));
-                sagaRepository.save(saga);
-                commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
+                if (saga.enterCompensating(to, LocalDateTime.now(clock))) {
+                    sagaRepository.save(saga);
+                    commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
+                }
 
                 return true;
             }
             case SHIPPING_SCHEDULING, SHIPPING_ACCEPTED: {
                 // 포인트/재고가 확정됐을 수 있음 -> 보상 전이 + RefundPoint
-                saga.enterCompensating(to, LocalDateTime.now(clock));
-                sagaRepository.save(saga);
-                commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
+                if (saga.enterCompensating(to, LocalDateTime.now(clock))) {
+                    sagaRepository.save(saga);
+                    commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
+                }
                 return true;
             }
             default: {
                 // 방어적 코드 (보상트랜잭션 필요한건데 이게 수행되면 오히려 위험할지도? 예외던지는게 나은가)
-                saga.markCancelled(reason);
-                sagaRepository.save(saga);
-                bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                if (saga.markCancelled(reason)) {
+                    sagaRepository.save(saga);
+                    bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                }
                 return true;
             }
         }
@@ -310,7 +315,7 @@ public class LoanRequestSagaOrchestrator {
     private RefundPointCommand createRefundPointCommand(LoanSaga saga, Long causationEventId) {
         return RefundPointCommand.of(
                 snowflake.nextId(),
-                saga.getSagaId(),
+                saga.getId(),
                 saga.getLoanId(),
                 saga.getMemberId(),
                 causationEventId

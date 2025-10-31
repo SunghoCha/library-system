@@ -19,11 +19,11 @@ public class LoanSagaTimeoutScheduler {
 
     @Scheduled(fixedDelayString = "${saga.timeout.processing.fixed-delay-ms:3000}")
     public void handleProcessingTimeouts() {
-        List<String> ids = timeoutClaimerService.claimProcessingTimeouts();
+        List<Long> ids = timeoutClaimerService.claimProcessingTimeouts();
         if (ids.isEmpty()) return;
 
         log.info("[SagaTimeout] PROCESSING 처리 시작: count={}", ids.size());
-        for (String sagaId : ids) {
+        for (Long sagaId : ids) {
             try {
                 timeoutProcessor.handleProcessingTimeout(sagaId);
             } catch (Exception e) {
@@ -34,11 +34,11 @@ public class LoanSagaTimeoutScheduler {
 
     @Scheduled(fixedDelayString = "${saga.timeout.compensating.fixed-delay-ms:5000}")
     public void handleCompensatingTimeouts() {
-        List<String> ids = timeoutClaimerService.claimCompensatingTimeouts();
+        List<Long> ids = timeoutClaimerService.claimCompensatingTimeouts();
         if (ids.isEmpty()) return;
 
         log.info("[SagaTimeout] COMPENSATING 처리 시작: count={}", ids.size());
-        for (String sagaId : ids) {
+        for (Long sagaId : ids) {
             try {
                 timeoutProcessor.handleCompensatingTimeout(sagaId);
             } catch (Exception e) {

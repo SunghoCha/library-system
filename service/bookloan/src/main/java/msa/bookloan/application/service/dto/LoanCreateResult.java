@@ -4,7 +4,7 @@ import msa.bookloan.domain.model.LoanProcessStatus;
 
 public record LoanCreateResult(
         Long loanId,
-        String sagaId,
+        Long sagaId,
         LoanProcessStatus status
 ) {
 }

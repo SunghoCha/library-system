@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record ScheduleShippingCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long bookId,
         Long causationEventId,        // 직전 내부 이벤트의 eventId (PointChargedInternalEvent.eventId)
@@ -12,7 +12,7 @@ public record ScheduleShippingCommand(
 
     public static ScheduleShippingCommand of(
             Long cmdId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long bookId,
             Long causationId) {

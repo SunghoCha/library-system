@@ -1,17 +1,13 @@
 package msa.bookloan.application.projection;
 
-import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+import msa.bookloan.adapter.out.persistence.projection.repository.BookCatalogProjectionRepository;
 import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
-import msa.bookloan.application.event.BookCatalogChangedEvent;
-import msa.bookloan.application.event.CatalogEventType;
 import msa.common.events.bookcatalog.BookCatalogDeletedPayload;
 import msa.common.events.bookcatalog.BookCatalogSnapshotPayload;
 import msa.common.exception.BusinessNotRetryableException;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;

@@ -2,11 +2,13 @@ package msa.common.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 @ConfigurationProperties(prefix = "app.outbox.scheduler")
 public record OutboxSchedulerProps(
         int batchSize,
         int maxRetryCount,
-        java.time.Duration grace,
-        java.time.Duration staleTimeout,
-        java.time.Duration lease         // 선점 임대시간(lease)
+        Duration grace,
+        Duration staleTimeout,
+        Duration lease         // 선점 임대시간(lease)
 ) {}

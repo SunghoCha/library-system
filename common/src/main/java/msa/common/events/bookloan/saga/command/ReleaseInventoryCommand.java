@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record ReleaseInventoryCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long bookId,
         Long causationEventId, // 직전 내부 이벤트 ID
@@ -12,7 +12,7 @@ public record ReleaseInventoryCommand(
 
     public static ReleaseInventoryCommand of(
             Long commandId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long bookId,
             Long causationEventId

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,17 +28,15 @@ public class OutboxClaimerService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<OutboxEventRecord> claimEvents() {
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime graceAt = now.minus(props.grace());
-        LocalDateTime staleAt = now.minus(props.staleTimeout());
         LocalDateTime leaseUntil = now.plus(props.lease());
 
-        log.debug("[Outbox][CLAIM] 후보 스캔: batch={}, maxRetry={}, now={}, grace={}, stale={}",
-                props.batchSize(), props.maxRetryCount(), now, graceAt, staleAt);
+        log.debug("[Outbox][CLAIM] 후보 스캔: batch={}, maxRetry={}, now={}",
+                props.batchSize(), props.maxRetryCount(), now);
 
         List<Long> ids = outboxRepository.lockClaimableIds(
                 props.batchSize(),
                 props.maxRetryCount(),
-                now, graceAt, staleAt
+                now
         );
 
         if (ids.isEmpty()) {
@@ -46,7 +45,8 @@ public class OutboxClaimerService {
         }
 
         String workerId = instanceIdentity.workerId();
-        long updated = outboxRepository.markPublishing(ids, workerId, now, leaseUntil);
+        String leaseId = UUID.randomUUID().toString();
+        long updated = outboxRepository.markPublishing(ids, leaseId, workerId, leaseUntil);
 
         if (updated == 0) {
             log.debug("[Outbox][CLAIM] 선점 실패(경합): requestCount={}, workerId={}", ids.size(), workerId);

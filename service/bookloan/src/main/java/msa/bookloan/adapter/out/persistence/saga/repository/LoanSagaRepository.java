@@ -17,7 +17,7 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
             INSERT INTO loan_saga (
                saga_id, loan_id, member_id, book_id,
                aggregate_version, trigger_event_id,
-               status, current_step, row_version,
+               status, current_step, version,
                step_started_at, step_deadline_at
             )
             VALUES (:sagaId, :loanId, :memberId, :bookId,
@@ -26,7 +26,7 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
                     NOW(6), :deadline)
             ON DUPLICATE KEY UPDATE saga_id = saga_id
             """, nativeQuery = true)
-    int insertIfAbsentRaw(@Param("sagaId") String sagaId,
+    int insertIfAbsentRaw(@Param("sagaId") Long sagaId,
                           @Param("loanId") Long loanId,
                           @Param("memberId") Long memberId,
                           @Param("bookId") Long bookId,
@@ -36,7 +36,7 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
                           @Param("step") String step,
                           @Param("deadline") LocalDateTime deadline);
 
-    default boolean insertIfAbsent(String sagaId,
+    default boolean insertIfAbsent(Long sagaId,
                                    Long loanId,
                                    Long memberId,
                                    Long bookId,
@@ -65,15 +65,15 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
                AND status NOT IN ('COMPLETED','FAILED','CANCELLED','TIMED_OUT','CANCEL_REQUESTED')
                AND current_step <> 'FINISHED'
             """, nativeQuery = true)
-    int requestCancelGate(@Param("id") String sagaId);
+    int requestCancelGate(@Param("id") Long  sagaId);
 
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({
             @QueryHint(name = "jakarta.persistence.lock.timeout", value = "2000")
     })
-    @Query("select s from LoanSaga s where s.sagaId = :id")
-    Optional<LoanSaga> findForUpdate(@Param("id") String sagaId);
+    @Query("select s from LoanSaga s where s.id = :id")
+    Optional<LoanSaga> findForUpdate(@Param("id") Long sagaId);
 
     @Query(value = """
                 SELECT s.saga_id
@@ -86,20 +86,21 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
                  LIMIT :batch
                  FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
-    List<String> lockTimedOutProcessingIds(@Param("now") LocalDateTime now,
-                                           @Param("batch") int batch);
+    List<Long> lockTimedOutProcessingIds(@Param("now") LocalDateTime now, @Param("batch") int batch);
 
 
     @Modifying
     @Query(value = """
                 UPDATE loan_saga
                    SET worker_id   = :workerId,
+                       lease_id = :leaseId,
                        lease_until = :leaseUntil
                  WHERE saga_id IN (:ids)
             """, nativeQuery = true)
     int claimByIds(
-            @Param("ids") List<String> ids,
+            @Param("ids") List<Long> ids,
             @Param("workerId") String workerId,
+            @Param("leaseId") String leaseId,
             @Param("leaseUntil") LocalDateTime leaseUntil);
 
     @Query(value = """
@@ -113,7 +114,6 @@ public interface LoanSagaRepository extends JpaRepository<LoanSaga, Long> {
              LIMIT :batch
              FOR UPDATE SKIP LOCKED
     """, nativeQuery = true)
-    List<String> lockTimedOutCompensatingIds(@Param("now") LocalDateTime now,
-                                             @Param("batch") int batch);
+    List<Long> lockTimedOutCompensatingIds(@Param("now") LocalDateTime now, @Param("batch") int batch);
 
 }

@@ -136,7 +136,6 @@ class OutboxEventRecordRepositoryTest {
         List<OutboxEventRecord> updatedRecords = outboxRepository.findAllById(ids);
         assertThat(updatedRecords).allMatch(r -> r.getOutboxEventRecordStatus() == OutboxEventRecordStatus.PUBLISHING);
         assertThat(updatedRecords).allMatch(r -> r.getWorkerId().equals(workerId));
-        assertThat(updatedRecords).allMatch(r -> r.getPickedAt().isBefore(now.plusSeconds(1)));
         assertThat(updatedRecords).allMatch(r -> r.getLeaseUntil().isAfter(now));
     }
 
@@ -159,7 +158,6 @@ class OutboxEventRecordRepositoryTest {
         OutboxEventRecord updatedRecord = outboxRepository.findById(publishingEvent.getId()).get();
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.PUBLISHED);
         assertThat(updatedRecord.getWorkerId()).isNull();
-        assertThat(updatedRecord.getPickedAt()).isNull();
         assertThat(updatedRecord.getLeaseUntil()).isNull();
     }
 

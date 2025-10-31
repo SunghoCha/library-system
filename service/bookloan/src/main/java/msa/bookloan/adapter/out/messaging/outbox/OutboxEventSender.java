@@ -8,11 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.outbox.dto.OutboxRouting;
+import msa.common.util.IdConverter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -30,33 +29,16 @@ public class OutboxEventSender {
             throw new IllegalStateException("Missing topic for eventId=" + record.getEventId());
         }
 
-        String workerId = record.getWorkerId();
-        LocalDateTime claimedAt = record.getPickedAt();
-
-        if (workerId == null || claimedAt == null) {
-            log.warn("재발행 요청에 펜싱 토큰 없음. 스킵. eventId={}, workerId={}, pickedAt={}",
-                    record.getEventId(), workerId, claimedAt);
+        String leaseId = record.getLeaseId();
+        if (leaseId == null) {
+            log.warn("재발행 요청에 펜싱 토큰 없음. 스킵. eventId={}, leaseId={}", record.getEventId(), leaseId);
             return;
         }
 
-        JsonNode payloadNode  = toJsonNode(record.getPayload());
-
-        MessageEnvelope envelope = new MessageEnvelope(
-                String.valueOf(record.getEventId()),
-                record.getAggregateId(),
-                record.getAggregateVersion(),
-                record.getEventType(),
-                payloadNode
-        );
-
-        String json = toJson(envelope);
-
-        sendAsync(record, workerId, claimedAt);
+        sendAsync(record, convertToEnvelopeJson(record), leaseId);
     }
 
-    private void sendAsync(OutboxEventRecord record,
-                           String workerId,
-                           LocalDateTime claimedAt) {
+    private void sendAsync(OutboxEventRecord record, String envelopeJson, String leaseId) {
 
         String topic = record.getRouting().getTopic();
         String key = record.getRouting().getPartitionKey();
@@ -64,7 +46,7 @@ public class OutboxEventSender {
         log.info("카프카 발행 시도. topic={}, key={}, eventId={}", topic, key, eventId);
 
         try {
-            kafkaTemplate.send(topic, key, record.getPayload())
+            kafkaTemplate.send(topic, key, envelopeJson)
                     .whenComplete((result, e) -> {
                         if (e == null && result != null && result.getRecordMetadata() != null) {
                             log.info("카프카 ACK topic={}, partition={}, offset={}, eventId={}",
@@ -74,18 +56,30 @@ public class OutboxEventSender {
                                     eventId);
                         }
                         outboxRelayProcessor.updateStatusAfterProcessing(
-                                eventId, workerId, claimedAt, e);
+                                eventId, leaseId, e);
                     });
         } catch (Exception e) {
             outboxRelayProcessor.updateStatusAfterProcessing(
-                    eventId, workerId, claimedAt, e);
+                    eventId, leaseId, e);
         }
 
     }
 
+    private String convertToEnvelopeJson(OutboxEventRecord record) {
+        JsonNode payloadNode = toJsonNode(record.getPayload());
+        MessageEnvelope envelope = new MessageEnvelope(
+                IdConverter.toStringOrNull(record.getEventId()),
+                IdConverter.toStringOrNull(record.getAggregateId()),
+                record.getAggregateVersion(),
+                record.getEventType(),
+                payloadNode
+        );
+        return toJson(envelope);
+    }
+
     private JsonNode toJsonNode(String payloadJson) {
         try {
-            return objectMapper.readTree(payloadJson);   // ← 여기서 String → JsonNode
+            return objectMapper.readTree(payloadJson);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Outbox payload is not valid JSON. event cannot be wrapped", e);
         }

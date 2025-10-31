@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record ChargePointCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long memberId,
         Long causationEventId,        // 직전 내부 이벤트의 eventId (InventoryReservedInternalEvent.eventId)
@@ -12,7 +12,7 @@ public record ChargePointCommand(
 
     public static ChargePointCommand of(
             Long cmdId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long memberId,
             Long causationId

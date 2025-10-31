@@ -4,6 +4,16 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
+import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
+import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.bookloan.application.saga.steps.InventoryStepService;
 import msa.bookloan.application.saga.steps.MemberStepService;
 import msa.bookloan.application.saga.steps.PointStepService;
@@ -13,16 +23,6 @@ import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.common.events.bookloan.saga.command.*;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReserveFailedReply;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
-import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
-import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
-import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
-import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingAcceptedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduleFailedReply;
-import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +43,9 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
+import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
@@ -92,7 +94,7 @@ class LoanRequestSagaOrchestratorTest {
     @Captor
     private ArgumentCaptor<RefundPointCommand> refundPointCommandCaptor;
 
-    private static final LocalDateTime FIXED_NOW = LocalDateTime.of(2025, 10, 20, 10, 0, 0);
+    private static final LocalDateTime FIXED_NOW = LocalDateTime.of(2000, 10, 20, 10, 0, 0);
     private static final Clock FIXED_CLOCK = Clock.fixed(FIXED_NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
     private static final Duration STEP_TIMEOUT = Duration.ofMinutes(5);
     private static final LocalDateTime EXPECTED_DEADLINE = FIXED_NOW.plus(STEP_TIMEOUT);
@@ -110,33 +112,34 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("start: 사가 시작")
     class StartTests {
 
-        private LoanRequestedInternalEvent createMockEvent() {
-            LoanRequestedInternalEvent event = mock(LoanRequestedInternalEvent.class);
-            lenient().when(event.loanId()).thenReturn(100L);
-            lenient().when(event.sagaId()).thenReturn("saga-123");
-            lenient().when(event.memberId()).thenReturn(200L);
-            lenient().when(event.bookId()).thenReturn(300L);
-            lenient().when(event.aggregateVersion()).thenReturn(1L);
-            lenient().when(event.eventId()).thenReturn(900L);
-            return event;
+        private LoanRequestedInternalEvent createEvent() {
+            return new LoanRequestedInternalEvent(
+                    123L,  // sagaId
+                    100L,  // loanId
+                    200L,  // memberId
+                    300L,  // bookId
+                    1L,    // aggregateVersion
+                    900L,
+                    FIXED_NOW// eventId (triggerEventId)
+            );
         }
 
         @Test
         @DisplayName("start 성공: 사가 바인딩 및 생성이 성공하고 멤버 확인 커맨드를 발행한다.")
         void start_Success() {
             // given
-            LoanRequestedInternalEvent event = createMockEvent();
-            String sagaId = event.sagaId();
+            LoanRequestedInternalEvent event = createEvent();
+            long sagaId = event.sagaId();
             long loanId = event.loanId();
             long memberId = event.memberId();
             long bookId = event.bookId();
             long aggVer = event.aggregateVersion();
             long eventId = event.eventId();
 
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyString())).thenReturn(1);
+            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(1);
 
             when(sagaRepository.insertIfAbsent(
-                    anyString(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
+                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true);
 
@@ -168,22 +171,22 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(capturedCommand.loanId()).isEqualTo(event.loanId());
             assertThat(capturedCommand.memberId()).isEqualTo(event.memberId());
             assertThat(capturedCommand.causationEventId()).isEqualTo(event.eventId());
-            assertThat(capturedCommand.type()).isEqualTo(SagaCommandType.MEMBER_CHECK);
+            assertThat(capturedCommand.type()).isEqualTo(SagaCommandType.MEMBER_CHECK.getValue());
         }
 
         @Test
         @DisplayName("start 실패: 바인딩 실패(tryBindSaga=0) 시 즉시 반환한다.")
         void start_FailsOnBind() {
             // given
-            LoanRequestedInternalEvent event = createMockEvent();
+            LoanRequestedInternalEvent event = createEvent();
 
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyString())).thenReturn(0);
+            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(0);
 
             // when
             orchestrator.start(event);
 
             // then
-            verify(bookLoanRepository).tryBindSaga(anyLong(), anyString());
+            verify(bookLoanRepository).tryBindSaga(anyLong(), anyLong());
 
             verify(sagaRepository, never()).insertIfAbsent(any(), any(), any(), any(), any(), any(), any(), any(), any());
             verify(commandOutboxRecorder, never()).save(any());
@@ -193,18 +196,18 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("start 실패: 사가 Row 중복(insertIfAbsent=false) 시 즉시 반환한다.")
         void start_FailsOnSagaCreate() {
             // given
-            LoanRequestedInternalEvent event = createMockEvent();
-            String sagaId = event.sagaId();
+            LoanRequestedInternalEvent event = createEvent();
+            long sagaId = event.sagaId();
             long loanId = event.loanId();
             long memberId = event.memberId();
             long bookId = event.bookId();
             long aggVer = event.aggregateVersion();
             long eventId = event.eventId();
 
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyString())).thenReturn(1);
+            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(1);
 
             when(sagaRepository.insertIfAbsent(
-                    anyString(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
+                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(false);
 
@@ -233,17 +236,17 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(멱등성): 동일 이벤트 2회 수신 시, 2번째는 tryBindSaga에서 차단된다.")
         void start_Idempotency_FailsOnBind() {
             // given
-            LoanRequestedInternalEvent event = createMockEvent();
-            String sagaId = event.sagaId();
+            LoanRequestedInternalEvent event = createEvent();
+            long sagaId = event.sagaId();
             long loanId = event.loanId();
 
             // 첫 번째 호출에는 1(성공) 반환, 두 번째 호출에는 0(실패) 반환
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyString()))
+            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong()))
                     .thenReturn(1, 0);
 
             // 첫 번째 호출이 통과할 경우를 대비한 스터빙
             when(sagaRepository.insertIfAbsent(
-                    anyString(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
+                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true);
             when(commandOutboxRecorder.save(any(CheckMemberCommand.class))).thenReturn(true);
@@ -271,17 +274,17 @@ class LoanRequestSagaOrchestratorTest {
             // given
             // (이 시나리오는 tryBindSaga가 멱등성 보장을 못 하거나,
             //  두 스레드가 동시에 tryBindSaga(0)을 통과한 경합 상태를 가정)
-            LoanRequestedInternalEvent event = createMockEvent();
-            String sagaId = event.sagaId();
+            LoanRequestedInternalEvent event = createEvent();
+            long sagaId = event.sagaId();
             long loanId = event.loanId();
 
             // 1. tryBindSaga는 두 번 다 통과 (1 반환)
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyString()))
+            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong()))
                     .thenReturn(1, 1);
 
             // 2. insertIfAbsent는 첫 번째는 성공(true), 두 번째는 실패(false)
             when(sagaRepository.insertIfAbsent(
-                    anyString(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
+                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true, false);
 
@@ -311,19 +314,25 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onMemberChecked: 멤버 확인 응답 처리")
     class OnMemberCheckedTests {
 
-        private MemberCheckedReply createMockEvent() {
-            MemberCheckedReply event = mock(MemberCheckedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-123");
-            return event;
+        private MemberCheckedInternalEvent createEvent() {
+            return new MemberCheckedInternalEvent(
+                    1L,   // eventId
+                    123L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    200L, // memberId
+                    false,// blacklisted
+                    null  // reason
+            );
         }
 
         @Test
         @DisplayName("성공: MemberStepService로 처리를 위임한다.")
         void onMemberChecked_Success() {
             // given
-            MemberCheckedReply event = createMockEvent();
+            MemberCheckedInternalEvent event = createEvent();
 
-            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
+            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
 
             // when
             orchestrator.onMemberChecked(event);
@@ -336,11 +345,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onMemberChecked_OptimisticLockFailure() {
             // given
-            MemberCheckedReply event = createMockEvent();
+            MemberCheckedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
+                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
@@ -349,17 +358,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onMemberChecked_GenericException() {
             // given
-            MemberCheckedReply event = createMockEvent();
+            MemberCheckedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedReply.class));
+                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
+            assertThatThrownBy(() -> orchestrator.onMemberChecked(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             verify(memberStepService, times(1)).afterMemberChecked(eq(event));
         }
@@ -369,19 +380,24 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReserved: 재고 예약 응답 처리")
     class OnInventoryReservedTests {
 
-        private InventoryReservedReply createMockEvent() {
-            InventoryReservedReply event = mock(InventoryReservedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-456");
-            return event;
+        private InventoryReservedInternalEvent createEvent() {
+            return new InventoryReservedInternalEvent(
+                    1L,   // eventId
+                    456L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    300L, // bookId
+                    88L   // reservationId
+            );
         }
 
         @Test
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReserved_Success() {
             // given
-            InventoryReservedReply event = createMockEvent();
+            InventoryReservedInternalEvent event = createEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
+            doNothing().when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
 
             // when
             orchestrator.onInventoryReserved(event);
@@ -395,11 +411,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReserved_OptimisticLockFailure() {
             // given
-            InventoryReservedReply event = createMockEvent();
+            InventoryReservedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
+                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserved(event));
@@ -409,17 +425,20 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onInventoryReserved_GenericException() {
             // given
-            InventoryReservedReply event = createMockEvent();
+            InventoryReservedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedReply.class));
+                    .when(inventoryStepService).afterInventoryReserved(any(InventoryReservedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onInventoryReserved(event));
+            assertThatThrownBy(() -> orchestrator.onInventoryReserved(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
+
 
             // 예외가 발생했더라도 inventoryStepService.afterInventoryReserved가 호출 시도되었는지 검증
             verify(inventoryStepService, times(1)).afterInventoryReserved(eq(event));
@@ -430,19 +449,26 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReserveFailed: 재고 예약 실패 응답 처리")
     class OnInventoryReserveFailedTests {
 
-        private InventoryReserveFailedReply createMockEvent() {
-            InventoryReserveFailedReply event = mock(InventoryReserveFailedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-789-fail");
-            return event;
+        private InventoryReserveFailedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new InventoryReserveFailedInternalEvent(
+                    1L,   // eventId
+                    789L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    300L, // bookId
+                    "NO_STOCK", // reasonCode
+                    "재고 없음"  // message
+            );
         }
 
         @Test
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReserveFailed_Success() {
             // given
-            InventoryReserveFailedReply event = createMockEvent();
+            InventoryReserveFailedInternalEvent event = createEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
+            doNothing().when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
 
             // when
             orchestrator.onInventoryReserveFailed(event);
@@ -456,11 +482,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReserveFailed_OptimisticLockFailure() {
             // given
-            InventoryReserveFailedReply event = createMockEvent();
+            InventoryReserveFailedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
+                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReserveFailed(event));
@@ -470,17 +496,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onInventoryReserveFailed_GenericException() {
             // given
-            InventoryReserveFailedReply event = createMockEvent();
+            InventoryReserveFailedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 에외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedReply.class));
+                    .when(inventoryStepService).afterInventoryReserveFailed(any(InventoryReserveFailedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onInventoryReserveFailed(event));
+            assertThatThrownBy(() -> orchestrator.onInventoryReserveFailed(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 inventoryStepService.afterInventoryReserveFailed가 호출 시도되었는지 검증
             verify(inventoryStepService, times(1)).afterInventoryReserveFailed(eq(event));
@@ -490,19 +518,25 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("onPointCharged: 포인트 차감 응답 처리")
         class OnPointChargedTests {
 
-            private PointChargedReply createMockEvent() {
-                PointChargedReply event = mock(PointChargedReply.class);
-                lenient().when(event.sagaId()).thenReturn("saga-point-charged-111");
-                return event;
+            private PointChargedInternalEvent createEvent() {
+                return new PointChargedInternalEvent(
+                        1L,   // eventId
+                        111L, // sagaId
+                        2L,   // causationCommandId
+                        0L,   // loanVersion
+                        200L, // memberId
+                        100L, // amount
+                        999L  // paymentId
+                );
             }
 
             @Test
             @DisplayName("성공: PointStepService로 처리를 위임한다.")
             void onPointCharged_Success() {
                 // given
-                PointChargedReply event = createMockEvent();
+                PointChargedInternalEvent event = createEvent();
 
-                doNothing().when(pointStepService).afterPointCharged(any(PointChargedReply.class));
+                doNothing().when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
 
                 // when
                 orchestrator.onPointCharged(event);
@@ -516,11 +550,11 @@ class LoanRequestSagaOrchestratorTest {
             @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
             void onPointCharged_OptimisticLockFailure() {
                 // given
-                PointChargedReply event = createMockEvent();
+                PointChargedInternalEvent event = createEvent();
                 String errorMessage = "사가 버전 불일치";
 
                 doThrow(new OptimisticLockingFailureException(errorMessage))
-                        .when(pointStepService).afterPointCharged(any(PointChargedReply.class));
+                        .when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
 
                 // when then
                 assertDoesNotThrow(() -> orchestrator.onPointCharged(event));
@@ -530,41 +564,49 @@ class LoanRequestSagaOrchestratorTest {
             }
 
             @Test
-            @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+            @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
             void onPointCharged_GenericException() {
                 // given
-                PointChargedReply event = createMockEvent();
+                PointChargedInternalEvent event = createEvent();
                 String errorMessage = "예상치 못한 예외";
 
                 doThrow(new RuntimeException(errorMessage))
-                        .when(pointStepService).afterPointCharged(any(PointChargedReply.class));
+                        .when(pointStepService).afterPointCharged(any(PointChargedInternalEvent.class));
 
                 // when then
-                assertDoesNotThrow(() -> orchestrator.onPointCharged(event));
+                assertThatThrownBy(() -> orchestrator.onPointCharged(event))
+                        .isInstanceOf(RuntimeException.class)
+                        .hasMessageContaining(errorMessage);
 
                 // 예외가 발생했더라도 pointStepService.afterPointCharged가 호출 시도되었는지 검증
                 verify(pointStepService, times(1)).afterPointCharged(eq(event));
             }
-        } 
+        }
     }
 
     @Nested
     @DisplayName("onPointChargeFailed: 포인트 차감 실패 응답 처리")
     class OnPointChargeFailedTests {
 
-        private PointChargeFailedReply createMockEvent() {
-            PointChargeFailedReply event = mock(PointChargeFailedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-point-failed-222");
-            return event;
+        private PointChargeFailedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new PointChargeFailedInternalEvent(
+                    1L,   // eventId
+                    222L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    "NO_POINT", // reasonCode
+                    "잔액 부족"  // message
+            );
         }
 
         @Test
         @DisplayName("성공: PointStepService로 처리를 위임한다.")
         void onPointChargeFailed_Success() {
             // given
-            PointChargeFailedReply event = createMockEvent();
+            PointChargeFailedInternalEvent event = createEvent();
 
-            doNothing().when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
+            doNothing().when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
 
             // when
             orchestrator.onPointChargeFailed(event);
@@ -578,11 +620,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onPointChargeFailed_OptimisticLockFailure() {
             // given
-            PointChargeFailedReply event = createMockEvent();
+            PointChargeFailedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
+                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointChargeFailed(event));
@@ -592,17 +634,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onPointChargeFailed_GenericException() {
             // given
-            PointChargeFailedReply event = createMockEvent();
+            PointChargeFailedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedReply.class));
+                    .when(pointStepService).afterPointChargeFailed(any(PointChargeFailedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onPointChargeFailed(event));
+            assertThatThrownBy(() -> orchestrator.onPointChargeFailed(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 pointStepService.afterPointChargeFailed가 호출 시도되었는지 검증
             verify(pointStepService, times(1)).afterPointChargeFailed(eq(event));
@@ -613,19 +657,26 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingAccepted: 배송 수락 응답 처리")
     class OnShippingAcceptedTests {
 
-        private ShippingAcceptedReply createMockEvent() {
-            ShippingAcceptedReply event = mock(ShippingAcceptedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-shipping-accepted");
-            return event;
+        private ShippingAcceptedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new ShippingAcceptedInternalEvent(
+                    1L,   // eventId
+                    333L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    300L, // bookId
+                    111L, // provisionalShipmentId (nullable)
+                    "p-123" // trackingNoPreview (nullable)
+            );
         }
 
         @Test
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingAccepted_Success() {
             // given
-            ShippingAcceptedReply event = createMockEvent();
+            ShippingAcceptedInternalEvent event = createEvent();
 
-            doNothing().when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
+            doNothing().when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
 
             // when
             orchestrator.onShippingAccepted(event);
@@ -639,11 +690,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingAccepted_OptimisticLockFailure() {
             // given
-            ShippingAcceptedReply event = createMockEvent();
+            ShippingAcceptedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
+                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingAccepted(event));
@@ -653,17 +704,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onShippingAccepted_GenericException() {
             // given
-            ShippingAcceptedReply event = createMockEvent();
+            ShippingAcceptedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedReply.class));
+                    .when(shippingStepService).afterShippingAccepted(any(ShippingAcceptedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onShippingAccepted(event));
+            assertThatThrownBy(() -> orchestrator.onShippingAccepted(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 shippingStepService.afterShippingAccepted 호출 시도되었는지 검증
             verify(shippingStepService, times(1)).afterShippingAccepted(eq(event));
@@ -674,19 +727,26 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingScheduled: 배송 스케줄 성공 응답 처리")
     class OnShippingScheduledTests {
 
-        private ShippingScheduledReply createMockEvent() {
-            ShippingScheduledReply event = mock(ShippingScheduledReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-shipping-scheduled");
-            return event;
+        private ShippingScheduledInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new ShippingScheduledInternalEvent(
+                    1L,   // eventId
+                    444L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    222L, // shipmentId
+                    300L, // bookId
+                    "track-123" // trackingNo
+            );
         }
 
         @Test
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingScheduled_Success() {
             // given
-            ShippingScheduledReply event = createMockEvent();
+            ShippingScheduledInternalEvent event = createEvent();
 
-            doNothing().when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
+            doNothing().when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
 
             // when
             orchestrator.onShippingScheduled(event);
@@ -700,11 +760,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingScheduled_OptimisticLockFailure() {
             // given
-            ShippingScheduledReply event = createMockEvent();
+            ShippingScheduledInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
+                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduled(event));
@@ -713,17 +773,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onShippingScheduled_GenericException() {
             // given
-            ShippingScheduledReply event = createMockEvent();
+            ShippingScheduledInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledReply.class));
+                    .when(shippingStepService).afterShippingScheduled(any(ShippingScheduledInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onShippingScheduled(event));
+            assertThatThrownBy(() -> orchestrator.onShippingScheduled(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 shippingStepService.afterShippingScheduled가 호출 시도되었는지 검증
             verify(shippingStepService, times(1)).afterShippingScheduled(eq(event));
@@ -734,19 +796,25 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onShippingScheduleFailed: 배송 스케줄 실패 응답 처리")
     class OnShippingScheduleFailedTests {
 
-        private ShippingScheduleFailedReply createMockEvent() {
-            ShippingScheduleFailedReply event = mock(ShippingScheduleFailedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-shipping-failed");
-            return event;
+        private ShippingScheduleFailedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new ShippingScheduleFailedInternalEvent(
+                    1L,   // eventId
+                    555L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    "ADDR_ERR", // reasonCode
+                    "주소 오류"  // message
+            );
         }
 
         @Test
         @DisplayName("성공: ShippingStepService로 처리를 위임한다.")
         void onShippingScheduleFailed_Success() {
             // given
-            ShippingScheduleFailedReply event = createMockEvent();
+            ShippingScheduleFailedInternalEvent event = createEvent();
 
-            doNothing().when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
+            doNothing().when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
 
             // when
             orchestrator.onShippingScheduleFailed(event);
@@ -760,11 +828,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onShippingScheduleFailed_OptimisticLockFailure() {
             // given
-            ShippingScheduleFailedReply event = createMockEvent();
+            ShippingScheduleFailedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
+                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onShippingScheduleFailed(event));
@@ -774,17 +842,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onShippingScheduleFailed_GenericException() {
             // given
-            ShippingScheduleFailedReply event = createMockEvent();
+            ShippingScheduleFailedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedReply.class));
+                    .when(shippingStepService).afterShippingScheduleFailed(any(ShippingScheduleFailedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onShippingScheduleFailed(event));
+            assertThatThrownBy(() -> orchestrator.onShippingScheduleFailed(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 shippingStepService.afterShippingScheduleFailed 호출 시도되었는지 검증
             verify(shippingStepService, times(1)).afterShippingScheduleFailed(eq(event));
@@ -795,19 +865,26 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onPointRefunded: 포인트 환불(보상) 응답 처리")
     class OnPointRefundedTests {
 
-        private PointRefundedReply createMockEvent() {
-            PointRefundedReply event = mock(PointRefundedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-point-refunded");
-            return event;
+        private PointRefundedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new PointRefundedInternalEvent(
+                    1L,   // eventId
+                    666L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    200L, // memberId
+                    100L, // refundAmount
+                    "refund-tx-123" // refundId (String)
+            );
         }
 
         @Test
         @DisplayName("성공: PointStepService로 처리를 위임한다.")
         void onPointRefunded_Success() {
             // given
-            PointRefundedReply event = createMockEvent();
+            PointRefundedInternalEvent event = createEvent();
 
-            doNothing().when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
+            doNothing().when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
 
             // when
             orchestrator.onPointRefunded(event);
@@ -821,11 +898,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onPointRefunded_OptimisticLockFailure() {
             // given
-            PointRefundedReply event = createMockEvent();
+            PointRefundedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
+                    .when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onPointRefunded(event));
@@ -835,17 +912,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onPointRefunded_GenericException() {
             // given
-            PointRefundedReply event = createMockEvent();
+            PointRefundedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(pointStepService).afterPointRefunded(any(PointRefundedReply.class));
+                    .when(pointStepService).afterPointRefunded(any(PointRefundedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onPointRefunded(event));
+            assertThatThrownBy(() -> orchestrator.onPointRefunded(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생했더라도 pointStepService.afterPointRefunded 호출 시도되었는지 검증
             verify(pointStepService, times(1)).afterPointRefunded(eq(event));
@@ -856,19 +935,25 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("onInventoryReleased: 재고 해제(보상) 응답 처리")
     class OnInventoryReleasedTests {
 
-        private InventoryReleasedReply createMockEvent() {
-            InventoryReleasedReply event = mock(InventoryReleasedReply.class);
-            lenient().when(event.sagaId()).thenReturn("saga-inventory-released");
-            return event;
+        private InventoryReleasedInternalEvent createEvent() {
+            // 레코드는 단순 데이터 객체이므로 new로 생성
+            return new InventoryReleasedInternalEvent(
+                    1L,   // eventId
+                    777L, // sagaId
+                    2L,   // causationCommandId
+                    0L,   // loanVersion
+                    300L, // bookId
+                    88L   // reservationId
+            );
         }
 
         @Test
         @DisplayName("성공: InventoryStepService로 처리를 위임한다.")
         void onInventoryReleased_Success() {
             // given
-            InventoryReleasedReply event = createMockEvent();
+            InventoryReleasedInternalEvent event = createEvent();
 
-            doNothing().when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
+            doNothing().when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
 
             // when
             orchestrator.onInventoryReleased(event);
@@ -882,11 +967,11 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
         void onInventoryReleased_OptimisticLockFailure() {
             // given
-            InventoryReleasedReply event = createMockEvent();
+            InventoryReleasedInternalEvent event = createEvent();
             String errorMessage = "사가 버전 불일치";
 
             doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
+                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
 
             // when then
             assertDoesNotThrow(() -> orchestrator.onInventoryReleased(event));
@@ -896,17 +981,19 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 잡고 경고 로그를 남긴다.")
+        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
         void onInventoryReleased_GenericException() {
             // given
-            InventoryReleasedReply event = createMockEvent();
+            InventoryReleasedInternalEvent event = createEvent();
             String errorMessage = "예상치 못한 예외";
 
             doThrow(new RuntimeException(errorMessage))
-                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedReply.class));
+                    .when(inventoryStepService).afterInventoryReleased(any(InventoryReleasedInternalEvent.class));
 
             // when then
-            assertDoesNotThrow(() -> orchestrator.onInventoryReleased(event));
+            assertThatThrownBy(() -> orchestrator.onInventoryReleased(event))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining(errorMessage);
 
             // 예외가 발생해도 inventoryStepService.afterInventoryReleased 호출 시도되었는지 검증
             verify(inventoryStepService, times(1)).afterInventoryReleased(eq(event));
@@ -917,7 +1004,7 @@ class LoanRequestSagaOrchestratorTest {
     @DisplayName("requestCancel: 사가 취소 요청 처리")
     class RequestCancelTests {
 
-        private static final String SAGA_ID = "saga-cancel-123";
+        private static final long SAGA_ID = 123456L;
         private static final long LOAN_ID = 100L;
         private static final long MEMBER_ID = 200L;
         private static final long BOOK_ID = 300L;
@@ -931,7 +1018,7 @@ class LoanRequestSagaOrchestratorTest {
 
         @BeforeEach
         void setUp() {
-            lenient().when(sagaRepository.findById(eq(SAGA_ID))).thenReturn(Optional.of(mockSaga));
+            lenient().when(sagaRepository.findForUpdate(eq(SAGA_ID))).thenReturn(Optional.of(mockSaga));
 
             lenient().when(sagaTimeouts.compensationTimeoutFor()).thenReturn(COMPENSATION_TIMEOUT);
 
@@ -941,52 +1028,17 @@ class LoanRequestSagaOrchestratorTest {
 
             lenient().when(snowflake.nextId()).thenReturn(MOCK_CMD_ID);
 
-            lenient().when(mockSaga.getSagaId()).thenReturn(SAGA_ID);
+            lenient().when(mockSaga.getId()).thenReturn(SAGA_ID);
             lenient().when(mockSaga.getLoanId()).thenReturn(LOAN_ID);
             lenient().when(mockSaga.getMemberId()).thenReturn(MEMBER_ID);
             lenient().when(mockSaga.getBookId()).thenReturn(BOOK_ID);
         }
 
         @Test
-        @DisplayName("드롭: 사가가 이미 Terminal 상태면 즉시 반환한다.")
-        void requestCancel_DropWhenTerminal() {
+        @DisplayName("드롭: 사가 가드 로직(markCancelRequested)이 false를 반환하면 즉시 반환한다.")
+        void requestCancel_DropWhenGuardFails() {
             // given
-            when(mockSaga.isTerminal()).thenReturn(true);
-
-            // when
-            orchestrator.requestCancel(SAGA_ID, REASON, CAUSATION_ID);
-
-            // then
-            verify(mockSaga, never()).markCancelled(any());
-            verify(mockSaga, never()).enterCompensating(any(), any(LocalDateTime.class));
-            verify(sagaRepository, never()).save(any());
-            verify(commandOutboxRecorder, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("드롭: 사가가 이미 Pivot 이후면 즉시 반환한다.")
-        void requestCancel_DropWhenAfterPivot() {
-            // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(true);
-
-            // when
-            orchestrator.requestCancel(SAGA_ID, REASON, CAUSATION_ID);
-
-            // then
-            verify(mockSaga, never()).markCancelled(any());
-            verify(mockSaga, never()).enterCompensating(any(), any(LocalDateTime.class));
-            verify(sagaRepository, never()).save(any());
-            verify(commandOutboxRecorder, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("드롭: 사가가 이미 보상(COMPENSATING) 상태면 즉시 반환한다.")
-        void requestCancel_DropWhenCompensating() {
-            // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(false);
-            when(mockSaga.getStatus()).thenReturn(SagaStatus.COMPENSATING);
+            when(mockSaga.markCancelRequested(REASON)).thenReturn(false);
 
             // when
             orchestrator.requestCancel(SAGA_ID, REASON, CAUSATION_ID);
@@ -1002,13 +1054,10 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("즉시 취소(MEMBER_CHECKING): markCancelled 성공 시 save 및 clearSaga 호출")
         void requestCancel_ImmediateCancel_Success() {
             // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(false);
-            when(mockSaga.getStatus()).thenReturn(SagaStatus.PROCESSING);
-            when(mockSaga.getCurrentStep()).thenReturn(LoanSagaStep.MEMBER_CHECKING); // 상태가드 통과
+            when(mockSaga.markCancelRequested(REASON)).thenReturn(true); // 상태가드 통과
 
             when(mockSaga.markCancelled(eq(REASON))).thenReturn(true); // 업데이트 성공
-
+            when(mockSaga.getCurrentStep()).thenReturn(MEMBER_CHECKING);
             // when
             orchestrator.requestCancel(SAGA_ID, REASON, CAUSATION_ID);
 
@@ -1022,9 +1071,7 @@ class LoanRequestSagaOrchestratorTest {
         @DisplayName("즉시 취소(MEMBER_CHECKING): markCancelled 실패(중복) 시 아무것도 안 함")
         void requestCancel_ImmediateCancel_Dropped() {
             // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(false);
-            when(mockSaga.getStatus()).thenReturn(SagaStatus.PROCESSING);
+            when(mockSaga.markCancelRequested(REASON)).thenReturn(true);
             when(mockSaga.getCurrentStep()).thenReturn(LoanSagaStep.MEMBER_CHECKING);
 
             when(mockSaga.markCancelled(eq(REASON))).thenReturn(false); // 업데이트 실패
@@ -1034,19 +1081,17 @@ class LoanRequestSagaOrchestratorTest {
 
             // then
             verify(sagaRepository, never()).save(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
 
         @Test
         @DisplayName("보상 시작(POINT_CHARGING): ReleaseInventory 커맨드를 발행한다.")
         void requestCancel_StartCompensation_ReleaseInventory() {
             // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(false);
-            when(mockSaga.getStatus()).thenReturn(SagaStatus.PROCESSING);
+            when(mockSaga.markCancelRequested(REASON)).thenReturn(true);
             when(mockSaga.getCurrentStep()).thenReturn(LoanSagaStep.POINT_CHARGING);
 
-            when(mockSaga.enterCompensating(eq(COMPENSATION_TIMEOUT),eq(FIXED_NOW))).thenReturn(true);
+            when(mockSaga.enterCompensating(eq(COMPENSATION_TIMEOUT), eq(FIXED_NOW))).thenReturn(true);
 
             // when
             orchestrator.requestCancel(SAGA_ID, REASON, CAUSATION_ID);
@@ -1054,7 +1099,7 @@ class LoanRequestSagaOrchestratorTest {
             // then
             verify(sagaTimeouts, times(1)).compensationTimeoutFor();
             verify(sagaRepository, times(1)).save(eq(mockSaga));
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString()); // 즉시 취소 아님
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong()); // 즉시 취소 아님
 
             // Command 검증
             verify(commandOutboxRecorder, times(1)).save(releaseInventoryCommandCaptor.capture());
@@ -1064,17 +1109,15 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(captured.sagaId()).isEqualTo(SAGA_ID);
             assertThat(captured.bookId()).isEqualTo(BOOK_ID);
             assertThat(captured.causationEventId()).isEqualTo(CAUSATION_ID);
-            assertThat(captured.type()).isEqualTo(SagaCommandType.INVENTORY_RELEASE);
+            assertThat(captured.type()).isEqualTo(SagaCommandType.INVENTORY_RELEASE.getValue());
         }
 
         @Test
         @DisplayName("보상 시작(SHIPPING_SCHEDULING): RefundPoint 커맨드를 발행한다.")
         void requestCancel_StartCompensation_RefundPoint() {
             // given
-            when(mockSaga.isTerminal()).thenReturn(false);
-            when(mockSaga.isAfterPivot()).thenReturn(false);
-            when(mockSaga.getStatus()).thenReturn(SagaStatus.PROCESSING);
-            when(mockSaga.getCurrentStep()).thenReturn(LoanSagaStep.SHIPPING_SCHEDULING);
+            when(mockSaga.markCancelRequested(REASON)).thenReturn(true);
+            when(mockSaga.getCurrentStep()).thenReturn(SHIPPING_SCHEDULING);
 
             when(mockSaga.enterCompensating(eq(COMPENSATION_TIMEOUT), eq(FIXED_NOW))).thenReturn(true);
 
@@ -1093,7 +1136,7 @@ class LoanRequestSagaOrchestratorTest {
             assertThat(captured.sagaId()).isEqualTo(SAGA_ID);
             assertThat(captured.memberId()).isEqualTo(MEMBER_ID);
             assertThat(captured.causationEventId()).isEqualTo(CAUSATION_ID);
-            assertThat(captured.type()).isEqualTo(SagaCommandType.POINT_REFUND);
+            assertThat(captured.type()).isEqualTo(SagaCommandType.POINT_REFUND.getValue());
         }
     }
 }

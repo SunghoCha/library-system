@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record ReserveInventoryCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long bookId,
         Long causationEventId,   // 커맨드 추적용 id (MemberCheck의 commandId)
@@ -12,7 +12,7 @@ public record ReserveInventoryCommand(
 
     public static ReserveInventoryCommand of(
             Long cmdId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long bookId,
             Long causationId

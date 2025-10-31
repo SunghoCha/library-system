@@ -54,11 +54,11 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
             FROM outbox_event_record o
             WHERE
               (
-                (o.status = 'NEW'        AND o.occurred_at < :grace)
+                (o.status = 'NEW')
                 OR
-                (o.status = 'FAILED'     AND o.retry_count < :maxRetry)
+                (o.status = 'FAILED' AND o.retry_count < :maxRetry)
                 OR
-                (o.status = 'PUBLISHING' AND (o.lease_until IS NULL OR o.lease_until < :now OR o.picked_at < :stale))
+                (o.status = 'PUBLISHING' AND (o.lease_until IS NULL OR o.lease_until < :now))
               )
             ORDER BY o.occurred_at ASC, o.id ASC
             LIMIT :limit
@@ -66,9 +66,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
         """, nativeQuery = true)
     List<Long> lockClaimableIds(@Param("limit") int limit,
                                 @Param("maxRetry") int maxRetry,
-                                @Param("now") LocalDateTime now,
-                                @Param("grace") LocalDateTime graceThreshold,
-                                @Param("stale") LocalDateTime staleThreshold);
+                                @Param("now") LocalDateTime now);
 
 
     @Modifying
@@ -81,10 +79,10 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
             ON DUPLICATE KEY UPDATE
               updated_at = updated_at
             """, nativeQuery = true)
-    int upsertOutbox(@Param("id") long id,
-                     @Param("eventId") long eventId,
-                     @Param("eventTypeV1") String eventType,
-                     @Param("aggregateId") String aggregateId,
+    int upsertOutbox(@Param("id") Long id,
+                     @Param("eventId") Long eventId,
+                     @Param("eventType") String eventType,
+                     @Param("aggregateId") Long aggregateId,
                      @Param("aggregateType") String aggregateType,
                      @Param("aggregateVersion") Long aggregateVersion,
                      @Param("payload") String payload,

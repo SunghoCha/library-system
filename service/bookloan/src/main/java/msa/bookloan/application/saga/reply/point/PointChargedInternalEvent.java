@@ -10,7 +10,7 @@ public record PointChargedInternalEvent(
         Long loanVersion,
         Long memberId,
         Long amount,
-        String paymentId
+        Long paymentId
 ) {
 
     public static PointChargedInternalEvent from(PointChargedReply reply) {
@@ -18,6 +18,7 @@ public record PointChargedInternalEvent(
         Long sagaId = IdConverter.parseLongOrThrow(reply.sagaId(), "sagaId");
         Long causationCommandId = IdConverter.parseLongOrThrow(reply.causationCommandId(), "causationCommandId");
         Long memberId = IdConverter.parseLongOrThrow(reply.memberId(), "memberId");
+        Long paymentId = IdConverter.parseLongOrThrow(reply.paymentId(), "paymentId");
 
         return new PointChargedInternalEvent(
                 eventId,
@@ -26,7 +27,7 @@ public record PointChargedInternalEvent(
                 reply.loanVersion(),
                 memberId,
                 reply.amount(),
-                reply.paymentId()   // 이건 원래 String으로 유지
+                paymentId
         );
     }
 }

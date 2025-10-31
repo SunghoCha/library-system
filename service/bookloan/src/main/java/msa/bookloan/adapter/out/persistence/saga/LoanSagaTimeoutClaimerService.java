@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -23,36 +24,36 @@ public class LoanSagaTimeoutClaimerService {
     private final InstanceIdentity instanceIdentity;
     private final LoanSagaRepository sagaRepository;
 
-    // TODO : 선점할 떄 leaseId 사용하도록 해야하는데 누락된듯?
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<String> claimProcessingTimeouts() {
-        String workerId = instanceIdentity.workerId();
+    public List<Long> claimProcessingTimeouts() {
         LocalDateTime now = LocalDateTime.now(clock);
+        String workerId = instanceIdentity.workerId();
+        String leaseId = UUID.randomUUID().toString();
         LocalDateTime leaseUntil = now.plusSeconds(props.leaseSecond());
-        int batch = props.batchSize();
 
-        List<String> ids = sagaRepository.lockTimedOutProcessingIds(now, batch);
+        List<Long> ids = sagaRepository.lockTimedOutProcessingIds(now, props.batchSize());
         if (ids.isEmpty()) return List.of();
 
-        sagaRepository.claimByIds(ids, workerId, leaseUntil);
-        log.info("[SagaTimeout] PROCESSING 선점: count={}, workerId={}, leaseUntil={}",
-                ids.size(), workerId, leaseUntil);
+        sagaRepository.claimByIds(ids, workerId, leaseId, leaseUntil);
+        log.info("[SagaTimeout] PROCESSING 선점: count={}, workerId={}, leaseId={}, leaseUntil={}",
+                ids.size(), workerId, leaseId, leaseUntil);
 
         return ids;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<String> claimCompensatingTimeouts() {
-        String workerId = instanceIdentity.workerId();
+    public List<Long> claimCompensatingTimeouts() {
         LocalDateTime now = LocalDateTime.now(clock);
+        String leaseId = UUID.randomUUID().toString();
+        String workerId = instanceIdentity.workerId();
         LocalDateTime leaseUntil = now.plusSeconds(props.leaseSecond());
 
-        List<String> ids = sagaRepository.lockTimedOutCompensatingIds(now, props.batchSize());
+        List<Long> ids = sagaRepository.lockTimedOutCompensatingIds(now, props.batchSize());
         if (ids.isEmpty()) return List.of();
 
-        sagaRepository.claimByIds(ids, workerId, leaseUntil);
-        log.info("[SagaTimeout] COMPENSATING 선점: count={}, workerId={}, leaseUntil={}",
-                ids.size(), workerId, leaseUntil);
+        sagaRepository.claimByIds(ids, workerId, leaseId, leaseUntil);
+        log.info("[SagaTimeout] COMPENSATING 선점: count={}, workerId={}, leaseId={}, leaseUntil={}",
+                ids.size(), workerId, leaseId, leaseUntil);
 
         return ids;
     }

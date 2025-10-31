@@ -13,18 +13,16 @@ public interface OutboxEventRecordRepositoryCustom {
     long tryClaimFromNew(Long eventId, String workerId, LocalDateTime now, int leaseSeconds);
 
     long markPublishing(Collection<Long> ids,
-                            String workerId,
-                            LocalDateTime now,
-                            int leaseSeconds);
+                        String workerId,
+                        LocalDateTime now,
+                        LocalDateTime leaseUntil);
 
     long markPublished(Collection<Long> ids,
                        String workerId,
-                       LocalDateTime claimedAt,
                        LocalDateTime now);
 
     long markFailed(Collection<Long> ids,
                     String workerId,
-                    LocalDateTime claimedAt,
                     String lastError,
                     LocalDateTime now);
 
@@ -32,12 +30,10 @@ public interface OutboxEventRecordRepositoryCustom {
 
     long markPublishedByEventId(Long eventId,
                                 String workerId,
-                                LocalDateTime claimedAt,
                                 LocalDateTime now);
 
     long markFailedByEventId(Long eventId,
                              String workerId,
-                             LocalDateTime claimedAt,
                              String lastError,
                              LocalDateTime now);
 

@@ -19,7 +19,7 @@ class LoanSagaTest {
 
     private LoanSaga createInitialSaga() {
         return LoanSaga.startNew( // PROCESSING 으로 생성
-                "saga-12345",
+                123456L,
                 1L,
                 100L,
                 200L,
@@ -40,7 +40,7 @@ class LoanSagaTest {
             LoanSaga saga = createInitialSaga();
 
             // then
-            assertThat(saga.getSagaId()).isEqualTo("saga-12345");
+            assertThat(saga.getId()).isEqualTo(123456L);
             assertThat(saga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
             assertThat(saga.getCurrentStep()).isEqualTo(LoanSagaStep.INIT);
             assertThat(saga.getStepStartedAt()).isNotNull();
@@ -65,7 +65,7 @@ class LoanSagaTest {
             assertThat(result).isTrue();
             assertThat(saga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
             assertThat(saga.getCurrentStep()).isEqualTo(LoanSagaStep.MEMBER_CHECKING);
-            assertThat(saga.getStepDeadlineAt()).isAfter(now());
+            assertThat(saga.getStepDeadlineAt()).isAfter(now(fixedClock));
         }
 
         @Test
@@ -262,7 +262,7 @@ class LoanSagaTest {
             assertThat(result).isTrue();
             assertThat(saga.getStatus()).isEqualTo(SagaStatus.COMPENSATING);
             assertThat(saga.getCurrentStep()).isEqualTo(LoanSagaStep.POINT_CHARGING);
-            assertThat(saga.getStepDeadlineAt()).isAfter(now());
+            assertThat(saga.getStepDeadlineAt()).isAfter(now(fixedClock));
         }
 
         @Test

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
 import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.application.saga.LoanRequestSagaOrchestrator;
+import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,6 @@ public class PointChargeFailedInboxHandler implements InboxEventHandler<PointCha
     @Override
     public void handle(InboxMessage<PointChargeFailedReply> message) {
         PointChargeFailedReply payload = message.payload();
-        orchestrator.onPointChargeFailed(payload);
+        orchestrator.onPointChargeFailed(PointChargeFailedInternalEvent.from(payload));
     }
 }

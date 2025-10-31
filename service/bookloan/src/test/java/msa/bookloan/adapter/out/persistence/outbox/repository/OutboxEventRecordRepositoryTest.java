@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static msa.common.events.outbox.OutboxEventRecordStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
@@ -32,7 +33,6 @@ class OutboxEventRecordRepositoryTest {
     @Autowired
     private LoanSagaRepository sagaRepository;
 
-    // 테스트 헬퍼용 상수
     private final int MAX_RETRY = 3;
     private final int LIMIT = 10;
 
@@ -54,7 +54,7 @@ class OutboxEventRecordRepositoryTest {
 
             // when
             int affectedRows = outboxRepository.upsertOutbox(
-                    id, eventId, "TestEvent", "agg-1", "TestAggregate", 1L,
+                    id, eventId, "TestEvent", 99L, "TestAggregate", 1L,
                     "{}", "test-topic", "key-1", LocalDateTime.now()
             );
 
@@ -73,13 +73,13 @@ class OutboxEventRecordRepositoryTest {
             long eventId = 100L; // eventId는 동일 (유니크)
 
             outboxRepository.upsertOutbox( // 첫 번째 삽입
-                    id1, eventId, "TestEvent", "agg-1", "TestAggregate", 1L,
+                    id1, eventId, "TestEvent", 99L, "TestAggregate", 1L,
                     "{}", "test-topic", "key-1", LocalDateTime.now()
             );
 
             // when
             int affectedRows = outboxRepository.upsertOutbox( // 두 번째 삽입 (중복)
-                    id2, eventId, "TestEvent", "agg-1", "TestAggregate", 1L,
+                    id2, eventId, "TestEvent", 99L, "TestAggregate", 1L,
                     "{}", "test-topic", "key-1", LocalDateTime.now()
             );
 
@@ -94,109 +94,101 @@ class OutboxEventRecordRepositoryTest {
     @Nested
     class Describe_lockClaimableIds {
 
-        // 테스트 케이스에서 공통으로 사용할 시간 변수
+        // 테스트 케이스에서 공통으로 사용할 시간 변수. 굳이 clock 받아서해야하는건지 고민
         private final LocalDateTime now = LocalDateTime.now();
-        // 'NEW' 상태의 이벤트가 발행되기까지 대기하는 유예 시간(10초 전)
-        private final LocalDateTime grace = now.minusSeconds(10);
-        // 'PUBLISHING' 상태의 이벤트가 비정상(stale)으로 간주되는 시간(5분 전)
-        private final LocalDateTime stale = now.minusMinutes(5);
 
         @Test
-        @DisplayName("'NEW' 상태고 grace 기간이 지난 이벤트를 가져온다")
-        void findsNewAndPastGrace() {
+        @DisplayName("NEW 상태의 레코드는 생성 시간과 관계없이 즉시 조회된다")
+        void findsNewRecordsImmediately() {
             // given
-            saveTestRecord(1L, OutboxEventRecordStatus.NEW, now.minusSeconds(11), 0);
+            saveTestRecord(1L, NEW, now.minusSeconds(1), 0);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).containsExactly(1L);
         }
 
         @Test
-        @DisplayName("'NEW' 상태지만 grace 기간이 지나지 않으면 가져오지 않는다")
-        void ignoresNewInGrace() {
-            // given
-            saveTestRecord(1L, OutboxEventRecordStatus.NEW, now.minusSeconds(5), 0);
-
-            // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
-
-            // then
-            assertThat(ids).isEmpty();
-        }
-
-        @Test
-        @DisplayName("'FAILED' 상태고 재시도 횟수가 남으면 가져온다")
+        @DisplayName("FAILED 상태고 재시도 횟수가 남으면 가져온다")
         void findsFailedWithRetriesLeft() {
             // given
-            saveTestRecord(1L, OutboxEventRecordStatus.FAILED, now.minusSeconds(11), 1);
+            saveTestRecord(1L, FAILED, now.minusSeconds(11), 1);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).containsExactly(1L);
         }
 
         @Test
-        @DisplayName("'FAILED' 상태고 재시도 횟수가 초과하면 무시한다")
+        @DisplayName("FAILED 상태고 재시도 횟수가 초과하면 무시한다")
         void ignoresFailedWithMaxRetries() {
             // given
-            saveTestRecord(1L, OutboxEventRecordStatus.FAILED, now.minusSeconds(11), MAX_RETRY);
+            saveTestRecord(1L, FAILED, now.minusSeconds(11), MAX_RETRY);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).isEmpty();
         }
 
         @Test
-        @DisplayName("'PUBLISHING' 상태고 lease가 만료되면 가져온다")
+        @DisplayName("'PUBLISHING' 상태고 leaseUntil이 NULL이면 조회된다 (비정상 종료 복구)")
+        void findsPublishingWithNullLease() {
+            saveTestRecord(1L, PUBLISHING, now.minusMinutes(10), 0);
+
+            // when
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
+
+            // then
+            assertThat(ids).containsExactly(1L);
+        }
+
+        @Test
+        @DisplayName("PUBLISHING 상태고 lease가 만료되면 가져온다")
         void findsPublishingWithLeaseExpired() {
             // given
-            OutboxEventRecord record = saveTestRecord(1L, OutboxEventRecordStatus.PUBLISHING, now.minusMinutes(1), 0);
+            OutboxEventRecord record = saveTestRecord(1L, PUBLISHING, now.minusMinutes(1), 0);
 
             record.setLeaseUntil(now.minusSeconds(1));
-            record.setPickedAt(now.minusMinutes(1));
-            outboxRepository.saveAndFlush(record);
+            outboxRepository.save(record);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).containsExactly(1L);
         }
 
         @Test
-        @DisplayName("'PUBLISHING' 상태고 pickedAt이 stale(5분 초과)이면 가져온다")
-        void findsPublishingWithStalePick() {
+        @DisplayName("PUBLISHING 상태고 lease가 만료되면 가져온다")
+        void findsPublishingWithExpiredLease() {
             // given
-            OutboxEventRecord record = saveTestRecord(1L, OutboxEventRecordStatus.PUBLISHING, now.minusMinutes(10), 0);
-            record.setLeaseUntil(now.plusMinutes(5));
-            record.setPickedAt(now.minusMinutes(6));
-            outboxRepository.saveAndFlush(record);
+            OutboxEventRecord record = saveTestRecord(1L, PUBLISHING, now.minusMinutes(10), 0);
+            record.setLeaseUntil(now.minusMinutes(5));
+            outboxRepository.save(record);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).containsExactly(1L);
         }
 
         @Test
-        @DisplayName("'PUBLISHING' 상태고 lease가 유효하고 stale이 아니면 무시한다")
-        void ignoresPublishingWithActiveLease() {
+        @DisplayName("PUBLISHING 상태고 lease_until이 미래(유효)면 무시된다")
+        void ignoresPublishingWithValidLease() {
             // given
-            OutboxEventRecord record = saveTestRecord(1L, OutboxEventRecordStatus.PUBLISHING, now.minusMinutes(2), 0);
-            record.setLeaseUntil(now.plusMinutes(5));
-            record.setPickedAt(now.minusMinutes(1));
-            outboxRepository.saveAndFlush(record);
+            OutboxEventRecord record = saveTestRecord(1L, PUBLISHING, now.minusMinutes(2), 0);
+            record.setLeaseUntil(now.plusMinutes(5)); // 5분 뒤 만료
+            outboxRepository.save(record);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
             assertThat(ids).isEmpty();
@@ -204,26 +196,54 @@ class OutboxEventRecordRepositoryTest {
 
 
         @Test
-        @DisplayName("LoanSaga 이벤트는 Saga가 'PROCESSING'일 때만 가져온다")
-        void findsSagaEventOnlyIfSagaIsProcessing() {
+        @DisplayName("PROCESSED 또는 DEAD_LETTER 상태는 무시된다")
+        void ignoresTerminalStatuses() {
             // given
-            // 사가 1: PROCESSING 상태 -> 가져와야 함
-            saveTestSaga("saga-1", SagaStatus.PROCESSING); // 쿼리가 String을 사용하므로 String
-            saveSagaRecord(1L, "saga-1", OutboxEventRecordStatus.NEW, now.minusSeconds(11));
-
-            // 사가 2: FAILED 상태 -> 무시해야 함
-            saveTestSaga("saga-2", SagaStatus.FAILED); // 쿼리가 String을 사용하므로 String
-            saveSagaRecord(2L, "saga-2", OutboxEventRecordStatus.NEW, now.minusSeconds(11));
-
-            // 사가 3: 일반 이벤트 (Saga 아님) -> 가져와야 함
-            saveTestRecord(3L, OutboxEventRecordStatus.NEW, now.minusSeconds(11), 0);
-
+            saveTestRecord(1L, OutboxEventRecordStatus.PUBLISHED, now.minusMinutes(10), 0);
+            saveTestRecord(2L, OutboxEventRecordStatus.DEAD_LETTER, now.minusMinutes(10), 0);
 
             // when
-            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now, grace, stale);
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
 
             // then
-            assertThat(ids).containsExactlyInAnyOrder(1L, 3L);
+            assertThat(ids).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Saga 상태(FAILED)와 관계없이 NEW 상태의 이벤트는 모두 조회된다")
+        void findsNewSagaEventRegardlessOfSagaState() {
+            // given
+            // saga PROCESSING + NEW
+            saveTestSaga(123L, SagaStatus.PROCESSING);
+            saveSagaRecord(1L, 123L, OutboxEventRecordStatus.NEW, now.minusSeconds(11));
+
+            // saga FAILED + NEW
+            saveTestSaga(456L, SagaStatus.FAILED);
+            saveSagaRecord(2L, 456L, OutboxEventRecordStatus.NEW, now.minusSeconds(10));
+
+            // domain + NEW
+            saveTestRecord(3L, OutboxEventRecordStatus.NEW, now.minusSeconds(9), 0);
+
+            // when
+            List<Long> ids = outboxRepository.lockClaimableIds(LIMIT, MAX_RETRY, now);
+
+            // then
+            assertThat(ids).containsExactlyInAnyOrder(1L, 2L, 3L);
+        }
+
+        @Test
+        @DisplayName("occurred_at 순서(오래된 순) 및 LIMIT = 2에 맞게 조회한다")
+        void findsOrderedAndLimited() {
+            // given 순서 섞어서 저장
+            saveTestRecord(1L, OutboxEventRecordStatus.NEW, now.minusSeconds(5), 0); // 3순위
+            saveTestRecord(2L, OutboxEventRecordStatus.NEW, now.minusSeconds(10), 0); // 1순위
+            saveTestRecord(3L, OutboxEventRecordStatus.NEW, now.minusSeconds(8), 0); // 2순위
+
+            // when
+            List<Long> ids = outboxRepository.lockClaimableIds(2, MAX_RETRY, now); // LIMIT = 2
+
+            // then
+            assertThat(ids).containsExactly(2L, 3L);
         }
 
         private OutboxEventRecord saveTestRecord(
@@ -238,49 +258,46 @@ class OutboxEventRecordRepositoryTest {
                     .outboxEventRecordStatus(status)
                     .occurredAt(occurredAt)
                     .retryCount(retryCount)
-                    .aggregateId("agg-" + id)
+                    .aggregateId(99L)
                     .aggregateType("TestAggregate")
                     .eventType("TestEvent")
                     .payload("{}")
                     .routing(new OutboxRouting("test-topic", "key-" + id))
-                    .isNew(true) // Persistable용도 (이미 설정되어있지면 명시적으로)
                     .build();
             return outboxRepository.saveAndFlush(record);
         }
 
         private OutboxEventRecord saveSagaRecord(
-                long id,
-                String sagaId,
+                Long id,
+                Long sagaId,
                 OutboxEventRecordStatus status,
                 LocalDateTime occurredAt
         ) {
             OutboxEventRecord record = OutboxEventRecord.builder()
                     .id(id)
                     .eventId(id)
-                    .aggregateId(sagaId)         // Setter 대신 Builder에서 직접 설정
-                    .aggregateType("LoanSaga")   // Setter 대신 Builder에서 직접 설정
+                    .aggregateId(sagaId)
+                    .aggregateType("LoanSaga")
                     .outboxEventRecordStatus(status)
                     .occurredAt(occurredAt)
                     .retryCount(0)
                     .eventType("TestSagaEvent")
                     .payload("{}")
-                    .routing(new OutboxRouting("saga-topic", sagaId)) // @Embedded 객체 생성
-                    .isNew(true) // Persistable을 위해
+                    .routing(new OutboxRouting("saga-topic", String.valueOf(sagaId))) // @Embedded 객체 생성
                     .build();
             return outboxRepository.saveAndFlush(record);
         }
 
-        private LoanSaga saveTestSaga(String sagaId, SagaStatus status) {
-            // @Builder는 Enum 타입을 직접 받습니다.
+        private LoanSaga saveTestSaga(Long sagaId, SagaStatus status) {
             LoanSaga saga = LoanSaga.builder()
                     .sagaId(sagaId)
-                    .loanId(Long.parseLong(sagaId.replace("saga-", ""))) // 편의상
+                    .loanId(12345L)
                     .memberId(123L)
                     .bookId(456L)
-                    .aggregateVersion(1L) // @Builder에 필요 (필수 필드)
-                    .triggerEventId(1L)   // @Builder에 필요 (필수 필드)
-                    .status(status) // Enum 타입 그대로 전달
-                    .currentStep(LoanSagaStep.MEMBER_CHECKING) // Enum 타입 그대로 전달
+                    .aggregateVersion(1L)
+                    .triggerEventId(1L)
+                    .status(status)
+                    .currentStep(LoanSagaStep.MEMBER_CHECKING)
                     .build();
             return sagaRepository.saveAndFlush(saga);
         }

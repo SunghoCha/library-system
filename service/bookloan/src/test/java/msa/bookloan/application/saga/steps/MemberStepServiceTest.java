@@ -4,14 +4,13 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
-import msa.common.events.bookloan.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
-import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
-import msa.common.events.bookloan.saga.reply.member.MemberCheckedPayload;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.time.TestClocks;
+import msa.common.events.bookloan.saga.command.ReserveInventoryCommand;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +31,6 @@ import static msa.bookloan.domain.saga.LoanSagaStep.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,7 +55,7 @@ class MemberStepServiceTest {
 
     private LoanSaga testSaga;
     private final Clock fixedClock = TestClocks.FIXED_CLOCK;
-    private final String SAGA_ID = "saga-member-123";
+    private final Long SAGA_ID = 123456L;
     private final Long LOAN_ID = 10L;
     private final Long MEMBER_ID = 100L;
 
@@ -79,8 +77,9 @@ class MemberStepServiceTest {
         @DisplayName("성공(정상 멤버): 다음 단계(INVENTORY_RESERVING)로 전이하고 재고 예약 커맨드를 발행한다")
         void shouldTransitionToNextStep_whenMemberIsNotBlacklisted() {
             // given
-            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID,
-                    2L, 0L, MEMBER_ID, false, null);
+            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, MEMBER_ID, false, null
+            );
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
             when(sagaTimeouts.stepTimeout(INVENTORY_RESERVING)).thenReturn(Duration.ofMinutes(5));
@@ -103,15 +102,16 @@ class MemberStepServiceTest {
             assertThat(commandCaptor.getValue().sagaId()).isEqualTo(SAGA_ID);
 
             // 3. BookLoan 정리 로직은 호출되지 않아야 함
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
 
         @Test
         @DisplayName("성공(블랙리스트 멤버): 사가를 FAILED 상태로 전이시키고 BookLoan의 sagaId를 정리한다")
         void shouldTransitionToFailed_whenMemberIsBlacklisted() {
             // given
-            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID,
-                    2L, 0L, MEMBER_ID, true, "테스트용 블랙리스트 사유");
+            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, MEMBER_ID, true, "테스트용 블랙리스트 사유"
+            );
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
@@ -137,8 +137,9 @@ class MemberStepServiceTest {
         @DisplayName("실패: 사가를 찾을 수 없으면 SagaNotFoundException을 던진다")
         void shouldThrowException_whenSagaNotFound() {
             // given
-            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID,
-                    2L, 0L, MEMBER_ID, false, null);
+            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, MEMBER_ID, false, null
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.empty());
 
             // when & then
@@ -152,8 +153,9 @@ class MemberStepServiceTest {
             // given
             testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.markCompleted(); // COMPLETED 상태로 설정
-            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID,
-                    2L, 0L, MEMBER_ID, false, null);
+            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, MEMBER_ID, false, null
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -162,7 +164,7 @@ class MemberStepServiceTest {
             // then
             verify(sagaRepository, never()).saveAndFlush(any());
             verify(commandOutboxRecorder, never()).save(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
 
         @Test
@@ -170,8 +172,9 @@ class MemberStepServiceTest {
         void shouldDoNothing_whenSagaIsInWrongStep() {
             // given
             testSaga.markProcessing(INVENTORY_RESERVING, Duration.ofMinutes(5), now(fixedClock)); // 다른 단계로 설정
-            MemberCheckedReply event = new MemberCheckedReply(1L, SAGA_ID, 2L, 0L,
-                    MEMBER_ID, false, null);
+            MemberCheckedInternalEvent event = new MemberCheckedInternalEvent(
+                    1L, SAGA_ID, 2L, 0L, MEMBER_ID, false, null
+            );
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
 
             // when
@@ -180,7 +183,7 @@ class MemberStepServiceTest {
             // then
             verify(sagaRepository, never()).saveAndFlush(any());
             verify(commandOutboxRecorder, never()).save(any());
-            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyString());
+            verify(bookLoanRepository, never()).clearSagaIfMatches(anyLong(), anyLong());
         }
     }
 }

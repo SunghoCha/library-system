@@ -13,18 +13,19 @@ import java.time.LocalDateTime;
 public class LoanSaga extends BaseTimeEntity {
 
     @Id
+    @Column(name = "saga_id", nullable = false)
     private Long id;
 
-    @Column(name = "loan_id", nullable = false)
+    @Column(nullable = false)
     private Long loanId;
 
-    @Column(name = "member_id", nullable = false)
+    @Column(nullable = false)
     private Long memberId;
 
-    @Column(name = "book_id", nullable = false)
+    @Column(nullable = false)
     private Long bookId;
 
-    @Column(name = "aggregate_version", nullable = false)
+    @Column(nullable = false)
     private Long aggregateVersion;         // @Version 값(BookLoan 엔티티)
 
     @Column(name = "trigger_event_id", nullable = false)
@@ -36,11 +37,11 @@ public class LoanSaga extends BaseTimeEntity {
     private SagaStatus status;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "current_step", nullable = false)
+    @Column(name = "current_step", nullable = false) // LoanSagaStep 이름이 더 나은가?
     private LoanSagaStep currentStep;
 
     @Version
-    @Column(name = "version", nullable = false)
+    @Column(nullable = false)
     private Long version;
 
     @Lob
@@ -49,6 +50,9 @@ public class LoanSaga extends BaseTimeEntity {
 
     @Column(name = "worker_id")
     private String workerId;
+
+    @Column(name = "lease_id")
+    private String leaseId;
 
     @Column(name = "lease_until")
     private LocalDateTime leaseUntil;

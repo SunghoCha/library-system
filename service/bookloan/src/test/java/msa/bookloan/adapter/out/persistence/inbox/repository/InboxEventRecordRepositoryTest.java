@@ -32,7 +32,7 @@ class InboxEventRecordRepositoryTest {
         assertThat(eventRecord.getSeenCount()).isEqualTo(1);
         assertThat(eventRecord.getId()).isEqualTo(id1);
 
-        // 2) 다른 pk, 같은 eventId로 다시 → seen_count + 1
+        // 2) 다른 pk, 같은 eventId로 다시 -> seen_count + 1
         projectionEventRecordRepository.upsertInbox(id2, eventId, aggId, aggVer, "UPDATED", "{}", source,"topicA", 0, 11L);
         InboxEventRecord eventRecord2 = projectionEventRecordRepository.findByEventId(eventId).orElseThrow();
         assertThat(eventRecord2.getSeenCount()).isEqualTo(2);

@@ -33,7 +33,7 @@ public interface BookLoanRepository extends JpaRepository<BookLoan, Long> {
            AND (b.currentSagaId IS NULL OR b.currentSagaId = :sagaId)
         """)
     int tryBindSaga(@Param("loanId") Long loanId,
-                    @Param("sagaId") String sagaId);
+                    @Param("sagaId") Long sagaId);
 
     // 터미널 전이 시 해제: 내가 건 값일 때만 null
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -48,6 +48,6 @@ public interface BookLoanRepository extends JpaRepository<BookLoan, Long> {
 
     // 취소 진입 시 조회용
     @Query("select b.currentSagaId from BookLoan b where b.id = :loanId")
-    Optional<String> findCurrentSagaId(@Param("loanId") Long loanId);
+    Optional<Long> findCurrentSagaId(@Param("loanId") Long loanId);
 }
 

@@ -19,8 +19,8 @@ public class LoanCancelSagaRequestListener {
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void handle(LoanCancelRequestedInternalEvent event) {
-        long loanId = event.loanId();
-        String sagaId = bookLoanRepository.findCurrentSagaId(loanId).orElse(null);
+        Long loanId = event.loanId();
+        Long sagaId = bookLoanRepository.findCurrentSagaId(loanId).orElse(null);
         if (sagaId == null) {
             log.debug("[Saga] 취소 무시: loanId={}, reason={}, eventId={}",
                     event.loanId(), event.reason(), event.eventId());

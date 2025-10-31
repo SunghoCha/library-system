@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
-import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+import msa.bookloan.adapter.out.persistence.projection.repository.BookCatalogProjectionRepository;
 import msa.bookloan.application.event.LoanCancelRequestedInternalEvent;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
 import msa.bookloan.application.port.out.lock.DistributedLock;
@@ -49,8 +49,8 @@ public class LoanService {
         bookLoanRepository.save(loan);
         bookLoanRepository.flush(); // version 정보 세팅용
 
-        String sagaId = Long.toString(loanId);
-        long eventId = snowflake.nextId();
+        Long sagaId = snowflake.nextId();;
+        Long eventId = snowflake.nextId();
         Long version = loan.getVersion();
 
         eventPublisher.publishEvent(new LoanRequestedInternalEvent(

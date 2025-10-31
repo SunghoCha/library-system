@@ -49,11 +49,11 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public long markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
-        long updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt, now(clock));
+    public long markPublishedByEventId(Long eventId, String leaseId) {
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, leaseId, now(clock));
         if (updated == 0L) {
-            log.info("[Outbox] 발행 처리 스킵(펜싱/이미 처리): eventId={}, workerId={}, claimedAt={}",
-                    eventId, workerId, claimedAt);
+            log.info("[Outbox] 발행 처리 스킵(펜싱/이미 처리): eventId={}, leaseId={}",
+                    eventId, leaseId);
         } else {
             log.info("[Outbox] 발행 완료: eventId={}", eventId);
         }
@@ -61,11 +61,11 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public long markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
-        long updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason, now(clock));
+    public long markFailedByEventId(Long eventId, String leaseId, String reason) {
+        long updated = eventRecordRepository.markFailedByEventId(eventId, leaseId, reason, now(clock));
         if (updated == 0L) {
-            log.info("[Outbox] 실패 처리 스킵(펜싱/회수됨): eventId={}, workerId={}, claimedAt={}",
-                    eventId, workerId, claimedAt);
+            log.info("[Outbox] 실패 처리 스킵(펜싱/회수됨): eventId={}, leaseId={}",
+                    eventId, leaseId);
         } else {
             log.warn("[Outbox] 발행 실패: eventId={}, reason={}", eventId, reason);
         }

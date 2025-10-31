@@ -6,6 +6,7 @@ import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
 import msa.bookloan.adapter.out.persistence.outbox.CommandOutboxRecorder;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
+import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.common.events.bookloan.saga.command.ReserveInventoryCommand;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
@@ -36,22 +37,22 @@ public class MemberStepService {
     private final Snowflake snowflake;
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void afterMemberChecked(MemberCheckedReply reply) {
-        LoanSaga saga = sagaRepository.findById(reply.sagaId())
-                .orElseThrow(() -> new SagaNotFoundException(reply.sagaId()));
+    public void afterMemberChecked(MemberCheckedInternalEvent event) {
+        LoanSaga saga = sagaRepository.findById(event.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(event.sagaId())));
 
         if (saga.isTerminal()) return;
         if (!saga.isProcessingAt(MEMBER_CHECKING)) return;
 
-        if (reply.blacklisted()) {
+        if (event.blacklisted()) {
             boolean changed = saga.markFailed(BLACKLISTED);
             if (!changed) return;
 
             // 낙관적 예외 발생시 바로 던지도록 설계 (save로 해도 큰 차이는 없을듯?)
             sagaRepository.saveAndFlush(saga);
 
-            bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getSagaId());
-            log.info("[Saga] 블랙리스트로 종료: sagaId={}", reply.sagaId());
+            bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+            log.info("[Saga] 블랙리스트로 종료: sagaId={}", event.sagaId());
             return;
         }
 
@@ -59,16 +60,16 @@ public class MemberStepService {
         if (!stepped) return;
 
         sagaRepository.saveAndFlush(saga);
-        ReserveInventoryCommand command = createInventoryCommand(saga, reply.eventId());
+        ReserveInventoryCommand command = createInventoryCommand(saga, event.eventId());
         commandOutboxRecorder.save(command);
-        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", reply.sagaId(), saga.getBookId());
+        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", event.sagaId(), saga.getBookId());
 
     }
 
     private ReserveInventoryCommand createInventoryCommand(LoanSaga saga, Long causationEventId) {
         return ReserveInventoryCommand.of(
                 snowflake.nextId(),
-                saga.getSagaId(),
+                saga.getId(),
                 saga.getLoanId(),
                 saga.getBookId(),
                 causationEventId

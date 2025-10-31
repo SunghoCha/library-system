@@ -22,25 +22,24 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             INSERT INTO inbox_event
-              (id, event_id, aggregate_id, aggregate_version, event_type, payload, status, source,
-               last_seen_at, seen_count, retry_count,
+              (id, event_id, aggregate_id, aggregate_version, event_type, payload,
+               status, source, seen_count, retry_count,
                topic, partition_no, record_offset, last_error, failure_category,
                created_at, updated_at)
             VALUES
-              (:id, :eventId, :aggregateId, :aggregateVersion, :eventTypeV1, :payload, 'NEW', :source,
-               NOW(6), 1, 0,
+              (:id, :eventId, :aggregateId, :aggregateVersion, :eventType, :payload, 
+               'NEW', :source, 1, 0,
                :topic, :partitionNo, :recordOffset, NULL, NULL,
                NOW(6), NOW(6))
             ON DUPLICATE KEY UPDATE
               seen_count   = seen_count + 1,
-              last_seen_at = NOW(6),
               updated_at   = NOW(6)
             """, nativeQuery = true)
     int upsertInbox(@Param("id") long id,
                     @Param("eventId") long eventId,
                     @Param("aggregateId") long aggregateId,
                     @Param("aggregateVersion") long aggregateVersion,
-                    @Param("eventTypeV1") String eventTypeV1,
+                    @Param("eventType") String eventType,
                     @Param("payload") String payload,
                     @Param("source") String source,
                     @Param("topic") String topic,
@@ -54,7 +53,7 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
           status = 'NEW'
        OR (status = 'FAILED' AND retry_count < :maxRetry)
        OR (status = 'PROCESSING'
-           AND (lease_until IS NULL OR lease_until < :now OR picked_at < :stale))
+           AND (lease_until IS NULL OR lease_until < :now))
     ORDER BY last_seen_at ASC, id ASC
     LIMIT :limit
     FOR UPDATE SKIP LOCKED
@@ -62,9 +61,7 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
     List<Long> lockClaimableInboxIds(
             @Param("limit") int limit,
             @Param("maxRetry") int maxRetry,
-            @Param("now") LocalDateTime now,
-            @Param("stale") LocalDateTime staleThreshold
-    );
+            @Param("now") LocalDateTime now);
 
 
 

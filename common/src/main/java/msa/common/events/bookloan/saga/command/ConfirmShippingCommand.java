@@ -3,7 +3,7 @@ package msa.common.events.bookloan.saga.command;
 
 public record ConfirmShippingCommand(
         Long commandId,
-        String sagaId,
+        Long sagaId,
         Long loanId,
         Long bookId,
         Long causationEventId,
@@ -12,7 +12,7 @@ public record ConfirmShippingCommand(
 
     public static ConfirmShippingCommand of(
             Long cmdId,
-            String sagaId,
+            Long sagaId,
             Long loanId,
             Long bookId,
             Long causationId

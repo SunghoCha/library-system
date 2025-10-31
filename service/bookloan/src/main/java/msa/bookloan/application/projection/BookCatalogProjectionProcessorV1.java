@@ -3,7 +3,7 @@
 //import jakarta.persistence.OptimisticLockException;
 //import lombok.RequiredArgsConstructor;
 //import lombok.extern.slf4j.Slf4j;
-//import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+//import msa.bookloan.adapter.out.persistence.projection.repository.BookCatalogProjectionRepository;
 //import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
 //import msa.bookloan.application.event.BookCatalogChangedEvent;
 //import msa.bookloan.application.event.CatalogEventType;

@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class ExternalEventPublisher {
 
     private final OutboxEventSender outboxEventSender;
-
+    // TODO : 폴링스케줄러로만 발행하는게 낫지않을까? 굳이 이런 애프터커밋 리스너가 필요한건지 의문
     @Async("EVENT_ASYNC_TASK_EXECUTOR")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void publish(BookCatalogChangedEvent event) {

@@ -30,9 +30,7 @@ public class InboxClaimerService {
         LocalDateTime staleAt = now.minus(props.staleTimeout());
         LocalDateTime leaseUntil = now.plus(props.lease());
 
-        List<Long> ids = inboxRepository.lockClaimableInboxIds(
-                props.batchSize(), props.maxRetryCount(), now, staleAt
-        );
+        List<Long> ids = inboxRepository.lockClaimableInboxIds(props.batchSize(), props.maxRetryCount(), now);
 
         if (ids.isEmpty()) return List.of();
 
