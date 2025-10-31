@@ -1,7 +1,7 @@
 package msa.bookloan.application.outbox;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.application.saga.command.ScheduleShippingCommand;
+import msa.common.events.bookloan.saga.command.ScheduleShippingCommand;
 import msa.bookloan.infra.config.properties.KafkaProps;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -21,8 +21,8 @@ public class ScheduleShippingCommandRoutingResolver implements OutboxRoutingReso
     @Override
     public OutboxRouting doResolve(ScheduleShippingCommand command) {
         return OutboxRouting.builder()
-                .topic(kafkaProps.getTopicInventoryReserve())
-                .partitionKey(command.sagaId())
+                .topic(kafkaProps.getTopicShippingSchedule())
+                .partitionKey(String.valueOf(command.loanId()))
                 .build();
     }
 }

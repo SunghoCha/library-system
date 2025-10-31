@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import msa.bookloan.application.event.BookCatalogChangedEvent;
+import msa.common.events.bookcatalog.BookCatalogSnapshotPayload;
 
 import java.time.LocalDateTime;
 
@@ -42,16 +43,15 @@ public class BookCatalogProjection {
     @Column(name = "book_type_name")
     private String bookTypeName;
 
-    @Column(name = "aggregate_version", nullable = false)
+    @Column(name = "aggregate_version", nullable = false) // BookCatalog 엔티티의 @Version
     private Long aggregateVersion;
 
     @Column(name = "last_event_at")
     private LocalDateTime lastEventAt;
 
-    // TODO : 굳이 필요한지 모르겠음
-//    @Version
-//    @Column(name = "row_version")
-//    private Long rowVersion;
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @Builder
     public BookCatalogProjection(Long bookId, String title, String author,
@@ -69,32 +69,35 @@ public class BookCatalogProjection {
         this.lastEventAt = lastEventAt;
     }
 
-    public boolean applySnapshot(BookCatalogChangedEvent event) {
-        long incoming = event.getAggregateVersion();
-        if (this.aggregateVersion != null && incoming <= this.aggregateVersion) return false;
+    public boolean applySnapshot(BookCatalogSnapshotPayload payload, Long incomingAggregateVersion) {
+        if (this.aggregateVersion != null && incomingAggregateVersion <= this.aggregateVersion) return false;
 
-        this.title = event.getTitle();
-        this.author = event.getAuthor();
-        this.categoryId = event.getCategory().categoryId();
-        this.categoryName = event.getCategory().categoryName();
-        this.bookType = event.getBookType().bookType();
-        this.bookTypeName = event.getBookType().bookTypeName();
-        this.aggregateVersion = incoming;
-        this.lastEventAt = event.getOccurredAt();
+        this.title = payload.title();
+        this.author = payload.author();
+        this.categoryId = payload.category().categoryId();
+        this.categoryName = payload.category().categoryName();
+        this.bookType = payload.bookType().bookType();
+        this.bookTypeName = payload.bookType().bookTypeName();
+        this.aggregateVersion = incomingAggregateVersion;
+        this.lastEventAt = payload.occurredAt();
         return true;
     }
 
-    public static BookCatalogProjection from(BookCatalogChangedEvent event) {
+    public static BookCatalogProjection fromSnapshot(Long bookId, BookCatalogSnapshotPayload payload, Long aggregateVersion) {
+        if (payload == null) {
+            return null;
+        }
+
         return BookCatalogProjection.builder()
-                .bookId(event.getBookId())
-                .title(event.getTitle())
-                .author(event.getAuthor())
-                .categoryId(event.getCategory().categoryId())
-                .categoryName(event.getCategory().categoryName())
-                .bookType(event.getBookType().bookType())
-                .bookTypeName(event.getBookType().bookTypeName())
-                .aggregateVersion(event.getAggregateVersion())
-                .lastEventAt(event.getOccurredAt())
+                .bookId(bookId)
+                .title(payload.title())
+                .author(payload.author())
+                .categoryId(payload.category().categoryId())
+                .categoryName(payload.category().categoryName())
+                .bookType(payload.bookType().bookType())
+                .bookTypeName(payload.bookType().bookTypeName())
+                .aggregateVersion(aggregateVersion) // 파라미터로 받은 version 사용
+                .lastEventAt(payload.occurredAt())
                 .build();
     }
 }

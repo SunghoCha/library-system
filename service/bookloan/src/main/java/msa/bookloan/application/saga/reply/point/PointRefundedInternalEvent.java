@@ -1,11 +1,32 @@
 package msa.bookloan.application.saga.reply.point;
 
-import msa.bookloan.application.saga.reply.SagaReplyEvent;
+import msa.common.events.bookloan.saga.reply.point.PointRefundedReply;
+import msa.common.util.IdConverter;
 
 public record PointRefundedInternalEvent(
         Long eventId,
-        String sagaId,
+        Long sagaId,
         Long causationCommandId,
-        Long sourceAggregateVersion,
-        PointRefundedPayload payload
-) implements SagaReplyEvent {}
+        Long loanVersion,
+        Long memberId,
+        Long refundAmount,
+        String refundId
+) {
+
+    public static PointRefundedInternalEvent from(PointRefundedReply reply) {
+        Long eventId = IdConverter.parseLongOrThrow(reply.eventId(), "eventId");
+        Long sagaId = IdConverter.parseLongOrThrow(reply.sagaId(), "sagaId");
+        Long causationCommandId = IdConverter.parseLongOrThrow(reply.causationCommandId(), "causationCommandId");
+        Long memberId = IdConverter.parseLongOrThrow(reply.memberId(), "memberId");
+
+        return new PointRefundedInternalEvent(
+                eventId,
+                sagaId,
+                causationCommandId,
+                reply.loanVersion(),
+                memberId,
+                reply.refundAmount(),
+                reply.refundId()   // 이건 원래 문자열이니까 그대로 둔다
+        );
+    }
+}

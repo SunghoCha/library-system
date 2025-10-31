@@ -5,7 +5,10 @@ public enum  LoanSagaStep {
     MEMBER_CHECKING,
     INVENTORY_RESERVING,
     POINT_CHARGING,
-    SHIPPING_SCHEDULING,
+
+    SHIPPING_SCHEDULING,   // 배송 예약 커맨드 보냄
+    SHIPPING_ACCEPTED,     // 배송 서비스가 예약/접수됨 리플라이 발행 - 취소 가능 구간
+
     FINISHED
 
     // 취소/보상 흐름은 추후 추가

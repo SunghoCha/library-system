@@ -1,14 +1,14 @@
 package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
 import jakarta.persistence.EntityManager;
-import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookcatalog.infra.config.QueryDslConfig;
-import msa.bookcatalog.adapter.out.messaging.outbox.OutboxEventSender;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
-import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
+import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxEventSender;
 import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxRelayScheduler;
+import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
-import msa.common.events.EventType;
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.bookcatalog.application.event.CatalogEventType;
+import msa.bookcatalog.infra.config.QueryDslConfig;
+import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +24,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
+import static java.time.LocalDateTime.now;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(QueryDslConfig.class)
@@ -57,11 +60,13 @@ class OutboxEventRecordRepositoryTest {
         OutboxClaimerService outboxClaimerService() { return Mockito.mock(OutboxClaimerService.class); }
     }
 
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
+
     @Autowired
     private OutboxEventRecordRepository outboxRepository;
 
     @Autowired
-    private EntityManager entityManager;
+    private EntityManager em;
 
     @BeforeEach
     void setUp() {
@@ -72,64 +77,62 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("lockClaimableIds: 발행 가능한 모든 종류의 이벤트를 조건에 맞게 조회한다")
     void lockClaimableIds_shouldFindAllClaimableEvents() {
         // given
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now(fixedClock);
         int maxRetry = 3;
 
-        // 1. 발행 대상: NEW 상태이고 grace time이 지난 이벤트
+        // NEW 상태
         OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, now.minusMinutes(10));
-        // 2. 발행 대상: FAILED 상태이고 재시도 횟수가 남은 이벤트
+        // FAILED 상태이고 재시도 횟수가 남은 이벤트
         OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, maxRetry - 1, now.minusMinutes(9));
-        // 3. 발행 대상: PUBLISHING 상태이고 lease가 만료된 이벤트
-        OutboxEventRecord staleEvent = createPublishingRecord(300L,3L, "stale-worker", now.minusMinutes(5), now.minusMinutes(1));
+        // PUBLISHING 상태이고 lease가 만료된 이벤트
+        OutboxEventRecord leaseOverEvent = createPublishingRecord(300L,3L, "worker", "lease1", now.minusMinutes(1));
 
-        // 4. 발행 제외 대상: NEW 상태이지만 grace time이 지나지 않음
-        OutboxEventRecord tooNewEvent = createRecord(400L,4L, OutboxEventRecordStatus.NEW, 0, now);
-        // 5. 발행 제외 대상: FAILED 상태이지만 재시도 횟수 초과
+        // PUBLISHING 상태이고 lease가 NULL인 이벤트 (비정상 종료 복구)
+        OutboxEventRecord nullLeaseEvent = createPublishingRecord(800L, 8L, "null-worker", "lease2", null); // lease_until IS NULL
+
+        // 발행 제외 : FAILED 상태이지만 재시도 횟수 초과
         OutboxEventRecord maxRetryEvent = createRecord(500L,5L, OutboxEventRecordStatus.FAILED, maxRetry, now.minusMinutes(8));
-        // 6. 발행 제외 대상: PUBLISHING 상태이고 lease가 유효함
-        OutboxEventRecord lockedEvent = createPublishingRecord(600L,6L, "active-worker", now, now.plusMinutes(5));
-        // 7. 발행 제외 대상: 이미 성공한 이벤트
+        // 발행 제외 : PUBLISHING 상태이고 lease가 유효함
+        OutboxEventRecord lockedEvent = createPublishingRecord(600L,6L, "active-worker", "lease3", now.plusMinutes(5));
+        // 발행 제외 : 이미 성공한 이벤트
         OutboxEventRecord publishedEvent = createRecord(700L,7L, OutboxEventRecordStatus.PUBLISHED, 0, now.minusMinutes(7));
 
-        outboxRepository.saveAll(List.of(newEvent, failedEvent, staleEvent, tooNewEvent, maxRetryEvent, lockedEvent, publishedEvent));
+        outboxRepository.saveAll(List.of(newEvent, failedEvent, leaseOverEvent, nullLeaseEvent, maxRetryEvent, lockedEvent, publishedEvent));
 
         // when
-        List<Long> claimableIds = outboxRepository.lockClaimableIds(
-                10,
-                maxRetry,
-                now,
-                now.minusSeconds(10), // graceThreshold
-                now.minusMinutes(2) // staleThreshold
-        );
+        List<Long> claimableIds = outboxRepository.lockClaimableIds(10, maxRetry, now);
 
         // then
-        assertThat(claimableIds).hasSize(3)
-                .contains(newEvent.getId(), failedEvent.getId(), staleEvent.getId())
-                .doesNotContain(tooNewEvent.getId(), maxRetryEvent.getId(), lockedEvent.getId(), publishedEvent.getId());
+        assertThat(claimableIds).hasSize(4)
+                .contains(newEvent.getId(), failedEvent.getId(), leaseOverEvent.getId())
+                .doesNotContain(maxRetryEvent.getId(), lockedEvent.getId(), publishedEvent.getId());
     }
 
     @Test
     @DisplayName("markPublishing: 여러 ID의 상태를 PUBLISHING으로 업데이트한다")
     void markPublishing_shouldUpdateStatusToPublishing() {
         // given
-        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
-        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L,1L, OutboxEventRecordStatus.NEW, 0, now());
+        OutboxEventRecord failedEvent = createRecord(200L,2L, OutboxEventRecordStatus.FAILED, 1, now());
         outboxRepository.saveAll(List.of(newEvent, failedEvent));
 
+        em.flush();
+        em.clear();
+
         String workerId = "test-worker";
-        LocalDateTime now = LocalDateTime.now();
-        int leaseSeconds = 60;
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
+        LocalDateTime leaseUntil = now.plusSeconds(60);
         List<Long> ids = List.of(newEvent.getId(), failedEvent.getId());
 
         // when
-        int updatedCount = outboxRepository.markPublishing(ids, workerId, now, leaseSeconds);
+        long updatedCount = outboxRepository.markPublishing(ids, workerId, leaseId, now, leaseUntil);
 
         // then
         assertThat(updatedCount).isEqualTo(2);
         List<OutboxEventRecord> updatedRecords = outboxRepository.findAllById(ids);
         assertThat(updatedRecords).allMatch(r -> r.getOutboxEventRecordStatus() == OutboxEventRecordStatus.PUBLISHING);
         assertThat(updatedRecords).allMatch(r -> r.getWorkerId().equals(workerId));
-        assertThat(updatedRecords).allMatch(r -> r.getPickedAt().isBefore(now.plusSeconds(1)));
         assertThat(updatedRecords).allMatch(r -> r.getLeaseUntil().isAfter(now));
     }
 
@@ -138,19 +141,23 @@ class OutboxEventRecordRepositoryTest {
     void markPublished_shouldUpdateStatusToPublished() {
         // given
         String workerId = "test-worker";
-        LocalDateTime claimedAt = LocalDateTime.now();
-        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
+        LocalDateTime now = now(fixedClock);
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime leaseUntil = now.plusSeconds(60);
+        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, leaseId, leaseUntil);
         outboxRepository.save(publishingEvent);
 
+        em.flush();
+        em.clear();
+
         // when
-        int updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), workerId, claimedAt);
+        long updatedCount = outboxRepository.markPublished(List.of(publishingEvent.getId()), leaseId, now);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
-        OutboxEventRecord updatedRecord = outboxRepository.findById(publishingEvent.getId()).get();
+        OutboxEventRecord updatedRecord = outboxRepository.findById(publishingEvent.getId()).orElseThrow();
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.PUBLISHED);
         assertThat(updatedRecord.getWorkerId()).isNull();
-        assertThat(updatedRecord.getPickedAt()).isNull();
         assertThat(updatedRecord.getLeaseUntil()).isNull();
     }
 
@@ -159,23 +166,27 @@ class OutboxEventRecordRepositoryTest {
     void markFailed_shouldUpdateStatusToFailedAndIncrementRetryCount() {
         // given
         String workerId = "test-worker";
-        LocalDateTime claimedAt = LocalDateTime.now();
-        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, claimedAt, claimedAt.plusSeconds(60));
+        LocalDateTime now = now(fixedClock);
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime leaseUntil = now.plusSeconds(60);
+        OutboxEventRecord publishingEvent = createPublishingRecord(100L,1L, workerId, leaseId, leaseUntil);
+
         outboxRepository.save(publishingEvent);
         int initialRetryCount = publishingEvent.getRetryCount();
 
+        em.flush();
+        em.clear();
         // when
         String errorMessage = "Kafka Connection Failed";
-        int updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), workerId, claimedAt, errorMessage);
+        long updatedCount = outboxRepository.markFailed(List.of(publishingEvent.getId()), leaseId, errorMessage, now(fixedClock));
 
         // then
         assertThat(updatedCount).isEqualTo(1);
-        OutboxEventRecord updatedRecord = outboxRepository.findById(publishingEvent.getId()).get();
+        OutboxEventRecord updatedRecord = outboxRepository.findById(publishingEvent.getId()).orElseThrow();
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.FAILED);
         assertThat(updatedRecord.getRetryCount()).isEqualTo(initialRetryCount + 1);
         assertThat(updatedRecord.getLastError()).isEqualTo(errorMessage);
         assertThat(updatedRecord.getWorkerId()).isNull();
-        assertThat(updatedRecord.getPickedAt()).isNull();
         assertThat(updatedRecord.getLeaseUntil()).isNull();
     }
 
@@ -183,16 +194,19 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("markDeadFromFailed: FAILED 상태의 이벤트를 DEAD_LETTER로 업데이트한다")
     void markDeadFromFailed_shouldUpdateStatusToDeadLetter() {
         // given
-        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 3, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 3, now());
         outboxRepository.save(failedEvent);
+
+        em.flush();
+        em.clear();
 
         // when
         String reason = "Max retry exceeded";
-        int updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason);
+        long updatedCount = outboxRepository.markDeadFromFailed(failedEvent.getEventId(), reason, now(fixedClock));
 
         // then
         assertThat(updatedCount).isEqualTo(1);
-        OutboxEventRecord updatedRecord = outboxRepository.findByEventId(failedEvent.getEventId()).get();
+        OutboxEventRecord updatedRecord = outboxRepository.findByEventId(failedEvent.getEventId()).orElseThrow();
         assertThat(updatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.DEAD_LETTER);
         assertThat(updatedRecord.getLastError()).isEqualTo(reason);
     }
@@ -201,19 +215,23 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태의 이벤트를 선점하여 PUBLISHING으로 변경한다")
     void tryClaimFromNew_shouldClaimNewEvent() {
         // given
-        OutboxEventRecord newEvent = createRecord(100L, 1L, OutboxEventRecordStatus.NEW, 0, LocalDateTime.now());
+        OutboxEventRecord newEvent = createRecord(100L, 1L, OutboxEventRecordStatus.NEW, 0, now());
         outboxRepository.save(newEvent);
 
+        em.flush();
+        em.clear();
+
         String workerId = "claim-worker";
-        LocalDateTime now = LocalDateTime.now();
-        int leaseSeconds = 30;
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
+        LocalDateTime leaseUntil = now.plusSeconds(60);
 
         // when
-        int updatedCount = outboxRepository.tryClaimFromNew(newEvent.getEventId(), workerId, now, leaseSeconds);
+        long updatedCount = outboxRepository.tryClaimFromNew(newEvent.getEventId(), workerId, leaseId, now, leaseUntil);
 
         // then
         assertThat(updatedCount).isEqualTo(1);
-        OutboxEventRecord claimedRecord = outboxRepository.findByEventId(newEvent.getEventId()).get();
+        OutboxEventRecord claimedRecord = outboxRepository.findByEventId(newEvent.getEventId()).orElseThrow();
         assertThat(claimedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.PUBLISHING);
         assertThat(claimedRecord.getWorkerId()).isEqualTo(workerId);
     }
@@ -222,15 +240,23 @@ class OutboxEventRecordRepositoryTest {
     @DisplayName("tryClaimFromNew: NEW 상태가 아닌 이벤트는 선점할 수 없다")
     void tryClaimFromNew_shouldNotClaimNonNewEvent() {
         // given
-        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 1, LocalDateTime.now());
+        OutboxEventRecord failedEvent = createRecord(100L,1L, OutboxEventRecordStatus.FAILED, 1, now());
         outboxRepository.save(failedEvent);
 
+        String workerId = "claim-worker";
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
+        LocalDateTime leaseUntil = now.plusSeconds(60);
+
+        em.flush();
+        em.clear();
+
         // when
-        int updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), "worker", LocalDateTime.now(), 30);
+        long updatedCount = outboxRepository.tryClaimFromNew(failedEvent.getEventId(), workerId, leaseId, now(), leaseUntil);
 
         // then
         assertThat(updatedCount).isEqualTo(0);
-        OutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(failedEvent.getEventId()).get();
+        OutboxEventRecord notUpdatedRecord = outboxRepository.findByEventId(failedEvent.getEventId()).orElseThrow();
         assertThat(notUpdatedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.FAILED);
     }
 
@@ -239,8 +265,8 @@ class OutboxEventRecordRepositoryTest {
         return OutboxEventRecord.builder()
                 .id(id)
                 .eventId(eventId)
-                .eventType(EventType.CREATED)
-                .aggregateId("agg-id-" + eventId)
+                .eventType(CatalogEventType.CREATED.getValue())
+                .aggregateId(999L)
                 .aggregateType("BOOK_CATALOG")
                 .aggregateVersion(0L)
                 .payload("{}")
@@ -251,11 +277,17 @@ class OutboxEventRecordRepositoryTest {
                 .build();
     }
 
-    private OutboxEventRecord createPublishingRecord(Long id, Long eventId, String workerId, LocalDateTime pickedAt, LocalDateTime leaseUntil) {
-        OutboxEventRecord record = createRecord(id, eventId, OutboxEventRecordStatus.PUBLISHING, 0, pickedAt.minusSeconds(10));
+    private OutboxEventRecord createPublishingRecord(Long id,
+                                                     Long eventId,
+                                                     String workerId,
+                                                     String leaseId,
+                                                     LocalDateTime leaseUntil) {
+        // occurredAt은 leaseUntil보다 무조건 빠르도록 설정
+        LocalDateTime occurredAt = (leaseUntil != null) ? leaseUntil.minusMinutes(1) : now(fixedClock).minusMinutes(1);
+        OutboxEventRecord record = createRecord(id, eventId, OutboxEventRecordStatus.PUBLISHING, 0, occurredAt);
         record.setWorkerId(workerId);
-        record.setPickedAt(pickedAt);
         record.setLeaseUntil(leaseUntil);
+        record.setLeaseId(leaseId);
         return record;
     }
 }

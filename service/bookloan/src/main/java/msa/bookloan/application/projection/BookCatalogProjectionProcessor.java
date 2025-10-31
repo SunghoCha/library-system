@@ -1,15 +1,15 @@
 package msa.bookloan.application.projection;
 
-import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
-import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
+import msa.bookloan.adapter.out.persistence.projection.repository.BookCatalogProjectionRepository;
 import msa.bookloan.adapter.out.persistence.projection.entity.BookCatalogProjection;
-import msa.bookloan.application.event.BookCatalogChangedEvent;
-import msa.common.events.EventType;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import msa.common.events.bookcatalog.BookCatalogDeletedPayload;
+import msa.common.events.bookcatalog.BookCatalogSnapshotPayload;
+import msa.common.exception.BusinessNotRetryableException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -18,62 +18,73 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookCatalogProjectionProcessor {
 
     private final BookCatalogProjectionRepository projectionRepository;
-    private final InboxAppender inboxAppender;
 
-    @Transactional
-    public void project(BookCatalogChangedEvent event) {
-        if (event.getEventType() == EventType.DELETED) {
-            handleDeletedEvent(event);
+    // 변수가 더 늘어나게 되면 컨텍스트 객체 만들어서 전달 받아야할 듯
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onCreated(Long eventId, BookCatalogSnapshotPayload payload, Long aggregateVersion) {
+        upsert(eventId, payload, requireVersion(aggregateVersion, payload));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onUpdated(Long eventId, BookCatalogSnapshotPayload payload, Long aggregateVersion) {
+        upsert(eventId, payload, requireVersion(aggregateVersion, payload));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void onDeleted(Long eventId, BookCatalogDeletedPayload payload, Long aggregateVersion) {
+        Long bookId = toLong(payload.bookId());
+        BookCatalogProjection existing = projectionRepository.findByBookId(bookId).orElse(null);
+        if (existing == null) return;
+        if (aggregateVersion == null || aggregateVersion < existing.getAggregateVersion()) {
+            log.debug("삭제 스킵(낮은 버전) [eventId={}, bookId={}, incomingVer={}, currentVer={}]",
+                    eventId, bookId, aggregateVersion, existing.getAggregateVersion());
             return;
         }
-        upsert(event);
+        projectionRepository.deleteByBookId(bookId);
+        log.debug("Projection deleted [eventId={}, bookId={}]", eventId, payload.bookId());
     }
 
-    @Transactional
-    public void retry(BookCatalogChangedEvent event) {
-        // 삭제 이벤트면 삭제, 아니면 upsert 재시도
-        if (event.getEventType() == EventType.DELETED) {
-            handleDeletedEvent(event);
-        } else {
-            upsert(event);
-        }
-    }
-
-    // 너무 지저분한거같은데 이게 맞나
-    // 기존 트랜잭션에 합류
-    // 순서꼬임 방지하기 위해 버전 체크
-    private void upsert(BookCatalogChangedEvent event) {
-        BookCatalogProjection existing = projectionRepository.findByBookId(event.getBookId()).orElse(null);
+    private void upsert(Long eventId, BookCatalogSnapshotPayload payload, Long aggregateVersion) {
+        Long bookId = toLong(payload.bookId());
+        BookCatalogProjection existing = projectionRepository.findByBookId(bookId).orElse(null);
 
         if (existing == null) {
-            projectionRepository.save(BookCatalogProjection.from(event));
+            projectionRepository.save(BookCatalogProjection.fromSnapshot(bookId, payload, aggregateVersion));
             log.debug("프로젝션 생성 [eventId={}, bookId={}, version={}]",
-                    event.getEventId(), event.getBookId(), event.getAggregateVersion());
+                    eventId, payload.bookId(), aggregateVersion);
             return;
         }
 
         try {
-            if (existing.applySnapshot(event)) { // 버전 상위인지 체크
+            if (existing.applySnapshot(payload, aggregateVersion)) { // 버전 상위인지 체크
                 projectionRepository.save(existing);
                 log.debug("프로젝션 갱신 [eventId={}, bookId={}, version={}]",
-                        event.getEventId(), event.getBookId(), event.getAggregateVersion());
+                        eventId, payload.bookId(), aggregateVersion);
             } else {
                 log.debug("프로젝션 스킵 [eventId={}, bookId={}, version={}]",
-                        event.getEventId(), event.getBookId(), event.getAggregateVersion());
+                        eventId, payload.bookId(), aggregateVersion);
             }
-        } catch (ObjectOptimisticLockingFailureException | OptimisticLockException ex) {
+        } catch (OptimisticLockingFailureException ex) {
             log.info("프로젝션 갱신 충돌 스킵 [eventId={}, bookId={}, version={}]",
-                    event.getEventId(), event.getBookId(), event.getAggregateVersion());
+                    eventId, payload.bookId(), aggregateVersion);
         }
     }
 
-    private void handleDeletedEvent(BookCatalogChangedEvent event) {
-        // 레포지토리에 메서드 없으면 deleteById(event.getBookId()) 사용
-        projectionRepository.deleteByBookId(event.getBookId());
-        log.debug("Projection deleted [eventId={}, bookId={}]", event.getEventId(), event.getBookId());
+    private Long toLong(String stringId) {
+        try {
+            return Long.parseLong(stringId);
+        } catch (NumberFormatException ex) {
+            throw new BusinessNotRetryableException("Invalid bookId: " + stringId, ex);
+        }
     }
 
-
+    private long requireVersion(Long aggregateVersion, BookCatalogSnapshotPayload payload) {
+        if (aggregateVersion == null) {
+            throw new BusinessNotRetryableException(
+                    "Missing aggregateVersion for catalog projection: bookId=" + payload.bookId());
+        }
+        return aggregateVersion; // 0도 허용. 진짜 값일 수 있음
+    }
 
 
 }

@@ -1,7 +1,7 @@
 package msa.bookloan.application.outbox;
 
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.application.saga.command.CheckMemberCommand;
+import msa.common.events.bookloan.saga.command.CheckMemberCommand;
 import msa.bookloan.infra.config.properties.KafkaProps;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
@@ -22,7 +22,7 @@ public class CheckMemberCommandRoutingResolver implements OutboxRoutingResolver<
     public OutboxRouting doResolve(CheckMemberCommand command) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicMemberCheck())
-                .partitionKey(command.sagaId())
+                .partitionKey(String.valueOf(command.memberId()))
                 .build();
     }
 }

@@ -3,76 +3,78 @@ package msa.bookloan.adapter.out.persistence.outbox;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
-import msa.bookloan.application.saga.command.SagaCommand;
-import msa.common.events.EventType;
-import msa.common.events.outbox.OutboxEventRecordStatus;
+import msa.common.events.bookloan.saga.command.SagaCommand;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CommandOutboxRecorder {
     private static final String AGGREGATE_TYPE = "LoanSaga"; // 이걸 외부변수화 해야하는지 고민
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository recordRepository;
     private final List<OutboxRoutingResolver<?>> resolvers;
 
     @Transactional
-    public void save(SagaCommand command) {
+    public boolean save(SagaCommand command) {
         OutboxRouting routing = route(command);
         String payloadJson = toJson(command);
-        OutboxEventRecord record = createOutboxRecord(command, payloadJson, routing);
 
-        recordRepository.save(record);
+        int affected = recordRepository.upsertOutbox(
+                snowflake.nextId(),
+                command.commandId(),
+                command.type(),
+                command.sagaId(),
+                AGGREGATE_TYPE,
+                null,
+                payloadJson,
+                routing.getTopic(),
+                routing.getPartitionKey(),
+                LocalDateTime.now(clock)
+        );
+
+        boolean isNew = (affected == 1);
+        if (isNew) {
+            log.debug("[Outbox] inserted: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
+        } else {
+            log.debug("[Outbox] duplicate-skip: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
+        }
+
+        return isNew;
     }
 
     private OutboxRouting route(SagaCommand command) {
-        OutboxRoutingResolver<?> target = null;
 
-        for (OutboxRoutingResolver<?> resolver : this.resolvers) {
-            if (resolver.supports(command)) {
-                target = resolver; // 리졸버는 1개씩이여서 중복은 없는 상태
-            }
+        List<OutboxRoutingResolver<?>> target = resolvers.stream()
+                .filter(resolver -> resolver.supports(command))
+                .toList();
+
+        if (target.isEmpty()) {
+            throw new IllegalStateException("No OutboxRoutingResolver for type: " + command.getClass().getName());
+        }
+        if (target.size() > 1 ) {
+            throw new IllegalStateException("More than one OutboxRoutingResolver for type: " + command.getClass().getName());
         }
 
-        if (target == null) {
-            throw new IllegalStateException(
-                    "No OutboxRoutingResolver for type: " + command.getClass().getName()
-            );
-        }
-
-        OutboxRouting routing = target.resolve(command);
-        if (routing == null || routing.topic() == null) {
+        OutboxRouting routing = target.get(0).resolve(command);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Resolver returned null routing/topic for " + command.getClass().getName());
         }
 
         return routing;
-    }
-
-    private OutboxEventRecord createOutboxRecord(SagaCommand command, String payloadJson, OutboxRouting routing) {
-        OutboxEventRecord record = OutboxEventRecord.builder()
-                .id(snowflake.nextId())
-                .eventId(command.commandId())                 // 커맨드 추적용 ID(유니크)
-                .eventType(EventType.CREATED)                // 내부 표준: 커맨드 적재는 CREATED로 통일
-                .aggregateType(AGGREGATE_TYPE)
-                .aggregateId(command.sagaId())
-                .aggregateVersion(0L) // @Version 아님. saga에선 필요없지만 스키마상 넣음
-                .payload(payloadJson)
-                .occurredAt(LocalDateTime.now())
-                .outboxEventRecordStatus(OutboxEventRecordStatus.NEW)
-                .routing(routing)
-                .build();
-        return record;
     }
 
     private String toJson(SagaCommand command) {

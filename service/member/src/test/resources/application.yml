@@ -8,7 +8,7 @@ spring:
       replace: NONE
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create
     properties:
       hibernate:
         format_sql: true

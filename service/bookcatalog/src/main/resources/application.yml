@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+snowflake:
+  node-id: 101
+
 spring:
   application:
     name: book-catalog-service

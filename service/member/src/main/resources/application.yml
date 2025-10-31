@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+snowflake:
+  node-id: 401
+
 spring:
   application:
     name: member-service

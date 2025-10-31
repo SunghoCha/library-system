@@ -17,11 +17,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.time.LocalDateTime.*;
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
 @Slf4j
@@ -29,21 +31,45 @@ import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 @RequiredArgsConstructor
 public class EventRecorder {
 
+    private final Clock clock;
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
     private final OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
 
+    // TODO : 추후 이벤트 종류 늘어나면 제네릭 메서드로 변경 예정
     @Transactional
-    public void save(BookCatalogChangedEvent event) {
-        OutboxEventRecord record = toRecord(event);
-        try {
-            eventRecordRepository.save(record);
-            log.debug("OutboxEventRecord 저장 완료 : eventId=[{}], dbId=[{}]", event.getEventId(), record.getId());
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.info("[Outbox] 중복 이벤트 스킵(eventId={})", event.getEventId());
+    public boolean save(BookCatalogChangedEvent event) {
+        String payloadJson = serializeToPayload(event);
+        OutboxRouting routing = routingResolver.doResolve(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+            throw new IllegalStateException("Routing is invalid. eventId={} " + event.getEventId());
         }
 
+        int affected = eventRecordRepository.upsertOutbox(
+                snowflake.nextId(),
+                event.getEventId(),
+                event.getEventType(),
+                String.valueOf(event.getAggregateId()),
+                event.getAggregateType(),
+                event.getAggregateVersion(),
+                payloadJson,
+                routing.getTopic(),
+                routing.getPartitionKey(),
+                event.getOccurredAt());
+
+        boolean isNew = (affected == 1);
+
+        if (isNew) {
+            log.debug("[Outbox] inserted: type={} aggType={} aggId={} eventId={} topic={}",
+                    event.getEventType(), event.getAggregateType(), event.getAggregateId(),
+                    event.getEventId(), routing.getTopic());
+        } else {
+            log.debug("[Outbox] duplicate-skip: type={} aggType={} aggId={} eventId={}",
+                    event.getEventType(), event.getAggregateType(), event.getAggregateId(), event.getEventId());
+        }
+
+        return isNew;
     }
 
     @Transactional
@@ -86,7 +112,7 @@ public class EventRecorder {
                 .id(snowflake.nextId())
                 .eventId(event.getEventId())
                 .eventType(event.getEventType())
-                .aggregateId(String.valueOf(event.getAggregateId()))
+                .aggregateId(event.getAggregateId())
                 .aggregateType(event.getAggregateType())
                 .aggregateVersion(event.getAggregateVersion())
                 .payload(payload)
@@ -97,12 +123,12 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markPublishedByEventId(Long eventId, String workerId, LocalDateTime claimedAt) {
-        int updated = eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt);
+    public long markPublishedByEventId(Long eventId, String leaseId) {
+        long updated = eventRecordRepository.markPublishedByEventId(eventId, leaseId, now(clock));
 
         if (updated == 0) {
-            log.info("[Outbox] 발행 처리 스킵: 펜싱 또는 이미 처리됨 (eventId={}, workerId={}, claimedAt={})",
-                    eventId, workerId, claimedAt);
+            log.info("[Outbox] 발행 처리 스킵(펜싱/이미 처리): eventId={}, leaseId={}",
+                    eventId, leaseId);
         } else {
             log.info("[Outbox] 발행 완료 (eventId={})", eventId);
         }
@@ -110,12 +136,12 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markFailedByEventId(Long eventId, String workerId, LocalDateTime claimedAt, String reason) {
-        int updated = eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason);
+    public long markFailedByEventId(Long eventId, String leaseId, String reason) {
+        long updated = eventRecordRepository.markFailedByEventId(eventId, leaseId, reason, now(clock));
 
         if (updated == 0) {
-            log.info("[Outbox] 실패 처리 스킵: 펜싱 또는 회수됨 (eventId={}, workerId={}, claimedAt={})",
-                    eventId, workerId, claimedAt);
+            log.info("[Outbox] 실패 처리 스킵(펜싱/회수됨): eventId={}, leaseId={}",
+                    eventId, leaseId);
         } else {
             log.warn("[Outbox] 발행 실패 (eventId={}, 이유={})", eventId, reason);
         }
@@ -123,8 +149,8 @@ public class EventRecorder {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int markDeadLetter(Long eventId, String error) {
-        int updated = eventRecordRepository.markDeadFromFailed(eventId, error);
+    public long markDeadLetter(Long eventId, String error) {
+        long updated = eventRecordRepository.markDeadFromFailed(eventId, error, now(clock));
 
         if (updated == 0) {
             log.info("[Outbox] 데드레터 전이 스킵: 현재 상태가 FAILED 아님 (eventId={})", eventId);
@@ -135,24 +161,14 @@ public class EventRecorder {
         return updated;
     }
 
-//    private String serializeToPayloadV2(BookCatalogChangedEvent event) {
-//        try {
-//            BookCatalogChangedExternalEventPayload payload = BookCatalogChangedExternalEventPayload.of(event);
-//            return objectMapper.writeValueAsString(payload);
-//        } catch (JsonProcessingException e) {
-//            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
-//        }
-//
-//    }
-
     private String serializeToPayload(BookCatalogChangedEvent event) {
         try {
             BookCatalogChangedPayload payload = new BookCatalogChangedPayload(
                     String.valueOf(event.getEventId()),
-                    event.getEventType().name(),
+                    event.getEventType(),
                     String.valueOf(event.getBookId()),
                     event.getAggregateVersion(),
-                    String.valueOf(event.getBookId()),
+                    String.valueOf(event.getAggregateId()),
                     event.getAggregateType(),
                     event.getTitle(),
                     event.getAuthor(),

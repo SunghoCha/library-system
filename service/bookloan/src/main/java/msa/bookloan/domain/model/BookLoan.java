@@ -13,12 +13,13 @@ import java.time.LocalDate;
 public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
 
     @Id
+    @Column(name = "book_loan_id")
     private Long id;
 
     @Column(nullable = false)
     private Long memberId;
 
-    @Column(name = "book_id", nullable = false)
+    @Column(nullable = false)
     private Long bookId;
 
     @Enumerated(EnumType.STRING)
@@ -40,6 +41,9 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
 
     @Version
     private Long version;
+
+    @Column(name = "current_saga_id") // 일종의 시맨틱락으로 사용 
+    private Long currentSagaId;
 
     @Builder
     public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,

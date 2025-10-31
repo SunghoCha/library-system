@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:tc:mysql:8.3.0:///testdb
+    url: jdbc:tc:mysql:8.3.0:///testdb?useAffectedRows=true
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:
@@ -8,4 +8,39 @@ spring:
     open-in-view: false
 
 
+app:
+  kafka:
+    source-token: book-loan
 
+    # commands
+    topic-member-check: member.check
+    topic-inventory-reserve: inventory.reserve
+    topic-point-charge: point.charge
+    topic-point-refund: point.refund
+    topic-shipping-schedule: shipping.schedule
+    topic-inventory-release: inventory.release
+
+    # single reply channel
+    topic-saga-replies: loan.saga.replies
+
+    # catalog
+    topic-catalog-changed: book-catalog.changed
+
+    # groups
+    group-saga-replies: bookloan-saga-replies
+    group-catalog-replica: bookloan-category-changed-replica
+
+
+# (1) 당장의 abbreviate 오류 해결(임시)
+
+  inbox:
+    processing:
+      error-max-length: 255
+
+# (2) 근본 원인(빈 로드 실패)을 찾기 위한 디버그 로그
+logging:
+  level:
+    org:
+      springframework:
+        beans:
+          factory: DEBUG

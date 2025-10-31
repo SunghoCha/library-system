@@ -14,6 +14,7 @@ public record SagaProps(
             Duration memberChecking,
             Duration inventoryReserving,
             Duration pointCharging,
-            Duration shippingScheduling
+            Duration shippingScheduling,
+            Duration shippingAccepted
     ) {}
 }

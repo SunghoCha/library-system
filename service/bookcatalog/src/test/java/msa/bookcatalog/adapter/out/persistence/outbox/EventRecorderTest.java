@@ -6,10 +6,10 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.bookcatalog.application.event.CatalogEventType;
+import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
-import msa.common.events.EventType;
-import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
@@ -22,10 +22,15 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
+import static java.time.LocalDateTime.now;
+import static java.time.LocalDateTime.ofInstant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,6 +41,7 @@ import static org.mockito.Mockito.*;
 class EventRecorderTest {
 
     private EventRecorder eventRecorder;
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
 
     @Mock private Snowflake snowflake;
     @Mock private OutboxEventRecordRepository eventRecordRepository;
@@ -52,7 +58,7 @@ class EventRecorderTest {
     @BeforeEach
     void setUp() {
         // 생성자를 통해 의존성과 topic 값을 직접 주입
-        eventRecorder = new EventRecorder(snowflake, objectMapper, eventRecordRepository, routingResolver);
+        eventRecorder = new EventRecorder(fixedClock, snowflake, objectMapper, eventRecordRepository, routingResolver);
     }
 
     @Test
@@ -61,23 +67,43 @@ class EventRecorderTest {
         // given
         BookCatalogChangedEvent event = createTestEvent(1L, 12345L);
         long expectedDbId = 9999L;
-        given(snowflake.nextId()).willReturn(expectedDbId);
+        when(snowflake.nextId()).thenReturn(expectedDbId);
 
         OutboxRouting expectedRouting = new OutboxRouting(testTopic, String.valueOf(event.getAggregateId()));
-        given(routingResolver.doResolve(any(BookCatalogChangedEvent.class))).willReturn(expectedRouting);
+        when(routingResolver.doResolve(any(BookCatalogChangedEvent.class))).thenReturn(expectedRouting);
+
+        when(eventRecordRepository.upsertOutbox(
+                eq(expectedDbId),
+                eq(event.getEventId()),
+                eq(event.getEventType()),
+                eq(String.valueOf(event.getAggregateId())),
+                eq(event.getAggregateType()),
+                eq(event.getAggregateVersion()),
+                anyString(), // payload JSON은 직렬화 결과라 엄격 매칭 불필요
+                eq(expectedRouting.getTopic()),
+                eq(expectedRouting.getPartitionKey()),
+                eq(event.getOccurredAt())
+        )).thenReturn(1);
+
 
         // when
-        eventRecorder.save(event);
+        boolean isNew = eventRecorder.save(event);
 
         // then
-        verify(eventRecordRepository).save(recordCaptor.capture());
-        OutboxEventRecord savedRecord = recordCaptor.getValue();
-
-        assertThat(savedRecord.getId()).isEqualTo(expectedDbId);
-        assertThat(savedRecord.getEventId()).isEqualTo(event.getEventId());
-        assertThat(savedRecord.getAggregateId()).isEqualTo(String.valueOf(event.getAggregateId()));
-        assertThat(savedRecord.getOutboxEventRecordStatus()).isEqualTo(OutboxEventRecordStatus.NEW);
-        assertThat(savedRecord.getRouting().getTopic()).isEqualTo(testTopic);
+        assertThat(isNew).isTrue();
+        verify(eventRecordRepository, times(1)).upsertOutbox(
+                eq(expectedDbId),
+                eq(event.getEventId()),
+                eq(event.getEventType()),
+                eq(String.valueOf(event.getAggregateId())),
+                eq(event.getAggregateType()),
+                eq(event.getAggregateVersion()),
+                anyString(),
+                eq(expectedRouting.getTopic()),
+                eq(expectedRouting.getPartitionKey()),
+                eq(event.getOccurredAt())
+        );
+        verifyNoMoreInteractions(eventRecordRepository);
     }
 
     @Test
@@ -125,7 +151,7 @@ class EventRecorderTest {
         // given
         BookCatalogChangedEvent event = createTestEvent(2L, 1L);
         ObjectMapper mockObjectMapper = mock(ObjectMapper.class);
-        eventRecorder = new EventRecorder(snowflake, mockObjectMapper, eventRecordRepository, routingResolver);
+        eventRecorder = new EventRecorder(fixedClock, snowflake, mockObjectMapper, eventRecordRepository, routingResolver);
 
         given(mockObjectMapper.writeValueAsString(any())).willThrow(new JsonProcessingException("serialization error"){});
 
@@ -142,17 +168,17 @@ class EventRecorderTest {
     void markPublishedByEventId_delegatesAndReturnsResult() {
         // given
         Long eventId = 1L;
-        String workerId = "worker-1";
-        LocalDateTime claimedAt = LocalDateTime.now();
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
         // Repository가 1(성공)을 반환하도록 설정
-        when(eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt)).thenReturn(1);
+        when(eventRecordRepository.markPublishedByEventId(eventId, leaseId, now)).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
+        long result = eventRecorder.markPublishedByEventId(eventId, leaseId);
 
         // then
         // Repository의 해당 메서드가 정확한 인자와 함께 호출되었는지 검증
-        verify(eventRecordRepository).markPublishedByEventId(eventId, workerId, claimedAt);
+        verify(eventRecordRepository).markPublishedByEventId(eventId, leaseId, now(fixedClock));
         // EventRecorder가 Repository의 결과를 그대로 반환했는지 검증
         assertThat(result).isEqualTo(1);
     }
@@ -162,16 +188,16 @@ class EventRecorderTest {
     void markFailedByEventId_delegatesAndReturnsResult() {
         // given
         Long eventId = 2L;
-        String workerId = "worker-2";
-        LocalDateTime claimedAt = LocalDateTime.now();
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
         String reason = "Kafka Error";
-        when(eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason)).thenReturn(1);
+        when(eventRecordRepository.markFailedByEventId(eventId, leaseId, reason, now)).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        long result = eventRecorder.markFailedByEventId(eventId, leaseId, reason);
 
         // then
-        verify(eventRecordRepository).markFailedByEventId(eventId, workerId, claimedAt, reason);
+        verify(eventRecordRepository).markFailedByEventId(eventId, leaseId, reason, now(fixedClock));
         assertThat(result).isEqualTo(1);
     }
 
@@ -181,27 +207,27 @@ class EventRecorderTest {
         // given
         Long eventId = 3L;
         String error = "Max retries exceeded";
-        when(eventRecordRepository.markDeadFromFailed(eventId, error)).thenReturn(1);
+        when(eventRecordRepository.markDeadFromFailed(eventId, error, now(fixedClock))).thenReturn(1L);
 
         // when
-        int result = eventRecorder.markDeadLetter(eventId, error);
+        long result = eventRecorder.markDeadLetter(eventId, error);
 
         // then
-        verify(eventRecordRepository).markDeadFromFailed(eventId, error);
+        verify(eventRecordRepository).markDeadFromFailed(eventId, error, now(fixedClock));
         assertThat(result).isEqualTo(1);
     }
 
     private BookCatalogChangedEvent createTestEvent(Long eventId, Long bookId) {
         return BookCatalogChangedEvent.builder()
                 .eventId(eventId)
-                .eventType(EventType.CREATED)
+                .eventType(CatalogEventType.CREATED.getValue())
                 .bookId(bookId)
                 .aggregateVersion(1L)
                 .title("New Title")
                 .author("New Author")
                 .category(new CategoryRef(1, "카테고리이름"))
                 .bookType(new BookTypeRef("NEW_RELEASE", "신간"))
-                .occurredAt(LocalDateTime.now())
+                .occurredAt(ofInstant(fixedClock.instant(), ZoneOffset.UTC))
                 .build();
     }
 }

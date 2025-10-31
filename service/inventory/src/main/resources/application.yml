@@ -1,6 +1,9 @@
 server:
   port: 8080
 
+snowflake:
+  node-id: 301
+
 spring:
   application:
     name: inventory-service

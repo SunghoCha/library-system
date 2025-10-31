@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import msa.common.events.inbox.InboxRecordableEvent;
 
 /**
  * 사가 리플라이 공통 래퍼 (응답 채널 1개라서 구분용)
@@ -18,5 +19,24 @@ public record SagaReplyEnvelope(
         @NotBlank @Pattern(regexp = "^[0-9]+$") String aggregateId,
         Long sourceAggregateVersion,
         @NotNull JsonNode payload
-) {
+) implements InboxRecordableEvent {
+    @Override
+    public String getEventId() {
+        return eventId;
+    }
+
+    @Override
+    public String getAggregateId() {
+        return aggregateId;
+    }
+
+    @Override
+    public Long getAggregateVersion() {
+        return sourceAggregateVersion; // bookLoan version
+    }
+
+    @Override
+    public String getEventType() {
+        return replyType;
+    }
 }

@@ -1,13 +1,32 @@
 package msa.bookloan.application.saga.reply.member;
 
-import msa.bookloan.application.saga.reply.SagaReplyEvent;
+import msa.common.events.bookloan.saga.reply.member.MemberCheckedReply;
+import msa.common.util.IdConverter;
 
 public record MemberCheckedInternalEvent(
-        Long eventId, // 리플라이의 eventId
-        String sagaId,
-        Long causationCommandId, // 리플라이를 트리거한 커맨드의 id
-        Long sourceAggregateVersion, // LoanId
-        MemberCheckedPayload payload
-) implements SagaReplyEvent {}
+        Long eventId,
+        Long sagaId,
+        Long causationCommandId,
+        Long loanVersion,
+        Long memberId,
+        boolean blacklisted,
+        String reason
+) {
 
+    public static MemberCheckedInternalEvent from(MemberCheckedReply reply) {
+        Long eventId = IdConverter.parseLongOrThrow(reply.eventId(), "eventId");
+        Long sagaId = IdConverter.parseLongOrThrow(reply.sagaId(), "sagaId");
+        Long causationCommandId = IdConverter.parseLongOrThrow(reply.causationCommandId(), "causationCommandId");
+        Long memberId = IdConverter.parseLongOrThrow(reply.memberId(), "memberId");
 
+        return new MemberCheckedInternalEvent(
+                eventId,
+                sagaId,
+                causationCommandId,
+                reply.loanVersion(),   // 이건 원래 Long 이니까 그대로
+                memberId,
+                reply.blacklisted(),
+                reply.reason()
+        );
+    }
+}

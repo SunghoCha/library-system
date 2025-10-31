@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.catalog.repository.BookCatalogRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
+import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.application.service.catalog.dto.CreateBookCommand;
 import msa.bookcatalog.application.service.catalog.dto.UpdateBookCommand;
 import msa.bookcatalog.application.service.catalog.exception.BookCatalogNotFoundException;
@@ -13,7 +14,6 @@ import msa.bookcatalog.domain.model.BookCategory;
 import msa.bookcatalog.domain.model.BookType;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
-import msa.common.events.EventType;
 import msa.common.snowflake.Snowflake;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -50,7 +50,7 @@ public class BookCatalogService {
 
         BookCatalog saved = bookCatalogRepository.save(bookCatalog);
 
-        eventPublisher.publishEvent(toEventFrom(saved, EventType.CREATED));
+        eventPublisher.publishEvent(toEventFrom(saved, CatalogEventType.CREATED.getValue()));
         return saved.getId();
     }
 
@@ -66,7 +66,7 @@ public class BookCatalogService {
         }
         bookCatalogRepository.flush(); // 버전 정보 업데이트
 
-        eventPublisher.publishEvent(toEventFrom(bookCatalog, EventType.UPDATED));
+        eventPublisher.publishEvent(toEventFrom(bookCatalog, CatalogEventType.UPDATED.getValue()));
         return bookCatalog.getId();
     }
 
@@ -89,7 +89,7 @@ public class BookCatalogService {
                 .build();
     }
 
-    private BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, EventType eventType) {
+    private BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, String eventType) {
         CategoryRef categoryRef = new CategoryRef(bookCatalog.getCategory().categoryId(), bookCatalog.getCategory().categoryName());
         BookTypeRef bookTypeRef = new BookTypeRef(bookCatalog.getBookType().name(), bookCatalog.getBookType().displayName());
 

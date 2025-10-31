@@ -1,16 +1,19 @@
 package msa.bookloan.application.service;
 
 import lombok.RequiredArgsConstructor;
+import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
+import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
+import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
+import msa.bookloan.adapter.out.persistence.projection.repository.BookCatalogProjectionRepository;
+import msa.bookloan.application.event.LoanCancelRequestedInternalEvent;
 import msa.bookloan.application.event.LoanRequestedInternalEvent;
+import msa.bookloan.application.port.out.lock.DistributedLock;
 import msa.bookloan.application.service.dto.LoanCreateResult;
 import msa.bookloan.domain.model.BookLoan;
 import msa.bookloan.domain.model.LoanProcessStatus;
 import msa.bookloan.domain.policy.LoanTermPolicy;
 import msa.bookloan.domain.policy.rule.LoanValidationRule;
-import msa.bookloan.adapter.out.persistence.projection.BookCatalogProjectionRepository;
-import msa.bookloan.application.port.out.lock.DistributedLock;
-import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
-import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
+import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.common.snowflake.Snowflake;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -46,8 +49,8 @@ public class LoanService {
         bookLoanRepository.save(loan);
         bookLoanRepository.flush(); // version 정보 세팅용
 
-        String sagaId = Long.toString(loanId);
-        long eventId = snowflake.nextId();
+        Long sagaId = snowflake.nextId();;
+        Long eventId = snowflake.nextId();
         Long version = loan.getVersion();
 
         eventPublisher.publishEvent(new LoanRequestedInternalEvent(
@@ -61,6 +64,27 @@ public class LoanService {
 
     }
 
+    @Transactional
+    public LoanCancelResult requestCancel(Long memberId, Long loanId) {
+        BookLoan loan = bookLoanRepository.findById(loanId)
+                .orElseThrow(() -> new IllegalArgumentException("loan not found")); // 대출관련 커스텀 예외
+
+        eventPublisher.publishEvent(newUserCancelEvent(loan, memberId));
+        return new LoanCancelResult(loanId, null);
+    }
+
+    private LoanCancelRequestedInternalEvent newUserCancelEvent(BookLoan loan, Long memberId) {
+        return new LoanCancelRequestedInternalEvent(
+                snowflake.nextId(),
+                null,                          // sagaId 모름
+                loan.getId(),
+                memberId,
+                loan.getBookId(),
+                loan.getVersion(),
+                SagaAbortReason.USER_CANCEL,   // 사용자 취소는 고정
+                LocalDateTime.now(clock)
+        );
+    }
 
 //    public void createLoan2(LoanCreateRequest request) {
 //        // 검증용 컨텍스트 객체
