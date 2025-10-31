@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +25,7 @@ public class OutboxClaimerService {
     public List<OutboxEventRecord> claimEvents() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime leaseUntil = now.plus(props.lease());
+        String leaseId = UUID.randomUUID().toString();
         List<Long> ids = outboxRepository.lockClaimableIds(
                 props.batchSize(),
                 props.maxRetryCount(),
@@ -35,7 +37,7 @@ public class OutboxClaimerService {
 
         String workerId = instanceIdentity.workerId();
 
-        long updated = outboxRepository.markPublishing(ids, workerId, now, leaseUntil);
+        long updated = outboxRepository.markPublishing(ids, workerId, leaseId, now, leaseUntil);
         if (updated == 0) {
             return List.of();
         }

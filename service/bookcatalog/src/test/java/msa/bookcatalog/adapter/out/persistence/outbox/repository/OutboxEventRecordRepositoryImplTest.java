@@ -1,8 +1,8 @@
 package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.infra.config.QueryDslConfig;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.events.outbox.dto.OutboxRouting;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,8 +12,6 @@ import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(QueryDslConfig.class)
 @DataJpaTest(properties = {
@@ -63,7 +61,7 @@ class OutboxEventRecordRepositoryImplTest {
                 .id(UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE) // 랜덤 ID
                 .eventId(eventId)
                 .eventType(CatalogEventType.CREATED.getValue())
-                .aggregateId("agg-id-" + eventId)
+                .aggregateId(999L)
                 .aggregateType("BOOK_CATALOG")
                 .aggregateVersion(0L)
                 .payload("{}")

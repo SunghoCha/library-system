@@ -15,6 +15,7 @@ public interface OutboxEventRecordRepositoryCustom {
     long markPublishing(Collection<Long> ids,
                         String leaseId,
                         String workerId,
+                        LocalDateTime now,
                         LocalDateTime leaseUntil);
 
     long markPublished(Collection<Long> ids,

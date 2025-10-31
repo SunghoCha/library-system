@@ -44,10 +44,9 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     @Override
-    public long tryClaimFromNew(Long eventId, String workerId, String leaseId, LocalDateTime now, int leaseSeconds) {
+    public long tryClaimFromNew(Long eventId, String workerId, String leaseId, LocalDateTime now, LocalDateTime leaseUntil) {
         if (eventId == null) return 0L;
 
-        LocalDateTime leaseUntil = now.plusSeconds(leaseSeconds);
         return queryFactory
                 .update(r)
                 .set(r.outboxEventRecordStatus, PUBLISHING)
@@ -63,7 +62,6 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     }
 
     // 이미 스킵락으로 잡힌 대상에 대해서만 실행해야함
-    // TODO : 내부에서 시간계산하는것도 이상해보임
     @Override
     public long markPublishing(Collection<Long> ids, String workerId, String leaseId,
                                    LocalDateTime now, LocalDateTime leaseUntil) {

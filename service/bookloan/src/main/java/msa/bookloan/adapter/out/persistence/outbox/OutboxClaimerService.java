@@ -46,7 +46,7 @@ public class OutboxClaimerService {
 
         String workerId = instanceIdentity.workerId();
         String leaseId = UUID.randomUUID().toString();
-        long updated = outboxRepository.markPublishing(ids, leaseId, workerId, leaseUntil);
+        long updated = outboxRepository.markPublishing(ids, leaseId, workerId, now, leaseUntil);
 
         if (updated == 0) {
             log.debug("[Outbox][CLAIM] 선점 실패(경합): requestCount={}, workerId={}", ids.size(), workerId);

@@ -83,8 +83,6 @@ public class EventRecorder {
         return updated;
     }
 
-
-
     private OutboxEventRecord toRecord(OutboxRecordableEvent event) {
         String payload = serializeToPayload(event);
 

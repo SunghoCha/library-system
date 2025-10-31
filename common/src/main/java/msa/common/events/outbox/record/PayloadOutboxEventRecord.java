@@ -60,6 +60,7 @@ public abstract class PayloadOutboxEventRecord extends BaseTimeEntity {
     @Column(name = "lease_until", columnDefinition = "datetime(6)")
     private LocalDateTime leaseUntil;
 
+    @Setter
     @Column(name = "lease_id")
     private String leaseId;
 

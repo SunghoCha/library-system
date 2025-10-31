@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static java.time.LocalDateTime.now;
 import static java.time.LocalDateTime.ofInstant;
@@ -167,17 +168,17 @@ class EventRecorderTest {
     void markPublishedByEventId_delegatesAndReturnsResult() {
         // given
         Long eventId = 1L;
-        String workerId = "worker-1";
-        LocalDateTime claimedAt = now(fixedClock);
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
         // Repository가 1(성공)을 반환하도록 설정
-        when(eventRecordRepository.markPublishedByEventId(eventId, workerId, claimedAt, now(fixedClock))).thenReturn(1L);
+        when(eventRecordRepository.markPublishedByEventId(eventId, leaseId, now)).thenReturn(1L);
 
         // when
-        long result = eventRecorder.markPublishedByEventId(eventId, workerId, claimedAt);
+        long result = eventRecorder.markPublishedByEventId(eventId, leaseId);
 
         // then
         // Repository의 해당 메서드가 정확한 인자와 함께 호출되었는지 검증
-        verify(eventRecordRepository).markPublishedByEventId(eventId, workerId, claimedAt, now(fixedClock));
+        verify(eventRecordRepository).markPublishedByEventId(eventId, leaseId, now(fixedClock));
         // EventRecorder가 Repository의 결과를 그대로 반환했는지 검증
         assertThat(result).isEqualTo(1);
     }
@@ -187,16 +188,16 @@ class EventRecorderTest {
     void markFailedByEventId_delegatesAndReturnsResult() {
         // given
         Long eventId = 2L;
-        String workerId = "worker-2";
-        LocalDateTime claimedAt = now(fixedClock);
+        String leaseId = UUID.randomUUID().toString();
+        LocalDateTime now = now(fixedClock);
         String reason = "Kafka Error";
-        when(eventRecordRepository.markFailedByEventId(eventId, workerId, claimedAt, reason, now(fixedClock))).thenReturn(1L);
+        when(eventRecordRepository.markFailedByEventId(eventId, leaseId, reason, now)).thenReturn(1L);
 
         // when
-        long result = eventRecorder.markFailedByEventId(eventId, workerId, claimedAt, reason);
+        long result = eventRecorder.markFailedByEventId(eventId, leaseId, reason);
 
         // then
-        verify(eventRecordRepository).markFailedByEventId(eventId, workerId, claimedAt, reason, now(fixedClock));
+        verify(eventRecordRepository).markFailedByEventId(eventId, leaseId, reason, now(fixedClock));
         assertThat(result).isEqualTo(1);
     }
 

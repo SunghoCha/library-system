@@ -10,30 +10,31 @@ public interface OutboxEventRecordRepositoryCustom {
 
     List<OutboxEventRecord> findPublishingByIdsOrderByOccurredAt(Collection<Long> ids);
 
-    long tryClaimFromNew(Long eventId, String workerId, LocalDateTime now, int leaseSeconds);
+    long tryClaimFromNew(Long eventId, String workerId, String leaseId, LocalDateTime now, LocalDateTime leaseUntil);
 
     long markPublishing(Collection<Long> ids,
                         String workerId,
+                        String leaseId,
                         LocalDateTime now,
                         LocalDateTime leaseUntil);
 
     long markPublished(Collection<Long> ids,
-                       String workerId,
+                       String leaseId,
                        LocalDateTime now);
 
     long markFailed(Collection<Long> ids,
-                    String workerId,
+                    String leaseId,
                     String lastError,
                     LocalDateTime now);
 
     long markDeadFromFailed(Long eventId, String reason, LocalDateTime now);
 
     long markPublishedByEventId(Long eventId,
-                                String workerId,
+                                String leaseId,
                                 LocalDateTime now);
 
     long markFailedByEventId(Long eventId,
-                             String workerId,
+                             String leaseId,
                              String lastError,
                              LocalDateTime now);
 

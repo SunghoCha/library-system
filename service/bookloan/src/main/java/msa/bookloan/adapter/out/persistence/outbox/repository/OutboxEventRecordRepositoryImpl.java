@@ -62,9 +62,9 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
     public long markPublishing(Collection<Long> ids,
                                String leaseId,
                                String workerId,
+                               LocalDateTime now,
                                LocalDateTime leaseUntil) {
         if (ids == null || ids.isEmpty()) return 0L;
-
 
         return queryFactory
                 .update(r)
@@ -72,6 +72,7 @@ public class OutboxEventRecordRepositoryImpl implements OutboxEventRecordReposit
                 .set(r.leaseId, leaseId)
                 .set(r.workerId, workerId)
                 .set(r.leaseUntil, leaseUntil)
+                .set(r.updatedAt, now)
                 .where(r.id.in(ids))
                 .execute();
     }

@@ -2,9 +2,8 @@ package msa.bookcatalog.adapter.out.messaging.outbox.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
-import msa.bookcatalog.adapter.out.messaging.outbox.OutboxEventSender;
+import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -31,7 +30,7 @@ public class OutboxRelayScheduler {
 
         for (OutboxEventRecord record : targets) {
             try {
-                outboxEventSender.resend(record);
+                outboxEventSender.send(record);
             } catch (Exception e) {
                 log.info("재발행 에러 id={}, eventId={}", record.getId(), record.getEventId(), e);
             }

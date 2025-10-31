@@ -13,12 +13,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
-import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -38,8 +37,9 @@ class OutboxClaimerServiceTest {
     @Mock
     private OutboxEventRecordRepository outboxRepository;
 
+    private final Clock fixedClock = TestClocks.FIXED_CLOCK;
+
     private static final String TEST_WORKER_ID = "test-worker-01";
-    private static final String TEST_LEASE_ID = UUID.randomUUID().toString();
     private static final int BATCH_SIZE = 10;
     private static final int MAX_RETRY_COUNT = 5;
     private static final Duration LEASE        = ofSeconds(60);
@@ -47,7 +47,7 @@ class OutboxClaimerServiceTest {
     @BeforeEach
     void setUp() {
         outboxClaimerService = new OutboxClaimerService(
-                TestClocks.FIXED_CLOCK, instanceIdentity, properties, outboxRepository);
+                fixedClock, instanceIdentity, properties, outboxRepository);
 
         // Mockito의 lenient()를 사용하여 불필요한 Stubbing 예외를 방지
         // 모든 테스트에서 사용하지 않을 수 있는 Mock 객체의 기본 동작을 설정
@@ -69,19 +69,22 @@ class OutboxClaimerServiceTest {
                 OutboxEventRecord.builder().id(3L).build()
         );
 
-        // 1. lockClaimableIds가 ID 목록을 반환
+        LocalDateTime expectedNow = LocalDateTime.now(fixedClock);
+        LocalDateTime expectedLeaseUntil = expectedNow.plus(LEASE);
+        // lockClaimableIds가 ID 목록을 반환
         when(outboxRepository.lockClaimableIds(
                 eq(BATCH_SIZE),
                 eq(MAX_RETRY_COUNT),
-                any(LocalDateTime.class)
+                eq(expectedNow)
         )).thenReturn(eventIds);
 
-        // 2. markPublishing이 성공적으로 3건을 업데이트
+        // markPublishing이 성공적으로 3건을 업데이트
         when(outboxRepository.markPublishing(
                 eq(eventIds),
                 anyString(),
                 eq(TEST_WORKER_ID),
-                any(LocalDateTime.class)
+                eq(expectedNow),
+                eq(expectedLeaseUntil)
         )).thenReturn((long) eventIds.size());
 
         // 3. findPublishingByIdsOrderByOccurredAt이 이벤트 엔티티 목록을 반환
@@ -94,15 +97,14 @@ class OutboxClaimerServiceTest {
         // then
         assertThat(actualEvents).isEqualTo(expectedEvents);
 
-        // 캡처로 pickedAt/leaseUntil 검증
         ArgumentCaptor<LocalDateTime> leaseUntilCap = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<String> leaseIdCap = ArgumentCaptor.forClass(String.class);
-
+        ArgumentCaptor<LocalDateTime> nowCap = ArgumentCaptor.forClass(LocalDateTime.class);
         verify(outboxRepository).markPublishing(
-                eq(eventIds), leaseIdCap.capture(), eq(TEST_WORKER_ID), leaseUntilCap.capture()
+                eq(eventIds), leaseIdCap.capture(), eq(TEST_WORKER_ID), nowCap.capture(), leaseUntilCap.capture()
         );
 
-        LocalDateTime expectedLeaseUntil = LocalDateTime.now(TestClocks.FIXED_CLOCK).plus(LEASE);
+        assertThat(expectedNow).isEqualTo(nowCap.getValue());
         assertThat(expectedLeaseUntil).isEqualTo(leaseUntilCap.getValue());
 
         // verify (메서드 호출 순서 및 파라미터 검증)
@@ -119,11 +121,12 @@ class OutboxClaimerServiceTest {
     @DisplayName("클레임할 이벤트 없음: lockClaimableIds가 빈 리스트를 반환하면 빈 리스트를 반환한다.")
     void claimEvents_WhenNoClaimableEvents() {
         // given
-        // 1. lockClaimableIds가 빈 리스트를 반환
+        LocalDateTime expectedNow = LocalDateTime.now(fixedClock);
+        // lockClaimableIds가 빈 리스트를 반환
         when(outboxRepository.lockClaimableIds(
                 eq(BATCH_SIZE),
                 eq(MAX_RETRY_COUNT),
-                any(LocalDateTime.class)
+                eq(expectedNow)
         )).thenReturn(List.of());
 
         // when
@@ -134,7 +137,7 @@ class OutboxClaimerServiceTest {
 
         // verify
         // markPublishing이나 find... 메서드가 호출되지 않았는지 검증
-        verify(outboxRepository, never()).markPublishing(anyList(), anyString(), anyString(), any(LocalDateTime.class));
+        verify(outboxRepository, never()).markPublishing(anyList(), anyString(), anyString(), any(LocalDateTime.class), any(LocalDateTime.class));
         verify(outboxRepository, never()).findPublishingByIdsOrderByOccurredAt(anyList());
         // workerId도 호출될 필요 없음
         verify(instanceIdentity, never()).workerId();
@@ -145,12 +148,14 @@ class OutboxClaimerServiceTest {
     void claimEvents_WhenClaimFails() {
         // given
         List<Long> eventIds = List.of(1L, 2L);
+        LocalDateTime expectedNow = LocalDateTime.now(fixedClock);
+        LocalDateTime expectedLeaseUntil = expectedNow.plus(LEASE);
 
         // 1. lockClaimableIds가 ID 목록을 반환
         when(outboxRepository.lockClaimableIds(
                 eq(BATCH_SIZE),
                 eq(MAX_RETRY_COUNT),
-                any(LocalDateTime.class)
+                eq(expectedNow)
         )).thenReturn(eventIds);
 
         // 2. markPublishing이 0을 반환 (업데이트 실패)
@@ -158,7 +163,8 @@ class OutboxClaimerServiceTest {
                 eq(eventIds),
                 anyString(),
                 eq(TEST_WORKER_ID),
-                any(LocalDateTime.class)
+                eq(expectedNow),
+                eq(expectedLeaseUntil)
         )).thenReturn(0L);
 
         // when
@@ -171,9 +177,14 @@ class OutboxClaimerServiceTest {
         verify(outboxRepository).lockClaimableIds(
                 eq(BATCH_SIZE),
                 eq(MAX_RETRY_COUNT),
-                any(LocalDateTime.class)
+                eq(expectedNow)
         );
-        verify(outboxRepository).markPublishing(eq(eventIds), any(), eq(TEST_WORKER_ID), any(LocalDateTime.class));
+        verify(outboxRepository).markPublishing(
+                eq(eventIds),
+                anyString(),
+                eq(TEST_WORKER_ID),
+                eq(expectedNow),
+                eq(expectedLeaseUntil));
         verify(instanceIdentity).workerId();
 
         // find... 메서드가 호출되지 않았는지 검증
