@@ -122,19 +122,13 @@ public class InboxEventDispatcher {
 
     private <T> void dispatch(InboxEventHandler<T> eventHandler, InboxEventRecord record, Object payloadObj) {
         Class<T> payloadType = eventHandler.payloadType();
-        T payload;
-        try {
-            payload = payloadType.cast(payloadObj);
-            if (payload == null) {
-                throw new BusinessNotRetryableException(
-                        "Payload is null: expected=" + payloadType.getName() + ", eventId=" + record.getEventId());
-            }
-        } catch (ClassCastException e) {
-            String payloadName = payloadObj == null ? "null" : payloadObj.getClass().getSimpleName();
+
+        T payload = payloadType.cast(payloadObj);
+        if (payload == null) {
             throw new BusinessNotRetryableException(
-                    "Payload type mismatch: expected=" + payloadType.getName()
-                            + ", actual=" + payloadName + ", eventId=" + record.getEventId(), e);
+                    "Payload is null: expected=" + payloadType.getName() + ", eventId=" + record.getEventId());
         }
+
         InboxMessage<T> message = new InboxMessage<>(
                 payload,
                 record.getEventId(),

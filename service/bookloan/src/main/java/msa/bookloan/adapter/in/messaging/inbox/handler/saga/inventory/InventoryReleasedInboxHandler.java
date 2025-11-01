@@ -8,7 +8,6 @@ import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEv
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
