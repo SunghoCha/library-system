@@ -45,22 +45,22 @@ public class LoanService {
         // ...
 
         long loanId = snowflake.nextId();
-        BookLoan loan = BookLoan.createNew(loanId, memberId, request.bookId());
-        bookLoanRepository.save(loan);
-        bookLoanRepository.flush(); // version 정보 세팅용
-
-        Long sagaId = snowflake.nextId();;
+        Long sagaId = snowflake.nextId();
         Long eventId = snowflake.nextId();
-        Long version = loan.getVersion();
+
+        BookLoan loan = BookLoan.createNew(loanId, memberId, request.bookId(), sagaId);
+        bookLoanRepository.saveAndFlush(loan);
+
+        Long aggregateVersion  = loan.getVersion();
 
         eventPublisher.publishEvent(new LoanRequestedInternalEvent(
                 sagaId, loanId,
                 memberId, request.bookId(),
-                eventId, version, LocalDateTime.now(clock)
+                eventId, aggregateVersion , LocalDateTime.now(clock)
         ));
 
         // 수행 후 레포지토리 저장하고 빠르게 반환해서 응답
-        return new LoanCreateResult(loanId, sagaId, LoanProcessStatus.RECEIVED);
+        return new LoanCreateResult(loanId, sagaId);
 
     }
 

@@ -8,6 +8,7 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.saga.SagaTimeouts;
 import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingCancelledInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.bookloan.domain.saga.LoanSaga;
@@ -20,8 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 
 import static java.time.LocalDateTime.now;
-import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_ACCEPTED;
-import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
+import static msa.bookloan.domain.saga.LoanSagaStep.*;
 
 @Slf4j
 @Service
@@ -85,6 +85,37 @@ public class ShippingStepService {
 
         log.info("[Saga] 배송 스케줄 실패: 보상 시작(RefundPoint): sagaId={}, reason={}",
                 event.sagaId(), event.reasonCode());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void afterShippingCancelled(ShippingCancelledInternalEvent event) {
+        LoanSaga saga = sagaRepository.findById(event.sagaId())
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(event.sagaId())));
+
+        if (saga.isTerminal()) {
+            return;
+        }
+        // 이 핸들러는 배송 구간에서 보상이 시작된 경우만 처리
+        if (!saga.isCompensatingFrom(SHIPPING_SCHEDULING) && !saga.isCompensatingFrom(SHIPPING_ACCEPTED)) {
+            return;
+        }
+
+        boolean moved = saga.moveCompensatingTo(
+                POINT_CHARGING,
+                sagaTimeouts.stepTimeout(POINT_CHARGING),
+                now(clock)
+        );
+        if (!moved) {
+            return;
+        }
+
+        sagaRepository.saveAndFlush(saga);
+
+        RefundPointCommand command = createRefundPointCommand(saga, event.eventId());
+        commandOutboxRecorder.save(command);
+
+        log.info("[Saga] 보상 진행(배송→포인트): 배송 취소 완료 -> 포인트 환불 발행. sagaId={}, loanId={}",
+                event.sagaId(), saga.getLoanId());
     }
 
     private RefundPointCommand createRefundPointCommand(LoanSaga saga, Long causationEventId) {

@@ -42,7 +42,6 @@ public class LoanController {
         LoanCreateResponse body = new LoanCreateResponse(
                 result.loanId(),
                 result.sagaId(),
-                result.status(),
                 statusUrl);
 
         return ResponseEntity.accepted()

@@ -10,7 +10,6 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
-import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,7 +95,7 @@ public class SagaInboxProcessingIntegrationTest {
 
     private LoanSaga createAndSaveSaga(Long sagaId, Long loanId, SagaStatus status, LoanSagaStep step) {
         LoanSaga saga = LoanSaga.builder()
-                .sagaId(sagaId)
+                .id(sagaId)
                 .loanId(loanId)
                 .memberId(MEMBER_ID)
                 .bookId(BOOK_ID)

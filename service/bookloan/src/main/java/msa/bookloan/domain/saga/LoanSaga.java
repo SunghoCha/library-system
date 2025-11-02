@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LoanSaga extends BaseTimeEntity {
 
@@ -64,27 +66,6 @@ public class LoanSaga extends BaseTimeEntity {
     @Column(name = "step_deadline_at")
     private LocalDateTime stepDeadlineAt; //
 
-    @Builder
-    public LoanSaga(Long sagaId, Long loanId, Long memberId, Long bookId,
-                    Long aggregateVersion, Long triggerEventId, SagaStatus status,
-                    LoanSagaStep currentStep, String lastError, String workerId,
-                    LocalDateTime leaseUntil, LocalDateTime stepStartedAt,
-                    LocalDateTime stepDeadlineAt) {
-        this.id = sagaId;
-        this.loanId = loanId;
-        this.memberId = memberId;
-        this.bookId = bookId;
-        this.aggregateVersion = aggregateVersion;
-        this.triggerEventId = triggerEventId;
-        this.status = status;
-        this.currentStep = currentStep;
-        this.lastError = lastError;
-        this.workerId = workerId;
-        this.leaseUntil = leaseUntil;
-        this.stepStartedAt = stepStartedAt;
-        this.stepDeadlineAt = stepDeadlineAt;
-    }
-
     public static LoanSaga startNew(Long sagaId,
                                     Long loanId,
                                     Long memberId,
@@ -93,7 +74,7 @@ public class LoanSaga extends BaseTimeEntity {
                                     Long triggerEventId,
                                     LocalDateTime now) {
         return LoanSaga.builder()
-                .sagaId(sagaId)
+                .id(sagaId)
                 .loanId(loanId)
                 .memberId(memberId)
                 .bookId(bookId)
@@ -254,5 +235,9 @@ public class LoanSaga extends BaseTimeEntity {
 
     public boolean isCancelRequested() {
         return this.status == SagaStatus.CANCEL_REQUESTED;
+    }
+
+    public boolean isFinishedStep() {
+        return this.status == SagaStatus.COMPLETED;
     }
 }

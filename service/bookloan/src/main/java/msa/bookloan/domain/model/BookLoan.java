@@ -9,6 +9,8 @@ import java.time.LocalDate;
 
 @Entity
 @Getter
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
 
@@ -23,17 +25,13 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
     private Long bookId;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 24, nullable = false)
-    private LoanProcessStatus processStatus;
-
-    @Enumerated(EnumType.STRING)
-    @Column(length = 24) // NULL 허용 (LOANED 때 채움)
+    @Column(length = 24) // (null대신 PENDING)
     private LoanStatus loanStatus;
 
-    @Column(nullable = false)
+    @Column
     private LocalDate loanDate;
 
-    @Column(nullable = false)
+    @Column
     private LocalDate dueDate;
 
     @Column
@@ -45,37 +43,20 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
     @Column(name = "current_saga_id") // 일종의 시맨틱락으로 사용 
     private Long currentSagaId;
 
-    @Builder
-    public BookLoan(Long id, Long memberId, Long bookId, LoanStatus loanStatus, LocalDate loanDate,
-                    LoanProcessStatus processStatus, LocalDate dueDate, LocalDate returnDate) {
-        this.id = id;
-        this.memberId = memberId;
-        this.bookId = bookId;
-        this.loanStatus = loanStatus;
-        this.processStatus = processStatus;
-        this.loanDate = loanDate;
-        this.dueDate = dueDate;
-        this.returnDate = returnDate;
-    }
-
-    public static BookLoan createNew(Long id, Long memberId, Long bookId) {
+    public static BookLoan createNew(Long id, Long memberId, Long bookId, Long sagaId) {
         return BookLoan.builder()
                 .id(id)
                 .memberId(memberId)
                 .bookId(bookId)
-                .processStatus(LoanProcessStatus.RECEIVED)
-                .loanStatus(null)
+                .loanStatus(LoanStatus.PENDING)
                 .loanDate(null)
                 .dueDate(null)
                 .returnDate(null)
+                .currentSagaId(sagaId)
                 .build();
     }
 
-
-
-
     // Persistable 구현
-
     @Transient
     private boolean isNew = true;
 

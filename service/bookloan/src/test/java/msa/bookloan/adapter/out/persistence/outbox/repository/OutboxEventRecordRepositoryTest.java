@@ -290,7 +290,7 @@ class OutboxEventRecordRepositoryTest {
 
         private LoanSaga saveTestSaga(Long sagaId, SagaStatus status) {
             LoanSaga saga = LoanSaga.builder()
-                    .sagaId(sagaId)
+                    .id(sagaId)
                     .loanId(12345L)
                     .memberId(123L)
                     .bookId(456L)

@@ -20,8 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 
 import static java.time.LocalDateTime.now;
-import static msa.bookloan.domain.saga.LoanSagaStep.POINT_CHARGING;
-import static msa.bookloan.domain.saga.LoanSagaStep.SHIPPING_SCHEDULING;
+import static msa.bookloan.domain.saga.LoanSagaStep.*;
 
 @Slf4j
 @Service
@@ -80,9 +79,9 @@ public class PointStepService {
                 .orElseThrow(() -> new SagaNotFoundException(String.valueOf(event.sagaId())));
 
         if (saga.isTerminal()) return;
-        if (!saga.isCompensatingFrom(SHIPPING_SCHEDULING)) return;
+        if (!saga.isCompensatingFrom(POINT_CHARGING)) return;
 
-        boolean moved = saga.moveCompensatingTo(POINT_CHARGING, sagaTimeouts.stepTimeout(POINT_CHARGING), now(clock));
+        boolean moved = saga.moveCompensatingTo(INVENTORY_RESERVING, sagaTimeouts.stepTimeout(INVENTORY_RESERVING), now(clock));
         if (!moved) return;
 
         sagaRepository.saveAndFlush(saga);

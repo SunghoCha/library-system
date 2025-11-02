@@ -15,18 +15,18 @@ import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingAcceptedInternalEvent;
+import msa.bookloan.application.saga.reply.shipping.ShippingCancelledInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.bookloan.application.saga.steps.InventoryStepService;
 import msa.bookloan.application.saga.steps.MemberStepService;
 import msa.bookloan.application.saga.steps.PointStepService;
 import msa.bookloan.application.saga.steps.ShippingStepService;
+import msa.bookloan.domain.model.BookLoan;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
-import msa.common.events.bookloan.saga.command.CheckMemberCommand;
-import msa.common.events.bookloan.saga.command.RefundPointCommand;
-import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
+import msa.common.events.bookloan.saga.command.*;
 import msa.common.snowflake.Snowflake;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static java.time.LocalDateTime.now;
@@ -159,7 +160,35 @@ public class LoanRequestSagaOrchestrator {
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 배송 스케줄 성공: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
+
     }
+    
+    // TODO: 아직 미완성
+    private void finalizeIfCompleted(Long sagaId) {
+        LoanSaga saga = sagaRepository.findById(sagaId)
+                .orElseThrow(() -> new SagaNotFoundException(sagaId));
+
+        if (!saga.isFinishedStep()) {   // 예: SHIPPING_SCHEDULING 이면 true
+            return;
+        }
+
+        // 1) 사가 완료
+        saga.markCompleted();
+
+        // 2) BookLoan 확정
+        BookLoan loan = bookLoanRepository.findById(saga.getLoanId())
+                .orElseThrow(() -> new IllegalStateException("loan not found: " + saga.getLoanId()));
+
+        LocalDate today = LocalDate.now(clock);
+        LocalDate dueDate = today.plusDays(14); // 정책에 맞게
+        loan.markLoaned(today, dueDate);
+
+        // 3) 저장
+        sagaRepository.save(saga);
+        // bookLoanRepository는 JPA면 dirty check로 나감
+    }
+
+
 
     // 배송 스케줄 실패 -> 종료(필요 시 보상 플로우는 별도)
     public void onShippingScheduleFailed(ShippingScheduleFailedInternalEvent event) {
@@ -185,6 +214,14 @@ public class LoanRequestSagaOrchestrator {
             inventoryStepService.afterInventoryReleased(event);
         } catch (OptimisticLockingFailureException ex) {
             log.debug("[Saga] 보상 종료 단계 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
+        }
+    }
+
+    public void onShippingCancelled(ShippingCancelledInternalEvent event) {
+        try {
+            shippingStepService.afterShippingCancelled(event);
+        } catch (OptimisticLockingFailureException ex) {
+            log.debug("[Saga] 배송 취소 보상 단계: 중복/경합 드롭. sagaId={}, reason={}", event.sagaId(), ex.getMessage());
         }
     }
 
@@ -252,44 +289,70 @@ public class LoanRequestSagaOrchestrator {
         // 피벗 이후/터미널 가드
         if (!saga.markCancelRequested(reason)) return false;
 
+        LocalDateTime currentTime  = now(clock);
         Duration to = sagaTimeouts.compensationTimeoutFor();
 
         switch (saga.getCurrentStep()) {
-            case INIT, MEMBER_CHECKING, INVENTORY_RESERVING: {
+            case INIT, MEMBER_CHECKING: {
                 // 외부자원 아직 확정 전 -> 즉시 취소
                 if (saga.markCancelled(reason)) {
                     sagaRepository.save(saga);
                     bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                } else {
+                    logAlreadyCompensating(saga);
+                }
+                return true;
+            }
+            case INVENTORY_RESERVING: {
+                if (saga.enterCompensating(to, currentTime )) {
+                    sagaRepository.save(saga);
+                    commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
+                } else {
+                    logAlreadyCompensating(saga);
                 }
                 return true;
             }
             case POINT_CHARGING: {
-                // 재고가 잡혀있을 수 있음 -> 보상 전이 + ReleaseInventory
-                if (saga.enterCompensating(to, LocalDateTime.now(clock))) {
+                if (saga.enterCompensating(to, currentTime )) {
                     sagaRepository.save(saga);
-                    commandOutboxRecorder.save(createReleaseInventoryCommand(saga, causationEventId));
+                    commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
+                } else {
+                    logAlreadyCompensating(saga);
                 }
-
                 return true;
             }
             case SHIPPING_SCHEDULING, SHIPPING_ACCEPTED: {
-                // 포인트/재고가 확정됐을 수 있음 -> 보상 전이 + RefundPoint
-                if (saga.enterCompensating(to, LocalDateTime.now(clock))) {
+                if (saga.enterCompensating(to, currentTime )) {
                     sagaRepository.save(saga);
-                    commandOutboxRecorder.save(createRefundPointCommand(saga, causationEventId));
+                    commandOutboxRecorder.save(createCancelShippingCommand(saga, causationEventId));
+                } else {
+                    logAlreadyCompensating(saga);
                 }
                 return true;
             }
+
             default: {
                 // 방어적 코드 (보상트랜잭션 필요한건데 이게 수행되면 오히려 위험할지도? 예외던지는게 나은가)
                 if (saga.markCancelled(reason)) {
                     sagaRepository.save(saga);
                     bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
+                } else {
+                    logAlreadyCompensating(saga);
                 }
                 return true;
             }
         }
 
+    }
+
+    private CancelShippingCommand createCancelShippingCommand(LoanSaga saga, Long causationEventId) {
+        return CancelShippingCommand.of(
+                snowflake.nextId(),
+                saga.getId(),
+                saga.getLoanId(),
+                saga.getBookId(),
+                causationEventId
+        );
     }
 
     private CheckMemberCommand createMemberCommand(LoanRequestedInternalEvent event) {
@@ -320,6 +383,11 @@ public class LoanRequestSagaOrchestrator {
                 saga.getMemberId(),
                 causationEventId
         );
+    }
+
+    private void logAlreadyCompensating(LoanSaga saga) {
+        log.info("[Saga] 취소요청 수락했으나 보상중 상태: sagaId={}, step={}, status={}",
+                saga.getId(), saga.getCurrentStep(), saga.getStatus());
     }
 
 }

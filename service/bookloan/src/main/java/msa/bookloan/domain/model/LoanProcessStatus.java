@@ -1,5 +1,6 @@
 package msa.bookloan.domain.model;
 
+@Deprecated
 public enum LoanProcessStatus {
     RECEIVED,           // 접수됨
     MEMBER_CHECKING,    // 멤버 검증 중
