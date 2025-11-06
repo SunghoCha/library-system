@@ -23,6 +23,7 @@ import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
 import static msa.bookloan.domain.saga.SagaAbortReason.BLACKLISTED;
 
+@Deprecated
 @Slf4j
 @Service
 @Transactional

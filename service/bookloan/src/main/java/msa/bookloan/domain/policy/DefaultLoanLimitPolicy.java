@@ -1,13 +1,11 @@
 package msa.bookloan.domain.policy;
 
-import lombok.RequiredArgsConstructor;
 import msa.common.domain.model.MemberGrade;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 @Component
-@RequiredArgsConstructor
 public class DefaultLoanLimitPolicy implements LoanLimitPolicy {
 
     private static final int DEFAULT_LOAN_LIMIT = 3;

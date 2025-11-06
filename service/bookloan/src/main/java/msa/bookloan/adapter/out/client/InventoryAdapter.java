@@ -5,6 +5,7 @@ import msa.bookloan.application.port.out.InventoryPort;
 import msa.bookloan.application.port.out.response.ReservationResult;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
 @RequiredArgsConstructor
 public class InventoryAdapter implements InventoryPort {

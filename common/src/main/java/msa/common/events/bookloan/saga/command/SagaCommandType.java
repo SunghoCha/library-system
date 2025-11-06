@@ -7,7 +7,6 @@ import msa.common.events.EventType;
 @Getter
 @RequiredArgsConstructor
 public enum SagaCommandType implements EventType {
-
     // member
     MEMBER_CHECK("member.check"),
 

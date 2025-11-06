@@ -43,6 +43,7 @@ dependencies {
     testImplementation "org.testcontainers:mysql"
     testImplementation "org.testcontainers:jdbc"
     testImplementation "org.testcontainers:junit-jupiter"
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
 
 
     // QueryDSL JPA Jakarta

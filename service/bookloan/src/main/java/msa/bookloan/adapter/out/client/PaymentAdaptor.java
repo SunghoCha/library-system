@@ -5,6 +5,7 @@ import msa.bookloan.application.port.out.PaymentPort;
 import msa.bookloan.application.port.out.response.PaymentResult;
 import org.springframework.stereotype.Component;
 
+@Deprecated
 @Component
 @RequiredArgsConstructor
 public class PaymentAdaptor implements PaymentPort {

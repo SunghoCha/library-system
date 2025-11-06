@@ -35,7 +35,6 @@ public class KafkaConsumerConfig {
         SslBundles sslBundles = sslBundlesProvider.getIfAvailable(); // 없으면 null 들어가도 됨
         Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(sslBundles));
 
-        // 필수/권장 옵션
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);

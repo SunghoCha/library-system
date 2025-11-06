@@ -13,7 +13,8 @@ public enum SagaReplyType implements EventType {
     SHIPPING_SCHEDULED("shipping.scheduled"),
     SHIPPING_SCHEDULE_FAILED("shipping.schedule_failed"),
     POINT_REFUNDED("point.refunded"),
-    INVENTORY_RELEASED("inventory.released");
+    INVENTORY_RELEASED("inventory.released"),
+    SHIPPING_CANCELLED("shipping.cancelled");
 
     private final String value;
 

@@ -10,7 +10,6 @@ import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
@@ -19,14 +18,15 @@ import msa.bookloan.application.saga.reply.shipping.ShippingCancelledInternalEve
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduleFailedInternalEvent;
 import msa.bookloan.application.saga.reply.shipping.ShippingScheduledInternalEvent;
 import msa.bookloan.application.saga.steps.InventoryStepService;
-import msa.bookloan.application.saga.steps.MemberStepService;
 import msa.bookloan.application.saga.steps.PointStepService;
 import msa.bookloan.application.saga.steps.ShippingStepService;
-import msa.bookloan.domain.model.BookLoan;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
-import msa.common.events.bookloan.saga.command.*;
+import msa.common.events.bookloan.saga.command.CancelShippingCommand;
+import msa.common.events.bookloan.saga.command.RefundPointCommand;
+import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
+import msa.common.events.bookloan.saga.command.ReserveInventoryCommand;
 import msa.common.snowflake.Snowflake;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -35,11 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import static java.time.LocalDateTime.now;
-import static msa.bookloan.domain.saga.LoanSagaStep.MEMBER_CHECKING;
+import static msa.bookloan.domain.saga.LoanSagaStep.INVENTORY_RESERVING;
 
 @Slf4j
 @Service
@@ -53,12 +52,11 @@ public class LoanRequestSagaOrchestrator {
     private final BookLoanRepository bookLoanRepository;
     private final CommandOutboxRecorder commandOutboxRecorder;
 
-    private final MemberStepService memberStepService;
     private final InventoryStepService inventoryStepService;
     private final PointStepService pointStepService;
     private final ShippingStepService shippingStepService;
 
-    // 사가 시작 - 멤버 확인 커맨드만 발행
+    // 사가 시작 - 재고 예약 커맨드 발행
     @Transactional(propagation = Propagation.MANDATORY)
     public void start(LoanRequestedInternalEvent event) {
         int bound = bookLoanRepository.tryBindSaga(event.loanId(), event.sagaId());
@@ -74,14 +72,14 @@ public class LoanRequestSagaOrchestrator {
             return;
         }
 
-        // 아웃박스에 멤버커맨드 저장하면 폴링해서 메시지 발행
-        commandOutboxRecorder.save(createMemberCommand(event));
-        log.info("[Saga] 멤버 확인 커맨드 발행 준비: sagaId={}, memberId={}", event.sagaId(), event.memberId());
+        // 아웃박스에 재고 예약 커맨드 저장하면 폴링해서 메시지 발행
+        commandOutboxRecorder.save(createReserveInventoryCommand(event));
+        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", event.sagaId(), event.bookId());
     }
 
     private boolean startSagaRowIfAbsent(LoanRequestedInternalEvent event) {
         LocalDateTime deadline =
-                now(clock).plus(sagaTimeouts.stepTimeout(MEMBER_CHECKING));
+                now(clock).plus(sagaTimeouts.stepTimeout(INVENTORY_RESERVING));
 
         return sagaRepository.insertIfAbsent(
                 event.sagaId(),
@@ -91,19 +89,9 @@ public class LoanRequestSagaOrchestrator {
                 event.aggregateVersion(),
                 event.eventId(),
                 SagaStatus.PROCESSING.name(),
-                MEMBER_CHECKING.name(),
+                INVENTORY_RESERVING.name(),
                 deadline
         );
-    }
-
-    // 멤버 확인 리플라이 수신 - 통과 시 재고 예약 커맨드 발행
-    public void onMemberChecked(MemberCheckedInternalEvent event) {
-        try {
-            memberStepService.afterMemberChecked(event);
-        } catch (OptimisticLockingFailureException ex) {
-            log.debug("[Saga] 멤버 확인 단계: 중복/경합으로 드롭. sagaId={}, reason={}",
-                    event.sagaId(), ex.getMessage());
-        }
     }
 
     // 재고 예약 성공 리플라이 수신 - 포인트 차징 단계로 전이
@@ -164,29 +152,29 @@ public class LoanRequestSagaOrchestrator {
     }
     
     // TODO: 아직 미완성
-    private void finalizeIfCompleted(Long sagaId) {
-        LoanSaga saga = sagaRepository.findById(sagaId)
-                .orElseThrow(() -> new SagaNotFoundException(sagaId));
-
-        if (!saga.isFinishedStep()) {   // 예: SHIPPING_SCHEDULING 이면 true
-            return;
-        }
-
-        // 1) 사가 완료
-        saga.markCompleted();
-
-        // 2) BookLoan 확정
-        BookLoan loan = bookLoanRepository.findById(saga.getLoanId())
-                .orElseThrow(() -> new IllegalStateException("loan not found: " + saga.getLoanId()));
-
-        LocalDate today = LocalDate.now(clock);
-        LocalDate dueDate = today.plusDays(14); // 정책에 맞게
-        loan.markLoaned(today, dueDate);
-
-        // 3) 저장
-        sagaRepository.save(saga);
-        // bookLoanRepository는 JPA면 dirty check로 나감
-    }
+//    private void finalizeIfCompleted(Long sagaId) {
+//        LoanSaga saga = sagaRepository.findById(sagaId)
+//                .orElseThrow(() -> new SagaNotFoundException(sagaId));
+//
+//        if (!saga.isFinishedStep()) {   // 예: SHIPPING_SCHEDULING 이면 true
+//            return;
+//        }
+//
+//        // 1) 사가 완료
+//        saga.markCompleted();
+//
+//        // 2) BookLoan 확정
+//        BookLoan loan = bookLoanRepository.findById(saga.getLoanId())
+//                .orElseThrow(() -> new IllegalStateException("loan not found: " + saga.getLoanId()));
+//
+//        LocalDate today = LocalDate.now(clock);
+//        LocalDate dueDate = today.plusDays(14); // 정책에 맞게
+//        loan.markLoaned(today, dueDate);
+//
+//        // 3) 저장
+//        sagaRepository.save(saga);
+//        // bookLoanRepository는 JPA면 dirty check로 나감
+//    }
 
 
 
@@ -284,7 +272,7 @@ public class LoanRequestSagaOrchestrator {
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean requestCancel(Long sagaId, SagaAbortReason reason, Long causationEventId) {
         LoanSaga saga = sagaRepository.findForUpdate(sagaId)
-                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(sagaId))); // 취소 상태로 업데이트
+                .orElseThrow(() -> new SagaNotFoundException(String.valueOf(sagaId))); // 비관적 락
 
         // 피벗 이후/터미널 가드
         if (!saga.markCancelRequested(reason)) return false;
@@ -293,7 +281,7 @@ public class LoanRequestSagaOrchestrator {
         Duration to = sagaTimeouts.compensationTimeoutFor();
 
         switch (saga.getCurrentStep()) {
-            case INIT, MEMBER_CHECKING: {
+            case INIT: {
                 // 외부자원 아직 확정 전 -> 즉시 취소
                 if (saga.markCancelled(reason)) {
                     sagaRepository.save(saga);
@@ -355,13 +343,13 @@ public class LoanRequestSagaOrchestrator {
         );
     }
 
-    private CheckMemberCommand createMemberCommand(LoanRequestedInternalEvent event) {
-        return CheckMemberCommand.of(
+    private ReserveInventoryCommand createReserveInventoryCommand(LoanRequestedInternalEvent e) {
+        return ReserveInventoryCommand.of(
                 snowflake.nextId(),
-                event.sagaId(),
-                event.loanId(),
-                event.memberId(),
-                event.eventId()
+                e.sagaId(),
+                e.loanId(),
+                e.bookId(),
+                e.eventId() // causation
         );
     }
 

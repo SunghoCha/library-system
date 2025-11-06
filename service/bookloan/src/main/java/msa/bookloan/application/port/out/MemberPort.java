@@ -1,9 +1,7 @@
 package msa.bookloan.application.port.out;
 
-import msa.bookloan.application.port.out.response.BlacklistResult;
+import msa.common.domain.model.MemberGrade;
 
 public interface MemberPort {
-    BlacklistResult checkBlacklist(Long memberId);
-    void addPoints(String sagaId, Long memberId, Long points);
-    void deductPoints(String sagaId, Long memberId, Long points);
+    MemberGrade getGrade(Long memberId);
 }

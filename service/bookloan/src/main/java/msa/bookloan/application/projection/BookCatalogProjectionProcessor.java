@@ -33,20 +33,20 @@ public class BookCatalogProjectionProcessor {
     @Transactional(propagation = Propagation.MANDATORY)
     public void onDeleted(Long eventId, BookCatalogDeletedPayload payload, Long aggregateVersion) {
         Long bookId = toLong(payload.bookId());
-        BookCatalogProjection existing = projectionRepository.findByBookId(bookId).orElse(null);
+        BookCatalogProjection existing = projectionRepository.findById(bookId).orElse(null);
         if (existing == null) return;
         if (aggregateVersion == null || aggregateVersion < existing.getAggregateVersion()) {
             log.debug("삭제 스킵(낮은 버전) [eventId={}, bookId={}, incomingVer={}, currentVer={}]",
                     eventId, bookId, aggregateVersion, existing.getAggregateVersion());
             return;
         }
-        projectionRepository.deleteByBookId(bookId);
+        projectionRepository.deleteById(bookId);
         log.debug("Projection deleted [eventId={}, bookId={}]", eventId, payload.bookId());
     }
 
     private void upsert(Long eventId, BookCatalogSnapshotPayload payload, Long aggregateVersion) {
         Long bookId = toLong(payload.bookId());
-        BookCatalogProjection existing = projectionRepository.findByBookId(bookId).orElse(null);
+        BookCatalogProjection existing = projectionRepository.findById(bookId).orElse(null);
 
         if (existing == null) {
             projectionRepository.save(BookCatalogProjection.fromSnapshot(bookId, payload, aggregateVersion));

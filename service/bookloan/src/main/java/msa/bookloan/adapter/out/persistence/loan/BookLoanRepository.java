@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-public interface BookLoanRepository extends JpaRepository<BookLoan, Long> {
+public interface BookLoanRepository extends JpaRepository<BookLoan, Long>, BookLoanRepositoryCustom {
 
     boolean existsByMemberIdAndLoanStatus(Long memberId, LoanStatus status);
     int countByMemberId(Long memberId);

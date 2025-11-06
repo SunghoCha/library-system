@@ -8,7 +8,6 @@ import msa.bookloan.application.saga.exception.SagaNotFoundException;
 import msa.bookloan.application.saga.reply.inventory.InventoryReleasedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReserveFailedInternalEvent;
 import msa.bookloan.application.saga.reply.inventory.InventoryReservedInternalEvent;
-import msa.bookloan.application.saga.reply.member.MemberCheckedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointChargeFailedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
@@ -86,7 +85,7 @@ class LoanRequestSagaOrchestratorTest {
     private ShippingStepService shippingStepService;
 
     @Captor
-    private ArgumentCaptor<CheckMemberCommand> commandCaptor;
+    private ArgumentCaptor<ReserveInventoryCommand> commandCaptor;
 
     @Captor
     private ArgumentCaptor<RefundPointCommand> refundPointCommandCaptor;
@@ -102,7 +101,7 @@ class LoanRequestSagaOrchestratorTest {
         lenient().when(clock.instant()).thenReturn(FIXED_CLOCK.instant());
         lenient().when(clock.getZone()).thenReturn(FIXED_CLOCK.getZone());
         lenient().when(snowflake.nextId()).thenReturn(MOCK_COMMAND_ID);
-        lenient().when(sagaTimeouts.stepTimeout(MEMBER_CHECKING)).thenReturn(STEP_TIMEOUT);
+        lenient().when(sagaTimeouts.stepTimeout(INVENTORY_RESERVING)).thenReturn(STEP_TIMEOUT);
     }
 
     @Nested
@@ -140,7 +139,7 @@ class LoanRequestSagaOrchestratorTest {
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true);
 
-            when(commandOutboxRecorder.save(any(CheckMemberCommand.class))).thenReturn(true);
+            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
 
             // When
             orchestrator.start(event);
@@ -156,19 +155,19 @@ class LoanRequestSagaOrchestratorTest {
                     eq(aggVer),
                     eq(eventId),
                     eq(SagaStatus.PROCESSING.name()),
-                    eq(MEMBER_CHECKING.name()),
+                    eq(INVENTORY_RESERVING.name()),
                     eq(EXPECTED_DEADLINE)
             );
 
             verify(commandOutboxRecorder).save(commandCaptor.capture());
-            CheckMemberCommand capturedCommand = commandCaptor.getValue();
+            ReserveInventoryCommand capturedCommand = commandCaptor.getValue();
 
             assertThat(capturedCommand.commandId()).isEqualTo(MOCK_COMMAND_ID);
             assertThat(capturedCommand.sagaId()).isEqualTo(event.sagaId());
             assertThat(capturedCommand.loanId()).isEqualTo(event.loanId());
-            assertThat(capturedCommand.memberId()).isEqualTo(event.memberId());
+            assertThat(capturedCommand.bookId()).isEqualTo(event.bookId());
             assertThat(capturedCommand.causationEventId()).isEqualTo(event.eventId());
-            assertThat(capturedCommand.type()).isEqualTo(SagaCommandType.MEMBER_CHECK.getValue());
+            assertThat(capturedCommand.type()).isEqualTo(SagaCommandType.INVENTORY_RESERVE.getValue());
         }
 
         @Test
@@ -222,7 +221,7 @@ class LoanRequestSagaOrchestratorTest {
                     eq(aggVer),
                     eq(eventId),
                     eq(SagaStatus.PROCESSING.name()),
-                    eq(MEMBER_CHECKING.name()),
+                    eq(INVENTORY_RESERVING.name()),
                     eq(EXPECTED_DEADLINE)
             );
 
@@ -246,7 +245,7 @@ class LoanRequestSagaOrchestratorTest {
                     anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true);
-            when(commandOutboxRecorder.save(any(CheckMemberCommand.class))).thenReturn(true);
+            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
 
             // when
             orchestrator.start(event); // 첫 번째 호출 (성공)
@@ -261,7 +260,7 @@ class LoanRequestSagaOrchestratorTest {
                     eq(sagaId), eq(loanId), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             );
-            verify(commandOutboxRecorder).save(any(CheckMemberCommand.class));
+            verify(commandOutboxRecorder).save(any(ReserveInventoryCommand.class));
         }
 
         @Test
@@ -284,7 +283,7 @@ class LoanRequestSagaOrchestratorTest {
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true, false);
 
-            when(commandOutboxRecorder.save(any(CheckMemberCommand.class))).thenReturn(true);
+            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
 
             // when
             orchestrator.start(event); // 1. 첫 번째 호출 (성공)
@@ -301,76 +300,76 @@ class LoanRequestSagaOrchestratorTest {
             );
 
             // save(부수 효과)는 첫 번째 성공한 호출에서 "단 1회"만 실행되어야 함
-            verify(commandOutboxRecorder, times(1)).save(any(CheckMemberCommand.class));
+            verify(commandOutboxRecorder, times(1)).save(any(ReserveInventoryCommand.class));
         }
 
     }
 
-    @Nested
-    @DisplayName("onMemberChecked: 멤버 확인 응답 처리")
-    class OnMemberCheckedTests {
-
-        private MemberCheckedInternalEvent createEvent() {
-            return new MemberCheckedInternalEvent(
-                    1L,   // eventId
-                    123L, // sagaId
-                    2L,   // causationCommandId
-                    0L,   // loanVersion
-                    200L, // memberId
-                    false,// blacklisted
-                    null  // reason
-            );
-        }
-
-        @Test
-        @DisplayName("성공: MemberStepService로 처리를 위임한다.")
-        void onMemberChecked_Success() {
-            // given
-            MemberCheckedInternalEvent event = createEvent();
-
-            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
-
-            // when
-            orchestrator.onMemberChecked(event);
-
-            // then
-            verify(memberStepService).afterMemberChecked(eq(event));
-        }
-
-        @Test
-        @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
-        void onMemberChecked_OptimisticLockFailure() {
-            // given
-            MemberCheckedInternalEvent event = createEvent();
-            String errorMessage = "사가 버전 불일치";
-
-            doThrow(new OptimisticLockingFailureException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
-
-            // when then
-            assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
-
-            verify(memberStepService).afterMemberChecked(eq(event));
-        }
-
-        @Test
-        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
-        void onMemberChecked_GenericException() {
-            // given
-            MemberCheckedInternalEvent event = createEvent();
-            String errorMessage = "예상치 못한 예외";
-
-            doThrow(new RuntimeException(errorMessage))
-                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
-
-            // when then
-            assertThatThrownBy(() -> orchestrator.onMemberChecked(event))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining(errorMessage);
-
-            verify(memberStepService).afterMemberChecked(eq(event));
-        }
-    }
+//    @Nested
+//    @DisplayName("onMemberChecked: 멤버 확인 응답 처리")
+//    class OnMemberCheckedTests {
+//
+//        private MemberCheckedInternalEvent createEvent() {
+//            return new MemberCheckedInternalEvent(
+//                    1L,   // eventId
+//                    123L, // sagaId
+//                    2L,   // causationCommandId
+//                    0L,   // loanVersion
+//                    200L, // memberId
+//                    false,// blacklisted
+//                    null  // reason
+//            );
+//        }
+//
+//        @Test
+//        @DisplayName("성공: MemberStepService로 처리를 위임한다.")
+//        void onMemberChecked_Success() {
+//            // given
+//            MemberCheckedInternalEvent event = createEvent();
+//
+//            doNothing().when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+//
+//            // when
+//            orchestrator.onMemberChecked(event);
+//
+//            // then
+//            verify(memberStepService).afterMemberChecked(eq(event));
+//        }
+//
+//        @Test
+//        @DisplayName("실패(낙관적 락): OptimisticLockingFailureException 발생 시 예외를 잡고 드롭시킨다.")
+//        void onMemberChecked_OptimisticLockFailure() {
+//            // given
+//            MemberCheckedInternalEvent event = createEvent();
+//            String errorMessage = "사가 버전 불일치";
+//
+//            doThrow(new OptimisticLockingFailureException(errorMessage))
+//                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+//
+//            // when then
+//            assertDoesNotThrow(() -> orchestrator.onMemberChecked(event));
+//
+//            verify(memberStepService).afterMemberChecked(eq(event));
+//        }
+//
+//        @Test
+//        @DisplayName("실패(기타 예외): 예상치 못한 예외 발생 시 예외를 다시 던진다.")
+//        void onMemberChecked_GenericException() {
+//            // given
+//            MemberCheckedInternalEvent event = createEvent();
+//            String errorMessage = "예상치 못한 예외";
+//
+//            doThrow(new RuntimeException(errorMessage))
+//                    .when(memberStepService).afterMemberChecked(any(MemberCheckedInternalEvent.class));
+//
+//            // when then
+//            assertThatThrownBy(() -> orchestrator.onMemberChecked(event))
+//                    .isInstanceOf(RuntimeException.class)
+//                    .hasMessageContaining(errorMessage);
+//
+//            verify(memberStepService).afterMemberChecked(eq(event));
+//        }
+//    }
 
     @Nested
     @DisplayName("onInventoryReserved: 재고 예약 응답 처리")
