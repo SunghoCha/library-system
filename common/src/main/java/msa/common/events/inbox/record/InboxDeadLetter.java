@@ -17,9 +17,6 @@ public class InboxDeadLetter extends BaseTimeEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private Long id;
 
-    @Column(name = "source", nullable = false)
-    private String source;
-
     @Column(name = "topic", nullable = false)
     private String topic;
 

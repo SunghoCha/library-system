@@ -31,15 +31,16 @@ class ShippingScheduleFailedInboxHandlerTest {
     @DisplayName("핸들러는 수신한 InboxMessage를 InternalEvent로 변환하여 오케스트레이터에 전달한다")
     void handle_ShouldDelegateToOrchestrator() {
         // given
-        Long eventId = 1001L;
+        String eventIdStr = "1001";
         String sagaIdStr = "123";
-        Long causationCmdIdStr = 2002L;
+        String causationCmdIdStr = "2002";
         Long loanVersion = 2L;
         String reasonCode = "DELIVERY_ERROR";
         String messageStr = "Failed to schedule";
 
+        // String 기반의 헬퍼 메서드 호출
         InboxMessage<ShippingScheduleFailedReply> message = createTestMessage(
-                eventId, sagaIdStr, causationCmdIdStr,
+                eventIdStr, sagaIdStr, causationCmdIdStr,
                 loanVersion, reasonCode, messageStr
         );
 
@@ -55,9 +56,10 @@ class ShippingScheduleFailedInboxHandlerTest {
         // 변환된 필드 검증
         assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
 
-        // Pass-through 필드 검증
-        assertThat(capturedEvent.eventId()).isEqualTo(eventId);
-        assertThat(capturedEvent.causationCommandId()).isEqualTo(causationCmdIdStr);
+        assertThat(capturedEvent.eventId()).isEqualTo(Long.parseLong(eventIdStr));
+        assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
+        assertThat(capturedEvent.causationCommandId()).isEqualTo(Long.parseLong(causationCmdIdStr));
+
         assertThat(capturedEvent.loanVersion()).isEqualTo(loanVersion);
         assertThat(capturedEvent.reasonCode()).isEqualTo(reasonCode);
         assertThat(capturedEvent.message()).isEqualTo(messageStr);
@@ -68,10 +70,10 @@ class ShippingScheduleFailedInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenRequiredIdIsNull() {
         // given
         ShippingScheduleFailedReply replyWithNull = new ShippingScheduleFailedReply(
-                1001L,
-                null, // 문제 원인
-                2002L,
-                2L,
+                "1001", // eventId (유효한 숫자 문자열)
+                null,   // sagaId (테스트 대상)
+                "2002", // causationCommandId (유효한 숫자 문자열)
+                2L,     // loanVersion
                 "REASON",
                 "msg"
         );
@@ -97,10 +99,10 @@ class ShippingScheduleFailedInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenIdIsNotNumeric() {
         // given
         ShippingScheduleFailedReply replyWithBadFormat = new ShippingScheduleFailedReply(
-                1001L,
-                "abc", // 문제 원인
-                2002L,
-                2L,
+                "1001", // eventId (유효한 숫자 문자열)
+                "abc",  // sagaId (테스트 대상 - 숫자가 아님)
+                "2002", // causationCommandId (유효한 숫자 문자열)
+                2L,     // loanVersion
                 "REASON",
                 "msg"
         );
@@ -121,18 +123,18 @@ class ShippingScheduleFailedInboxHandlerTest {
     }
 
     private InboxMessage<ShippingScheduleFailedReply> createTestMessage(
-            Long eventId,
+            String eventIdStr,
             String sagaIdStr,
-            Long causationCommandId,
+            String causationCommandIdStr,
             Long loanVersion,
             String reasonCode,
             String message
     ) {
         // 1. 페이로드 생성
         ShippingScheduleFailedReply replyPayload = new ShippingScheduleFailedReply(
-                eventId,
+                eventIdStr,
                 sagaIdStr,
-                causationCommandId,
+                causationCommandIdStr,
                 loanVersion,
                 reasonCode,
                 message

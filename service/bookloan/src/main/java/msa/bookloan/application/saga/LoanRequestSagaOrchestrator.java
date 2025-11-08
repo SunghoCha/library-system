@@ -59,12 +59,6 @@ public class LoanRequestSagaOrchestrator {
     // 사가 시작 - 재고 예약 커맨드 발행
     @Transactional(propagation = Propagation.MANDATORY)
     public void start(LoanRequestedInternalEvent event) {
-        int bound = bookLoanRepository.tryBindSaga(event.loanId(), event.sagaId());
-        if (bound == 0) {
-            // 이미 바인딩되어 있거나 경합으로 졌음
-            log.debug("[Saga] 바인딩 실패(이미 in-flight): loanId={}, sagaId={}", event.loanId(), event.sagaId());
-            return;
-        }
 
         boolean created = startSagaRowIfAbsent(event);
         if (!created) {
@@ -74,7 +68,7 @@ public class LoanRequestSagaOrchestrator {
 
         // 아웃박스에 재고 예약 커맨드 저장하면 폴링해서 메시지 발행
         commandOutboxRecorder.save(createReserveInventoryCommand(event));
-        log.info("[Saga] 재고 예약 커맨드 발행 준비: sagaId={}, bookId={}", event.sagaId(), event.bookId());
+        log.info("[Saga] 재고 예약 커맨드 Outbox 저장: sagaId={}, bookId={}", event.sagaId(), event.bookId());
     }
 
     private boolean startSagaRowIfAbsent(LoanRequestedInternalEvent event) {

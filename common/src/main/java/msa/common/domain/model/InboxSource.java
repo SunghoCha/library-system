@@ -1,5 +1,6 @@
 package msa.common.domain.model;
 
+@Deprecated
 public enum InboxSource {
     BOOK_CATALOG("book-catalog"),
     INVENTORY("inventory"),

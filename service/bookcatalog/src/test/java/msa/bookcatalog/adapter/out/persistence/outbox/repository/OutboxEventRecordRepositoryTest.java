@@ -2,7 +2,7 @@ package msa.bookcatalog.adapter.out.persistence.outbox.repository;
 
 import jakarta.persistence.EntityManager;
 import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxEventSender;
-import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxRelayScheduler;
+import msa.bookcatalog.adapter.out.messaging.outbox.scheduler.OutboxPollingScheduler;
 import msa.bookcatalog.adapter.out.persistence.outbox.EventRecorder;
 import msa.bookcatalog.adapter.out.persistence.outbox.OutboxClaimerService;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
@@ -53,7 +53,7 @@ class OutboxEventRecordRepositoryTest {
 
         @Bean
         @Primary
-        OutboxRelayScheduler bookCatalogOutboxRelayScheduler() { return Mockito.mock(OutboxRelayScheduler.class); }
+        OutboxPollingScheduler bookCatalogOutboxRelayScheduler() { return Mockito.mock(OutboxPollingScheduler.class); }
 
         @Bean
         @Primary

@@ -31,19 +31,19 @@ class ShippingScheduledInboxHandlerTest {
     @DisplayName("핸들러는 수신한 InboxMessage를 InternalEvent로 변환하여 오케스트레이터에 전달한다")
     void handle_ShouldDelegateToOrchestrator() {
         // given
-        Long eventId = 1001L;
+        String eventIdStr = "1001";
         String sagaIdStr = "123";
-        Long causationCmdIdStr = 2002L;
+        String causationCmdIdStr = "2002";
         Long loanVersion = 2L;
-        Long shipmentId = 4004L;
-        Long bookId = 3003L;
+        String shipmentIdStr = "4004";
+        String bookIdStr = "3003";
         String trackingNo = "track-abc";
 
+        // String 기반의 헬퍼 메서드 호출
         InboxMessage<ShippingScheduledReply> message = createTestMessage(
-                eventId, sagaIdStr, causationCmdIdStr,
-                loanVersion, shipmentId, bookId, trackingNo
+                eventIdStr, sagaIdStr, causationCmdIdStr,
+                loanVersion, shipmentIdStr, bookIdStr, trackingNo
         );
-
         // when
         handler.handle(message);
 
@@ -56,12 +56,13 @@ class ShippingScheduledInboxHandlerTest {
         // 변환된 필드 검증
         assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
 
-        // Pss-through 필드 검증
-        assertThat(capturedEvent.eventId()).isEqualTo(eventId);
-        assertThat(capturedEvent.causationCommandId()).isEqualTo(causationCmdIdStr);
+        assertThat(capturedEvent.eventId()).isEqualTo(Long.parseLong(eventIdStr));
+        assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
+        assertThat(capturedEvent.causationCommandId()).isEqualTo(Long.parseLong(causationCmdIdStr));
+        assertThat(capturedEvent.shipmentId()).isEqualTo(Long.parseLong(shipmentIdStr));
+        assertThat(capturedEvent.bookId()).isEqualTo(Long.parseLong(bookIdStr));
+
         assertThat(capturedEvent.loanVersion()).isEqualTo(loanVersion);
-        assertThat(capturedEvent.shipmentId()).isEqualTo(shipmentId);
-        assertThat(capturedEvent.bookId()).isEqualTo(bookId);
         assertThat(capturedEvent.trackingNo()).isEqualTo(trackingNo);
     }
 
@@ -70,12 +71,12 @@ class ShippingScheduledInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenRequiredIdIsNull() {
         // given
         ShippingScheduledReply replyWithNull = new ShippingScheduledReply(
-                1001L,
-                null, // 문제 원인
-                2002L,
+                "1001",
+                null,
+                "2002",
                 2L,
-                4004L,
-                3003L,
+                "4004",
+                "3003",
                 "track-abc"
         );
 
@@ -100,12 +101,12 @@ class ShippingScheduledInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenIdIsNotNumeric() {
         // given
         ShippingScheduledReply replyWithBadFormat = new ShippingScheduledReply(
-                1001L,
-                "abc", // 문제 원인
-                2002L,
+                "1001",
+                "abc",
+                "2002",
                 2L,
-                4004L,
-                3003L,
+                "4004",
+                "3003",
                 "track-abc"
         );
 
@@ -125,22 +126,22 @@ class ShippingScheduledInboxHandlerTest {
     }
 
     private InboxMessage<ShippingScheduledReply> createTestMessage(
-            Long eventId,
+            String eventIdStr,
             String sagaIdStr,
-            Long causationCommandId,
+            String causationCommandIdStr,
             Long loanVersion,
-            Long shipmentId,
-            Long bookId,
+            String shipmentIdStr,
+            String bookIdStr,
             String trackingNo
     ) {
         // 1. 페이로드 생성
         ShippingScheduledReply replyPayload = new ShippingScheduledReply(
-                eventId,
+                eventIdStr,
                 sagaIdStr,
-                causationCommandId,
+                causationCommandIdStr,
                 loanVersion,
-                shipmentId,
-                bookId,
+                shipmentIdStr,
+                bookIdStr,
                 trackingNo
         );
 

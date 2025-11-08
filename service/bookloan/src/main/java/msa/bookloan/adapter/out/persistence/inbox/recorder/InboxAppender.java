@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.application.event.SagaReplyEnvelope;
-import msa.common.domain.model.InboxSource;
 import msa.common.events.EventTypeV1;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookcatalog.BookCatalogChangedPayload;
@@ -35,7 +34,7 @@ public class InboxAppender {
     private final ObjectMapper objectMapper;
     private final Snowflake snowflake;
 
-    public boolean upsertRecord(ConsumerRecord<String, MessageEnvelope> record, InboxSource source) {
+    public boolean upsertRecord(ConsumerRecord<String, MessageEnvelope> record) {
         MessageEnvelope envelope = record.value();
         if (envelope.payload() == null) {
             throw new IllegalStateException("Inbox serialize fail: payload is null");
@@ -53,15 +52,20 @@ public class InboxAppender {
                 aggregateVersion,
                 eventType,
                 payloadJson,
-                source.name(),
                 record.topic(),
                 record.partition(),
                 record.offset()
         );
 
         boolean isNew = (affected == 1);
-        log.debug("Inbox UPSERT: affected={}, isNew={}, eventId={} type={} topic={}",
-                affected, isNew, eventId, envelope.eventType(), record.topic());
+        if (isNew) {
+            log.debug("[Inbox] 신규 저장: eventId={} type={} topic={}",
+                    eventId, envelope.eventType(), record.topic());
+        } else {
+            // affected = 2는 ON DUPLICATE KEY UPDATE가 실행됨을 의미
+            log.debug("[Inbox] 중복 수신 (무시): eventId={} type={} topic={}",
+                    eventId, envelope.eventType(), record.topic());
+        }
 
         return isNew;
     }
@@ -107,7 +111,7 @@ public class InboxAppender {
 
     @Deprecated
     public boolean upsertEventRecord(
-            ConsumerRecord<String, BookCatalogChangedPayload> record, InboxSource source) {
+            ConsumerRecord<String, BookCatalogChangedPayload> record) {
 
         BookCatalogChangedPayload payload = record.value();
 
@@ -131,7 +135,6 @@ public class InboxAppender {
                 payload.aggregateVersion(),
                 eventType,
                 serializedPayload,
-                source.name(),
                 record.topic(),
                 record.partition(),
                 record.offset()
@@ -145,7 +148,7 @@ public class InboxAppender {
 
     @Deprecated
     public boolean upsertSagaRecord(
-            ConsumerRecord<String, SagaReplyEnvelope> record, InboxSource source) {
+            ConsumerRecord<String, SagaReplyEnvelope> record) {
 
         SagaReplyEnvelope payload = record.value();
 
@@ -170,7 +173,6 @@ public class InboxAppender {
                 aggregateVersion, // aggregateVersion 없음 (사가에서 필요없어보임)
                 eventType,
                 serializedPayload,
-                source.name(),
                 record.topic(),
                 record.partition(),
                 record.offset()

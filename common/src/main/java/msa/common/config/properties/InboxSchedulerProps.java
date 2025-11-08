@@ -1,11 +1,13 @@
 package msa.common.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+
+import java.time.Duration;
 
 @ConfigurationProperties(prefix = "app.inbox.scheduler")
 public record InboxSchedulerProps(
-        int batchSize,
-        int maxRetryCount,
-        java.time.Duration staleTimeout,
-        java.time.Duration lease        // 선점 임대시간
+        @DefaultValue("100") int batchSize,
+        @DefaultValue("3") int maxRetryCount,
+        @DefaultValue("30s") Duration lease
 ) {}

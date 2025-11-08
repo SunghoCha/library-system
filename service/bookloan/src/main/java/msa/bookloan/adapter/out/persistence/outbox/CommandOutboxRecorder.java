@@ -48,9 +48,9 @@ public class CommandOutboxRecorder {
 
         boolean isNew = (affected == 1);
         if (isNew) {
-            log.debug("[Outbox] inserted: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
+            log.debug("[Outbox] 저장 완료: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
         } else {
-            log.debug("[Outbox] duplicate-skip: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
+            log.debug("[Outbox] 중복 (건너뜀): type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
         }
 
         return isNew;

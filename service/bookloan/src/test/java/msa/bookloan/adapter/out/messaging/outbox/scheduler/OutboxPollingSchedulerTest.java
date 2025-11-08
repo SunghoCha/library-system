@@ -17,10 +17,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class OutboxRelaySchedulerTest {
+class OutboxPollingSchedulerTest {
 
     @InjectMocks
-    private OutboxRelayScheduler outboxRelayScheduler;
+    private OutboxPollingScheduler outboxPollingScheduler;
 
     @Mock
     private OutboxEventSender outboxEventSender;
@@ -30,7 +30,7 @@ class OutboxRelaySchedulerTest {
 
     @Test
     @DisplayName("성공: 클레임된 이벤트가 있으면 모두 전송한다.")
-    void retryPendingOutboxEvents_Success() {
+    void pollAndPublish_Success() {
         // given
         OutboxEventRecord record1 = createMockRecord(1L);
         OutboxEventRecord record2 = createMockRecord(2L);
@@ -41,7 +41,7 @@ class OutboxRelaySchedulerTest {
         doNothing().when(outboxEventSender).send(any(OutboxEventRecord.class));
 
         // when
-        outboxRelayScheduler.retryPendingOutboxEvents();
+        outboxPollingScheduler.pollAndPublish();
 
         // then
         verify(outboxClaimerService, times(1)).claimEvents();
@@ -52,12 +52,12 @@ class OutboxRelaySchedulerTest {
 
     @Test
     @DisplayName("이벤트 없음: 클레임된 이벤트가 없으면 아무 작업도 하지 않는다.")
-    void retryPendingOutboxEvents_NoEvents() {
+    void pollAndPublish() {
         // given
         when(outboxClaimerService.claimEvents()).thenReturn(List.of());
 
         // when
-        outboxRelayScheduler.retryPendingOutboxEvents();
+        outboxPollingScheduler.pollAndPublish();
 
         // then
         verify(outboxClaimerService, times(1)).claimEvents();
@@ -66,7 +66,7 @@ class OutboxRelaySchedulerTest {
 
     @Test
     @DisplayName("부분 실패: 이벤트 전송 중 예외가 발생해도 다음 이벤트를 계속 처리한다.")
-    void retryPendingOutboxEvents_PartialFailure() {
+    void pollAndPublish_PartialFailure() {
         // given
         OutboxEventRecord record1 = createMockRecord(1L);
         OutboxEventRecord record2 = createMockRecord(2L); // 이 이벤트에서 예외 발생
@@ -87,7 +87,7 @@ class OutboxRelaySchedulerTest {
         // then
         // 메서드 실행 시 예외가 밖으로 전파되지 않는지 확인 (try-catch)
         assertDoesNotThrow(() -> {
-            outboxRelayScheduler.retryPendingOutboxEvents();
+            outboxPollingScheduler.pollAndPublish();
         });
 
         // verify

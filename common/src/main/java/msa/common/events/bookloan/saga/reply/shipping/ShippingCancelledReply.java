@@ -1,9 +1,9 @@
 package msa.common.events.bookloan.saga.reply.shipping;
 
 public record ShippingCancelledReply(
-        Long eventId,
+        String eventId,
         String sagaId,
-        Long causationCommandId,
+        String causationCommandId,
         Long loanVersion,
         String reasonCode,
         String message

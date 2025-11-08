@@ -19,6 +19,5 @@ public class LoanRequestSagaStartListener {
     public void handle(LoanRequestedInternalEvent event) {
         log.debug("[Saga] LoanRequested 이벤트 수신: loanId={}, sagaId={}", event.loanId(), event.sagaId());
         orchestrator.start(event);
-        log.info("[Saga] Outbox 기록 완료: loanId={}, sagaId={}", event.loanId(), event.sagaId());
     }
 }

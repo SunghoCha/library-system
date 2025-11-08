@@ -1,6 +1,7 @@
 package msa.bookloan.application.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
 import msa.bookloan.adapter.out.persistence.loan.BookLoanRepository;
@@ -24,6 +25,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LoanService {
@@ -41,7 +43,7 @@ public class LoanService {
 
     // 외부 통신 있어서 논트랜잭션
     public LoanCreateResult createLoan(Long memberId, LoanCreateRequest request) {
-
+        log.info("[LoanService] 대출 요청 수신: memberId={}, bookId={}", memberId, request.bookId());
         // 연체 여부 체크
         long overdueCount = bookLoanRepository.countOverdue(memberId, LocalDate.now(clock));
         if (overdueCount > 0) {
@@ -52,10 +54,17 @@ public class LoanService {
         MemberGrade grade = memberPort.getGrade(memberId); // 외부 동기 호출
         int maxLoanCount = loanLimitPolicy.maxLoansFor(grade);
         long currentLoanCount = bookLoanRepository.countActiveByMember(memberId);
+
+        log.info("[LoanService] 대출 한도 체크: memberId={}, grade={}, currentLoans={}, maxLoans={}",
+                memberId, grade, currentLoanCount, maxLoanCount);
+
         if (currentLoanCount >= maxLoanCount) {
+            log.info("[LoanService] 대출 거부 (한도 초과): memberId={}, currentLoans={}, maxLoans={}",
+                    memberId, currentLoanCount, maxLoanCount);
             throw new LoanLimitExceededException(memberId);
         }
 
+        log.info("[LoanService] 검증 통과. Saga 시작 위임: memberId={}, bookId={}", memberId, request.bookId());
         return loanWriteService.createAndPublish(memberId, request.bookId());
 
     }

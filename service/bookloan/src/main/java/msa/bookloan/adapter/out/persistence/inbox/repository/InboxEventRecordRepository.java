@@ -23,12 +23,12 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
     @Query(value = """
             INSERT INTO inbox_event
               (id, event_id, aggregate_id, aggregate_version, event_type, payload,
-               status, source, seen_count, retry_count,
+               status, seen_count, retry_count,
                topic, partition_no, record_offset, last_error, failure_category,
                created_at, updated_at)
             VALUES
-              (:id, :eventId, :aggregateId, :aggregateVersion, :eventType, :payload, 
-               'NEW', :source, 1, 0,
+              (:id, :eventId, :aggregateId, :aggregateVersion, :eventType, :payload,
+               'NEW', 1, 0,
                :topic, :partitionNo, :recordOffset, NULL, NULL,
                NOW(6), NOW(6))
             ON DUPLICATE KEY UPDATE
@@ -41,7 +41,6 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
                     @Param("aggregateVersion") long aggregateVersion,
                     @Param("eventType") String eventType,
                     @Param("payload") String payload,
-                    @Param("source") String source,
                     @Param("topic") String topic,
                     @Param("partitionNo") int partitionNo,
                     @Param("recordOffset") long recordOffset);
@@ -54,7 +53,7 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
        OR (status = 'FAILED' AND retry_count < :maxRetry)
        OR (status = 'PROCESSING'
            AND (lease_until IS NULL OR lease_until < :now))
-    ORDER BY last_seen_at ASC, id ASC
+    ORDER BY created_at ASC, id ASC
     LIMIT :limit
     FOR UPDATE SKIP LOCKED
     """, nativeQuery = true)

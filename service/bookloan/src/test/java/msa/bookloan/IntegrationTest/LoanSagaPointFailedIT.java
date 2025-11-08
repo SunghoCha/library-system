@@ -1,0 +1,148 @@
+package msa.bookloan.IntegrationTest;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import msa.bookloan.adapter.in.messaging.inbox.scheduler.InboxPollingScheduler;
+import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
+import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
+import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
+import msa.bookloan.application.port.out.MemberPort;
+import msa.bookloan.domain.saga.LoanSaga;
+import msa.bookloan.domain.saga.LoanSagaStep;
+import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.KafkaTestBase;
+import msa.common.events.MessageEnvelope;
+import msa.common.events.bookloan.saga.command.SagaCommandType;
+import msa.common.events.bookloan.saga.reply.SagaReplyType;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
+import msa.common.events.outbox.OutboxEventRecordStatus;
+import msa.common.snowflake.Snowflake;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.kafka.core.KafkaTemplate;
+
+import java.util.Optional;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+@SpringBootTest(properties = {
+        "app.kafka.enabled=true",
+        "app.kafka.listeners.saga-replies.enabled=true",
+})
+public class LoanSagaPointFailedIT extends KafkaTestBase {
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
+
+    @Autowired
+    private LoanSagaRepository loanSagaRepository;
+
+    @Autowired
+    private OutboxEventRecordRepository outboxEventRecordRepository;
+
+    @Autowired
+    private InboxPollingScheduler inboxPollingScheduler;
+
+    @Autowired
+    Snowflake snowflake;
+
+    @MockBean
+    MemberPort memberPort;
+
+    @Value("${app.kafka.topic-saga-replies}")
+    private String REPLY_TOPIC;
+
+    @Test
+    @DisplayName("Saga 응답(PointChargeFailed) 수신 시 Saga 상태가 COMPENSATING으로 전이되고 보상 커맨드가 발행된다")
+    void testSagaCompensationFlow() throws Exception {
+
+        // given
+        long sagaId = 1000L;
+        long loanId = 2000L;
+        long memberId = 1L;
+        long bookId = 100L;
+        long triggerEventId = 9999L;
+
+        LoanSaga saga = LoanSaga.builder()
+                .id(sagaId)
+                .loanId(loanId)
+                .memberId(memberId)
+                .bookId(bookId)
+                .triggerEventId(triggerEventId)
+                .currentStep(LoanSagaStep.POINT_CHARGING)
+                .status(SagaStatus.PROCESSING)
+                .version(1L) // (재고 예약을 통과한 상태로 가정)
+                .build();
+        loanSagaRepository.save(saga);
+
+        // when
+        // 포인트 서비스가 보낸 실패 응답 메시지 생성
+        String fakeReplyJson = createFakePointChargeFailedEvent(sagaId, loanId);
+
+        // Kafka로 실패 응답 발행
+        kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
+
+        // await (처리)
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            inboxPollingScheduler.pollAndProcess();
+
+            // 검증: Saga 상태가 보상 중(COMPENSATING)으로 변경되었는지 확인
+            LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
+            assertThat(changedSaga.getStatus())
+                    .isEqualTo(SagaStatus.COMPENSATING);
+        });
+
+        // then (최종 검증)
+        LoanSaga finalSaga = loanSagaRepository.findById(sagaId).orElseThrow();
+        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.COMPENSATING);
+
+        // 검증: Outbox에 POINT_CHARGE가 아닌,
+        //           INVENTORY_RELEASE (재고 해제) 보상 커맨드가 저장되었는지 확인
+        Optional<OutboxEventRecord> compensationCommand = outboxEventRecordRepository.findAll()
+                .stream()
+                .filter(rec -> rec.getAggregateId().equals(sagaId) &&
+                        // 보상 커맨드(INVENTORY_RELEASE) 검증
+                        rec.getEventType().equals(SagaCommandType.INVENTORY_RELEASE.getValue()) &&
+                        rec.getOutboxEventRecordStatus() == OutboxEventRecordStatus.NEW)
+                .findFirst();
+
+        assertThat(compensationCommand).isPresent();
+    }
+
+    private String createFakePointChargeFailedEvent(Long sagaId, Long loanId) throws Exception {
+
+        // 실패 DTO 생성 (필요한 최소한의 필드만 설정)
+        PointChargeFailedReply replyPayload = new PointChargeFailedReply(
+                String.valueOf(snowflake.nextId()),
+                String.valueOf(sagaId),
+                String.valueOf(snowflake.nextId()),
+                1L,
+                "INSUFFICIENT_POINTS",
+                "Not enough points"
+        );
+
+        JsonNode payloadNode = objectMapper.valueToTree(replyPayload);
+
+        // MessageEnvelope 생성
+        MessageEnvelope envelope = new MessageEnvelope(
+                replyPayload.eventId(),
+                String.valueOf(loanId),
+                1L, // aggregateVersion (예시)
+                // '실패' 이벤트 타입 사용
+                SagaReplyType.POINT_CHARGE_FAILED.getValue(),
+                payloadNode
+        );
+
+        // JSON 문자열로 직렬화
+        return objectMapper.writeValueAsString(envelope);
+    }
+}

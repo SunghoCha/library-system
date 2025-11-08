@@ -3,7 +3,6 @@ package msa.bookloan.adapter.out.persistence.inbox.recorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxDeadLetterRepository;
-import msa.common.domain.model.InboxSource;
 import msa.common.events.inbox.record.InboxDeadLetter;
 import msa.common.exception.FailureCategory;
 import msa.common.snowflake.Snowflake;
@@ -25,7 +24,6 @@ public class DeadLetterAppender {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public <T> void save(
             ConsumerRecord<String, T> record,
-            InboxSource source,
             FailureCategory category,
             T payload,
             String errorMessage
@@ -35,7 +33,6 @@ public class DeadLetterAppender {
 
         InboxDeadLetter deadLetter = InboxDeadLetter.builder()
                 .id(snowflake.nextId())
-                .source(source.name())
                 .topic(record.topic())
                 .partitionNo(record.partition())
                 .recordOffset(record.offset())
@@ -49,19 +46,17 @@ public class DeadLetterAppender {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public <T> void save(ConsumerRecord<String, T> record,
-                         InboxSource source,
                          FailureCategory category,
                          String errorMessage) {
         // payload는 record.value() 그대로
-        save(record, source, category, record.value(), errorMessage);
+        save(record, category, record.value(), errorMessage);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public <T> void save(ConsumerRecord<String, T> record,
-                         InboxSource source,
                          FailureCategory category) {
-        // errorMessage 없이도 호출 가능(기존 호출부 호환)
-        save(record, source, category, record.value(), null);
+        // errorMessage 없이도 호출 가능
+        save(record, category, record.value(), null);
     }
 
     private String serializeOrNull(Object value) {

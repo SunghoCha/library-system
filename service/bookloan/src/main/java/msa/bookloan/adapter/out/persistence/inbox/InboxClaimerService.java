@@ -27,7 +27,6 @@ public class InboxClaimerService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<InboxEventRecord> claimEvents() {
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime staleAt = now.minus(props.staleTimeout());
         LocalDateTime leaseUntil = now.plus(props.lease());
 
         List<Long> ids = inboxRepository.lockClaimableInboxIds(props.batchSize(), props.maxRetryCount(), now);

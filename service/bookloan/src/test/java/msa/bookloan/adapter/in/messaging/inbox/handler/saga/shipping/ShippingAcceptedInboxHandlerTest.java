@@ -31,17 +31,17 @@ class ShippingAcceptedInboxHandlerTest {
     @DisplayName("핸들러는 수신한 InboxMessage를 InternalEvent로 변환하여 오케스트레이터에 전달한다")
     void handle_ShouldDelegateToOrchestrator() {
         // given
-        Long eventId = 1001L;
+        String eventIdStr = "1001";
         String sagaIdStr = "123";
-        Long causationCmdIdStr = 2002L;
+        String causationCmdIdStr = "2002";
         Long loanVersion = 2L;
-        Long bookId = 3003L;
-        Long provisionalShipmentId = 4004L;
+        String bookIdStr = "3003";
+        String provisionalShipmentIdStr = "4004";
         String trackingNoPreview = "track-abc";
 
         InboxMessage<ShippingAcceptedReply> message = createTestMessage(
-                eventId, sagaIdStr, causationCmdIdStr,
-                loanVersion, bookId, provisionalShipmentId, trackingNoPreview
+                eventIdStr, sagaIdStr, causationCmdIdStr,
+                loanVersion, bookIdStr, provisionalShipmentIdStr, trackingNoPreview
         );
 
         // when
@@ -56,12 +56,13 @@ class ShippingAcceptedInboxHandlerTest {
         // 변환된 필드 검증
         assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
 
-        // Pss-through 필드 검증
-        assertThat(capturedEvent.eventId()).isEqualTo(eventId);
-        assertThat(capturedEvent.causationCommandId()).isEqualTo(causationCmdIdStr);
+        assertThat(capturedEvent.eventId()).isEqualTo(Long.parseLong(eventIdStr));
+        assertThat(capturedEvent.sagaId()).isEqualTo(Long.parseLong(sagaIdStr));
+        assertThat(capturedEvent.causationCommandId()).isEqualTo(Long.parseLong(causationCmdIdStr));
+        assertThat(capturedEvent.bookId()).isEqualTo(Long.parseLong(bookIdStr));
+        assertThat(capturedEvent.provisionalShipmentId()).isEqualTo(Long.parseLong(provisionalShipmentIdStr));
+
         assertThat(capturedEvent.loanVersion()).isEqualTo(loanVersion);
-        assertThat(capturedEvent.bookId()).isEqualTo(bookId);
-        assertThat(capturedEvent.provisionalShipmentId()).isEqualTo(provisionalShipmentId);
         assertThat(capturedEvent.trackingNoPreview()).isEqualTo(trackingNoPreview);
     }
 
@@ -70,12 +71,12 @@ class ShippingAcceptedInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenRequiredIdIsNull() {
         // given
         ShippingAcceptedReply replyWithNull = new ShippingAcceptedReply(
-                1001L,
-                null, // 문제 원인
-                2002L,
-                2L,
-                3003L,
+                "1001",
                 null,
+                "2002",
+                2L,
+                "100",
+                "3003",
                 null
         );
 
@@ -100,11 +101,11 @@ class ShippingAcceptedInboxHandlerTest {
     void handle_ShouldThrowExceptionWhenIdIsNotNumeric() {
         // given
         ShippingAcceptedReply replyWithBadFormat = new ShippingAcceptedReply(
-                1001L,
-                "abc", // 문제 원인
-                2002L,
+                "1001",
+                "abc",
+                "2002",
                 2L,
-                3003L,
+                "3003",
                 null,
                 null
         );
@@ -125,22 +126,22 @@ class ShippingAcceptedInboxHandlerTest {
     }
 
     private InboxMessage<ShippingAcceptedReply> createTestMessage(
-            Long eventId,
+            String eventIdStr,
             String sagaIdStr,
-            Long causationCommandId,
+            String causationCommandIdStr,
             Long loanVersion,
-            Long bookId,
-            Long provisionalShipmentId,
+            String bookIdStr,
+            String provisionalShipmentIdStr,
             String trackingNoPreview
     ) {
         // 1. 페이로드 생성
         ShippingAcceptedReply replyPayload = new ShippingAcceptedReply(
-                eventId,
+                eventIdStr,
                 sagaIdStr,
-                causationCommandId,
+                causationCommandIdStr,
                 loanVersion,
-                bookId,
-                provisionalShipmentId,
+                bookIdStr,
+                provisionalShipmentIdStr,
                 trackingNoPreview
         );
 

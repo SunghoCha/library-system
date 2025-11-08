@@ -9,20 +9,24 @@ public record ShippingAcceptedInternalEvent(
         Long causationCommandId,
         Long loanVersion,
         Long bookId,
-        Long provisionalShipmentId,   // nullable
-        String trackingNoPreview      // nullable
+        Long provisionalShipmentId,
+        String trackingNoPreview
 ) {
 
     public static ShippingAcceptedInternalEvent from(ShippingAcceptedReply reply) {
+        Long eventId = IdConverter.parseLongOrThrow(reply.eventId(), "eventId");
         Long sagaId = IdConverter.parseLongOrThrow(reply.sagaId(), "sagaId");
+        Long causationCommandId = IdConverter.parseLongOrThrow(reply.causationCommandId(), "causationCommandId");
+        Long bookId = IdConverter.parseLongOrThrow(reply.bookId(), "bookId");
+        Long provisionalShipmentId = IdConverter.parseLongOrThrow(reply.provisionalShipmentId(), "provisionalShipmentId");
 
         return new ShippingAcceptedInternalEvent(
-                reply.eventId(),
+                eventId,
                 sagaId,
-                reply.causationCommandId(),
+                causationCommandId,
                 reply.loanVersion(),
-                reply.bookId(),
-                reply.provisionalShipmentId(),
+                bookId,
+                provisionalShipmentId,
                 reply.trackingNoPreview()
         );
     }

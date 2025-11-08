@@ -27,8 +27,8 @@ public class LoanSaga extends BaseTimeEntity {
     @Column(nullable = false)
     private Long bookId;
 
-    @Column(nullable = false)
-    private Long aggregateVersion;         // @Version 값(BookLoan 엔티티)
+    @Column
+    private Long aggregateVersion;         // @Version 값(BookLoan 엔티티) 필요성 고민중
 
     @Column(name = "trigger_event_id", nullable = false)
     private Long triggerEventId;           // 사가를 시작시킨 최초 이벤트의 id

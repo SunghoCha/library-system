@@ -80,11 +80,14 @@ public class InboxEventDispatcher {
             return;
         }
 
+        log.info("[Inbox] 처리 시작: eventId={}, type={}, leaseId={}",
+                eventId, eventType, leaseId);
         try {
             Object payload = objectMapper.readValue(record.getPayload(), eventHandler.payloadType());
             validator.validateOrThrow(payload); // payload 구체애 대한 검증이 컨슈머에서 수행되지 않아서 여기서 처리
             dispatch(eventHandler, record, payload);
             inboxStatusMarker.markProcessed(eventId, leaseId);
+            log.info("[Inbox] 처리 완료: eventId={}, type={}", eventId, eventType);
 
         } catch (ConstraintViolationException cvEx) {
             String reason = abbreviate(cvEx.getMessage(), maxLength);

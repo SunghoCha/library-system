@@ -55,7 +55,7 @@ public class InventoryStepService {
         ChargePointCommand command = createChargePointCommand(saga, event.eventId());
         commandOutboxRecorder.save(command);
 
-        log.info("[Saga] 포인트 차징 커맨드 발행 준비: sagaId={}, memberId={}",
+        log.info("[Saga] 포인트 차징 커맨드 Outbox 저장: sagaId={}, memberId={}",
                 event.sagaId(), saga.getMemberId());
 
     }
@@ -98,7 +98,7 @@ public class InventoryStepService {
 
         sagaRepository.saveAndFlush(saga);
         bookLoanRepository.clearSagaIfMatches(saga.getLoanId(), saga.getId());
-        log.info("[Saga] 보상 종료: 재고 해제 완료 → FAILED 확정, sagaId={}, loanId={}",
+        log.info("[Saga] 보상 종료: 재고 해제 완료 -> FAILED 확정, sagaId={}, loanId={}",
                 event.sagaId(), saga.getLoanId());
     }
 

@@ -13,12 +13,14 @@ public record ShippingScheduleFailedInternalEvent(
 ) {
 
     public static ShippingScheduleFailedInternalEvent from(ShippingScheduleFailedReply reply) {
+        Long eventId = IdConverter.parseLongOrThrow(reply.eventId(), "eventId");
         Long sagaId = IdConverter.parseLongOrThrow(reply.sagaId(), "sagaId");
+        Long causationCommandId = IdConverter.parseLongOrThrow(reply.causationCommandId(), "causationCommandId");
 
         return new ShippingScheduleFailedInternalEvent(
-                reply.eventId(),
+                eventId,
                 sagaId,
-                reply.causationCommandId(),
+                causationCommandId,
                 reply.loanVersion(),
                 reply.reasonCode(),
                 reply.message()

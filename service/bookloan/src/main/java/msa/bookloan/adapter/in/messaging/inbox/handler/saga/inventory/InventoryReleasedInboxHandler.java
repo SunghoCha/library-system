@@ -1,6 +1,7 @@
 package msa.bookloan.adapter.in.messaging.inbox.handler.saga.inventory;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
 import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.application.saga.LoanRequestSagaOrchestrator;
@@ -9,6 +10,7 @@ import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.inventory.InventoryReleasedReply;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class InventoryReleasedInboxHandler implements InboxEventHandler<InventoryReleasedReply> {
@@ -28,6 +30,11 @@ public class InventoryReleasedInboxHandler implements InboxEventHandler<Inventor
     @Override
     public void handle(InboxMessage<InventoryReleasedReply> message) {
         InventoryReleasedReply payload = message.payload();
-        orchestrator.onInventoryReleased(InventoryReleasedInternalEvent.from(payload));
+        InventoryReleasedInternalEvent internalEvent = InventoryReleasedInternalEvent.from(payload);
+
+        log.info("[SagaHandler][{}] 수신: sagaId={}, eventId={}",
+                eventType(), internalEvent.sagaId(), message.eventId());
+
+        orchestrator.onInventoryReleased(internalEvent);
     }
 }

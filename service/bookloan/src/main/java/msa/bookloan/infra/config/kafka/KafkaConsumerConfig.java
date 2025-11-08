@@ -27,7 +27,6 @@ import static org.springframework.kafka.listener.ContainerProperties.AckMode;
 public class KafkaConsumerConfig {
 
     @Bean
-    @ConditionalOnBean(KafkaProperties.class)
     public ConsumerFactory<String, MessageEnvelope> consumerFactory(
             KafkaProperties kafkaProperties,
             ObjectProvider<SslBundles> sslBundlesProvider
@@ -47,7 +46,6 @@ public class KafkaConsumerConfig {
     }
 
     @Bean(name = "envelopeListenerFactory")
-    @ConditionalOnBean(ConsumerFactory.class)
     public ConcurrentKafkaListenerContainerFactory<String, MessageEnvelope>
     kafkaListenerContainerFactory(
             ConsumerFactory<String, MessageEnvelope> consumerFactory,
@@ -68,10 +66,11 @@ public class KafkaConsumerConfig {
         factory.setConcurrency(3);
 
         // TODO : 나중에 카프카 연결하면 설정 풀기
-        factory.setAutoStartup(false);
+        //factory.setAutoStartup(false);
 
         return factory;
     }
+
 
 //    @Bean
 //    public KafkaTemplate<String, BookCategoryChangedEvent> kafkaTemplate() {

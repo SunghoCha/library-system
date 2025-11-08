@@ -3,6 +3,7 @@ package msa.bookloan.infra.config.kafka;
 import lombok.extern.slf4j.Slf4j;
 import msa.common.exception.BusinessNotRetryableException;
 import org.apache.kafka.common.TopicPartition;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -28,10 +29,13 @@ public class KafkaErrorHandlerConfig {
 
     // TODO : 나중에 설정 다시 살펴보기, DLQ 토픽 파티션 수 맞춰서 생성해야함
     @Bean
-    @ConditionalOnBean(KafkaTemplate.class)
-    public DefaultErrorHandler kafkaErrorHandler(DeadLetterPublishingRecoverer recoverer) {
-        // 재시도 2회, 1초 간격
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1_000, 2));
+    public DefaultErrorHandler kafkaErrorHandler(ObjectProvider<DeadLetterPublishingRecoverer> recoverProvider) {
+
+        DeadLetterPublishingRecoverer recoverer = recoverProvider.getIfAvailable();
+        DefaultErrorHandler errorHandler = (recoverer != null)
+                ? new DefaultErrorHandler(recoverer, new FixedBackOff(1_000, 2))
+                : new DefaultErrorHandler(new FixedBackOff(1_000, 2));
+
         // 재시도 안하도록 등록 (커스텀 비지니스 예외 만들긴 했는데 사용하기 애매함. 애초에 throw 안하는게 나은건지 고민)
         errorHandler.addNotRetryableExceptions(
                 jakarta.validation.ConstraintViolationException.class,

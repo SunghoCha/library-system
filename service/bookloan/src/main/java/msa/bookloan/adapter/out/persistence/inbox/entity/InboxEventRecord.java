@@ -1,11 +1,13 @@
 package msa.bookloan.adapter.out.persistence.inbox.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import msa.common.domain.model.InboxSource;
 import msa.common.events.inbox.record.PayloadInboxEventRecord;
 
 @Getter
@@ -13,8 +15,8 @@ import msa.common.events.inbox.record.PayloadInboxEventRecord;
 @Table(
         name = "inbox_event",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_src_event", columnNames = {"source", "event_id"}),
-                @UniqueConstraint(name = "uk_src_pos",   columnNames = {"source", "topic", "partition_no", "record_offset"})
+                @UniqueConstraint(name = "uk_event", columnNames = {"event_id"}),
+                @UniqueConstraint(name = "uk_src_pos",   columnNames = {"topic", "partition_no", "record_offset"})
         },
         indexes = {
                 @Index(name = "idx_event_status_lease", columnList = "event_id, status, lease_id"),
@@ -24,10 +26,5 @@ import msa.common.events.inbox.record.PayloadInboxEventRecord;
 @SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class InboxEventRecord extends PayloadInboxEventRecord {
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false)
-    private InboxSource source;
-
 
 }

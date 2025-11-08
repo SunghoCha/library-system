@@ -12,9 +12,8 @@ import msa.common.domain.model.MemberGrade;
 import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
-@RequiredArgsConstructor
-public class MemberHttpAdapter implements MemberPort {
+@RequiredArgsConstructor 
+public class MemberHttpAdapter implements MemberPort { // 수동 빈 관리 대상
 
     private final MemberServiceClient memberServiceClient;
 

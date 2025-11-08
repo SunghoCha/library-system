@@ -21,7 +21,6 @@ import msa.common.events.outbox.record.PayloadOutboxEventRecord;
                 @Index(name = "ix_status_occurred_id",    columnList = "status, occurred_at, id"),
                 @Index(name = "ix_status_retry",          columnList = "status, retry_count"),
                 @Index(name = "ix_status_lease",          columnList = "status, lease_until"),
-                @Index(name = "ix_status_picked",         columnList = "status, picked_at"),
                 @Index(name = "ix_outbox_aggtype_aggid",  columnList = "aggregate_type, aggregate_id")
         }
 )

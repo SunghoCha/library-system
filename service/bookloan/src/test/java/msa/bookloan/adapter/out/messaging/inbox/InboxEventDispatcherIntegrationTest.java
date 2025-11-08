@@ -2,14 +2,12 @@ package msa.bookloan.adapter.out.messaging.inbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.validation.ConstraintViolationException;
 import msa.bookloan.adapter.in.messaging.inbox.InboxEventDispatcher;
 import msa.bookloan.adapter.in.messaging.inbox.InboxMessage;
 import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
-import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxStatusMarker;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
-import msa.common.domain.model.InboxSource;
+import msa.bookloan.application.port.out.MemberPort;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.exception.BusinessNotRetryableException;
@@ -20,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -48,6 +47,9 @@ public class InboxEventDispatcherIntegrationTest {
 
     @Autowired
     private Snowflake snowflake;
+
+    @MockBean
+    private MemberPort memberPort;
 
     @SpyBean(name = "testEventHandler")
     private InboxEventHandler<TestPayload> testEventHandler;
@@ -252,7 +254,6 @@ public class InboxEventDispatcherIntegrationTest {
                 .id(snowflake.nextId())
                 .eventId(snowflake.nextId())
                 .consumerRecordMetadata(metadata)
-                .source(InboxSource.BOOK_CATALOG) // 임의의 값
                 .aggregateId(100L)
                 .eventType(eventType)
                 .payload(payloadJson)

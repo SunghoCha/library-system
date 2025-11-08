@@ -16,7 +16,8 @@ import org.springframework.kafka.annotation.EnableKafka;
 @Import({
         KafkaConsumerConfig.class,
         KafkaProducerConfig.class,
-        KafkaErrorHandlerConfig.class
+        KafkaErrorHandlerConfig.class,
+        KafkaListenersConfig.class
 })
 public class KafkaModuleConfig {}
 
