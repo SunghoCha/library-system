@@ -2,6 +2,7 @@ package msa.bookloan.IntegrationTest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.messaging.inbox.scheduler.InboxPollingScheduler;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
@@ -9,6 +10,7 @@ import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.DatabaseClearExtension;
 import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
@@ -16,21 +18,37 @@ import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.kafka.KafkaException;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
+
+import java.time.Duration;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.awaitility.Awaitility.await;
 
+
+@Slf4j
+@Import(KafkaTestBase.KafkaTopics.class)
+@ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
+        "spring.kafka.admin.fail-fast=true",
+        "spring.kafka.listener.missing-topics-fatal=true"
 })
 public class LoanSagaReplyIT extends KafkaTestBase {
 
@@ -50,6 +68,9 @@ public class LoanSagaReplyIT extends KafkaTestBase {
     private InboxPollingScheduler inboxPollingScheduler;
 
     @Autowired
+    private KafkaListenerEndpointRegistry registry;
+
+    @Autowired
     Snowflake snowflake;
 
     @MockBean
@@ -57,6 +78,23 @@ public class LoanSagaReplyIT extends KafkaTestBase {
 
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
+
+    @BeforeEach
+    void waitForKafkaAssignment() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container == null) throw new IllegalStateException("listener not found");
+        container.start();
+        log.info("container start: {}, groupId: {}", container, container.getGroupId());
+        ContainerTestUtils.waitForAssignment(container, 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container != null && container.isRunning()) {
+            container.stop();
+        }
+    }
 
     @Test
     @DisplayName("Saga 응답(InventoryReserved) 수신 시 Saga 상태가 전이되고 다음 커맨드가 발행된다")
@@ -77,18 +115,19 @@ public class LoanSagaReplyIT extends KafkaTestBase {
                 .triggerEventId(triggerEventId)
                 .currentStep(LoanSagaStep.INVENTORY_RESERVING)
                 .status(SagaStatus.PROCESSING)
-                .version(0L) // (초기 버전)
                 .build();
         loanSagaRepository.save(saga);
 
         // when
         // 재고 서비스가 보낸 더미 응답 메시지
         String fakeReplyJson = createFakeInventoryReservedEvent(sagaId, loanId, bookId);
-        kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
+        kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson).get(5, SECONDS);
 
-        // Kafka 리스너가 메시지를 받아 인박스 테이블에 저장할 시간 1~2초 정도 대기
+        // Kafka 리스너가 메시지를 받아 인박스 테이블에 저장할 시간동안 짧은 대기
         // 인박스 스케줄러가 인박스 테이블에서 폴링
-        await().atMost(2, SECONDS).untilAsserted(() -> {
+        await()
+                .pollInterval(Duration.ofSeconds(2))
+                .atMost(8, SECONDS).untilAsserted(() -> {
             // Inbox 스케줄러를 반복적으로 실행
             inboxPollingScheduler.pollAndProcess();
 
@@ -124,7 +163,7 @@ public class LoanSagaReplyIT extends KafkaTestBase {
 
         JsonNode payloadNode = objectMapper.valueToTree(replyPayload);
 
-        // 2. MessageEnvelope 생성
+        // MessageEnvelope 생성
         MessageEnvelope envelope = new MessageEnvelope(
                 String.valueOf(snowflake.nextId()), // eventId
                 String.valueOf(loanId),        // aggregateId (대출 ID)
@@ -133,7 +172,7 @@ public class LoanSagaReplyIT extends KafkaTestBase {
                 payloadNode
         );
 
-        // 3. JSON 문자열로 직렬화
+        // JSON 문자열로 직렬화
         return objectMapper.writeValueAsString(envelope);
     }
 }

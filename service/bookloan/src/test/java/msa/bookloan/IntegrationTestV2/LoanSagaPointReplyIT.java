@@ -1,4 +1,4 @@
-package msa.bookloan.IntegrationTest;
+package msa.bookloan.IntegrationTestV2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,21 +75,21 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-    @BeforeEach
-    void waitForKafkaAssignment() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container == null) throw new IllegalStateException("listener not found");
-        container.start();
-        ContainerTestUtils.waitForAssignment(container, 1);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
-    }
+//    @BeforeEach
+//    void waitForKafkaAssignment() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container == null) throw new IllegalStateException("listener not found");
+//        container.start();
+//        ContainerTestUtils.waitForAssignment(container, 1);
+//    }
+//
+//    @AfterEach
+//    void tearDown() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container != null && container.isRunning()) {
+//            container.stop();
+//        }
+//    }
 
     @Test
     @DisplayName("Saga 응답(PointCharged) 수신 시 Saga 상태가 SHIPPING_SCHEDULING으로 전이되고 다음 커맨드가 발행된다")

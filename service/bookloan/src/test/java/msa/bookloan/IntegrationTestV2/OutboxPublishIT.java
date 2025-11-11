@@ -1,4 +1,4 @@
-package msa.bookloan.IntegrationTest;
+package msa.bookloan.IntegrationTestV2;
 
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
 import msa.bookloan.adapter.out.messaging.outbox.scheduler.OutboxPollingScheduler;
@@ -27,7 +27,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static msa.bookloan.IntegrationTest.OutboxPublishIT.TestConsumers.RECEIVED;
+import static msa.bookloan.IntegrationTestV2.OutboxPublishIT.TestConsumers.RECEIVED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
@@ -69,19 +69,19 @@ public class OutboxPublishIT extends KafkaTestBase {
     void setUpAndWaitForListener() {
         when(memberPort.getGrade(anyLong())).thenReturn(MemberGrade.SILVER);
 
-        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
-        if (container == null) throw new IllegalStateException("listener not found");
-        container.start();
-        ContainerTestUtils.waitForAssignment(container, 1);
+//        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
+//        if (container == null) throw new IllegalStateException("listener not found");
+//        container.start();
+//        ContainerTestUtils.waitForAssignment(container, 1);
     }
-
-    @AfterEach
-    void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
-    }
+//
+//    @AfterEach
+//    void tearDown() {
+//        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
+//        if (container != null && container.isRunning()) {
+//            container.stop();
+//        }
+//    }
 
     @TestConfiguration
     static class TestConsumers {

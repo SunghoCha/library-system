@@ -19,9 +19,9 @@ public class BookCatalogProjectionEventListener {
 
     @Transactional
     @KafkaListener(
+            id = "${app.kafka.listeners.catalog-replica.id:catalogReplicaListener}",
             topics = "${app.kafka.topic-catalog-changed}",
-            groupId = "${app.kafka.group-catalog-replica}",
-            containerFactory = "envelopeListenerFactory"
+            groupId = "${app.kafka.group-catalog-replica}"
     )
     public void handleBookCatalogUpdate(ConsumerRecord<String, MessageEnvelope> record) {
         log.debug("카프카 레코드 수신: topic={}, partition={}, offset={}",

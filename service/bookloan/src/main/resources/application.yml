@@ -30,7 +30,9 @@ spring:
       auto-offset-reset: earliest
     listener:
       auto-startup: false # 기본적으로 리스너를 자동 시작하지 않게 일단 해뒀음. 추후 변경
-
+      ack-mode: record
+      concurrency: 3
+      missing-topics-fatal: false  # 테스트에서 토픽 준비 전 예외 방지
 
 
 
@@ -38,6 +40,10 @@ spring:
 app:
   kafka:
     source-token: book-loan
+    listeners:
+      saga-replies:
+        enabled: true
+        id: sagaRepliesListener
 
     # commands
     topic-member-check: member.check

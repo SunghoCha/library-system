@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.retry.annotation.EnableRetry;
 
+
 @EnableRetry
 @SpringBootApplication
 @ConfigurationPropertiesScan

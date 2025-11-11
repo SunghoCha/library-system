@@ -1,4 +1,4 @@
-package msa.bookloan.IntegrationTest;
+package msa.bookloan.IntegrationTestV2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +15,7 @@ import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
-import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.AfterEach;
@@ -43,10 +43,10 @@ import static org.awaitility.Awaitility.await;
 @Import(KafkaTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
-//        "app.kafka.enabled=true",
+        "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
 })
-public class LoanSagaPointReplyIT extends KafkaTestBase {
+public class LoanSagaPointFailedIT extends KafkaTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -64,7 +64,7 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
     private InboxPollingScheduler inboxPollingScheduler;
 
     @Autowired
-    private KafkaListenerEndpointRegistry registry;
+    KafkaListenerEndpointRegistry registry;
 
     @Autowired
     Snowflake snowflake;
@@ -75,26 +75,27 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-    @BeforeEach
-    void waitForKafkaAssignment() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container == null) throw new IllegalStateException("listener not found");
-        container.start();
-        ContainerTestUtils.waitForAssignment(container, 1);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
-    }
+//    @BeforeEach
+//    void waitForKafkaAssignment() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container == null) throw new IllegalStateException("listener not found");
+//        container.start();
+//        ContainerTestUtils.waitForAssignment(container, 1);
+//    }
+//
+//    @AfterEach
+//    void tearDown() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container != null && container.isRunning()) {
+//            container.stop();
+//        }
+//
+//    }
 
     @Test
-    @DisplayName("Saga 응답(PointCharged) 수신 시 Saga 상태가 SHIPPING_SCHEDULING으로 전이되고 다음 커맨드가 발행된다")
-    void testSagaHappyPathNextStep() throws Exception {
-        assertThat(registry.getListenerContainers()).isNotEmpty();
+    @DisplayName("Saga 응답(PointChargeFailed) 수신 시 Saga 상태가 COMPENSATING으로 전이되고 보상 커맨드가 발행된다")
+    void testSagaCompensationFlow() throws Exception {
+
         // given
         long sagaId = 1000L;
         long loanId = 2000L;
@@ -114,51 +115,51 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
         loanSagaRepository.save(saga);
 
         // when
-        // 포인트 서비스가 보낸 성공 응답 메시지 생성
-        String fakeReplyJson = createFakePointChargedEvent(sagaId, loanId, memberId);
+        // 포인트 서비스가 보낸 실패 응답 메시지 생성
+        String fakeReplyJson = createFakePointChargeFailedEvent(sagaId, loanId);
 
-        // Kafka로 성공 응답 발행
+        // Kafka로 실패 응답 발행
         kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
 
         // await (처리)
         await()
                 .pollInterval(Duration.ofSeconds(2))
                 .atMost(8, SECONDS).untilAsserted(() -> {
-                    inboxPollingScheduler.pollAndProcess();
+            inboxPollingScheduler.pollAndProcess();
 
-                    // 검증: Saga 상태가 배송 예약 중(SHIPPING_SCHEDULING)으로 변경되었는지 확인
-                    LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-                    assertThat(changedSaga.getCurrentStep())
-                            .isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-                });
+            // 검증: Saga 상태가 보상 중(COMPENSATING)으로 변경되었는지 확인
+            LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
+            assertThat(changedSaga.getStatus())
+                    .isEqualTo(SagaStatus.COMPENSATING);
+        });
 
-        // then
+        // then (최종 검증)
         LoanSaga finalSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-        assertThat(finalSaga.getCurrentStep()).isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
+        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.COMPENSATING);
 
-        // 검증: Outbox에 SHIPPING_SCHEDULE (배송 예약) 커맨드가 저장되었는지 확인
-        Optional<OutboxEventRecord> nextCommand = outboxEventRecordRepository.findAll()
+        // 검증: Outbox에 POINT_CHARGE가 아닌,
+        //           INVENTORY_RELEASE (재고 해제) 보상 커맨드가 저장되었는지 확인
+        Optional<OutboxEventRecord> compensationCommand = outboxEventRecordRepository.findAll()
                 .stream()
                 .filter(rec -> rec.getAggregateId().equals(sagaId) &&
-                        // 다음 단계 커맨드(SHIPPING_SCHEDULE) 검증
-                        rec.getEventType().equals(SagaCommandType.SHIPPING_SCHEDULE.getValue()) &&
+                        // 보상 커맨드(INVENTORY_RELEASE) 검증
+                        rec.getEventType().equals(SagaCommandType.INVENTORY_RELEASE.getValue()) &&
                         rec.getOutboxEventRecordStatus() == OutboxEventRecordStatus.NEW)
                 .findFirst();
 
-        assertThat(nextCommand).isPresent();
+        assertThat(compensationCommand).isPresent();
     }
 
-    private String createFakePointChargedEvent(Long sagaId, Long loanId, Long memberId) throws Exception {
+    private String createFakePointChargeFailedEvent(Long sagaId, Long loanId) throws Exception {
 
-        PointChargedReply replyPayload = new PointChargedReply(
+        // 실패 DTO 생성 (필요한 최소한의 필드만 설정)
+        PointChargeFailedReply replyPayload = new PointChargeFailedReply(
                 String.valueOf(snowflake.nextId()),
                 String.valueOf(sagaId),
                 String.valueOf(snowflake.nextId()),
                 1L,
-                String.valueOf(memberId),
-                100L,
-                String.valueOf(snowflake.nextId())
+                "INSUFFICIENT_POINTS",
+                "Not enough points"
         );
 
         JsonNode payloadNode = objectMapper.valueToTree(replyPayload);
@@ -167,8 +168,9 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
         MessageEnvelope envelope = new MessageEnvelope(
                 replyPayload.eventId(),
                 String.valueOf(loanId),
-                replyPayload.loanVersion(),
-                SagaReplyType.POINT_CHARGED.getValue(),
+                1L, // aggregateVersion (예시)
+                // '실패' 이벤트 타입 사용
+                SagaReplyType.POINT_CHARGE_FAILED.getValue(),
                 payloadNode
         );
 

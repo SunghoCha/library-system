@@ -9,24 +9,36 @@ import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.DatabaseClearExtension;
 import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
+
+import java.time.Duration;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@Import(KafkaTestBase.KafkaTopics.class)
+@ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
@@ -49,6 +61,9 @@ public class LoanSagaShippingScheduledIT extends KafkaTestBase {
     private InboxPollingScheduler inboxPollingScheduler;
 
     @Autowired
+    private KafkaListenerEndpointRegistry registry;
+
+    @Autowired
     Snowflake snowflake;
 
     @MockBean
@@ -56,6 +71,22 @@ public class LoanSagaShippingScheduledIT extends KafkaTestBase {
 
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
+
+    @BeforeEach
+    void waitForKafkaAssignment() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container == null) throw new IllegalStateException("listener not found");
+        container.start();
+        ContainerTestUtils.waitForAssignment(container, 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container != null && container.isRunning()) {
+            container.stop();
+        }
+    }
 
     @Test
     @DisplayName("Saga 응답(ShippingScheduled) 수신 시 Saga가 FINISHED/COMPLETED 상태로 종결된다")
@@ -77,7 +108,6 @@ public class LoanSagaShippingScheduledIT extends KafkaTestBase {
                 // given 상태: 배송 예약 중
                 .currentStep(LoanSagaStep.SHIPPING_SCHEDULING)
                 .status(SagaStatus.PROCESSING)
-                .version(2L) // (포인트 차감까지 통과한 상태로 가정)
                 .build();
         loanSagaRepository.save(saga);
 
@@ -89,7 +119,9 @@ public class LoanSagaShippingScheduledIT extends KafkaTestBase {
         kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
 
         // await (처리)
-        await().atMost(5, SECONDS).untilAsserted(() -> {
+        await()
+                .pollInterval(Duration.ofSeconds(2))
+                .atMost(8, SECONDS).untilAsserted(() -> {
             inboxPollingScheduler.pollAndProcess();
 
             // 검증: Saga 상태가 완료(FINISHED)로 변경되었는지 확인

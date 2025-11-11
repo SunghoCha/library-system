@@ -8,16 +8,16 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-public abstract class KafkaTestBase {
+@Testcontainers
+public abstract class KafkaTestBaseV2 {
 
-    private static final KafkaContainer KAFKA;
-
-    static {
-        KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
-        KAFKA.start();
-    }
+    @Container
+    private static final KafkaContainer KAFKA =
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {

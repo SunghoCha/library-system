@@ -1,9 +1,9 @@
-package msa.bookloan.IntegrationTest;
+package msa.bookloan.IntegrationTestV2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.messaging.inbox.scheduler.InboxPollingScheduler;
-import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.port.out.MemberPort;
@@ -15,7 +15,7 @@ import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
-import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.inventory.InventoryReservedReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.AfterEach;
@@ -34,19 +34,22 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.time.Duration;
-import java.util.Optional;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.awaitility.Awaitility.await;
 
+
+@Slf4j
 @Import(KafkaTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
-//        "app.kafka.enabled=true",
+        "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
+        "spring.kafka.admin.fail-fast=true",
+        "spring.kafka.listener.missing-topics-fatal=true"
 })
-public class LoanSagaPointReplyIT extends KafkaTestBase {
+public class LoanSagaReplyIT extends KafkaTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -75,27 +78,28 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-    @BeforeEach
-    void waitForKafkaAssignment() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container == null) throw new IllegalStateException("listener not found");
-        container.start();
-        ContainerTestUtils.waitForAssignment(container, 1);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
-    }
+//    @BeforeEach
+//    void waitForKafkaAssignment() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container == null) throw new IllegalStateException("listener not found");
+//        container.start();
+//        log.info("container start: {}, groupId: {}", container, container.getGroupId());
+//        ContainerTestUtils.waitForAssignment(container, 1);
+//    }
+//
+//    @AfterEach
+//    void tearDown() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container != null && container.isRunning()) {
+//            container.stop();
+//        }
+//    }
 
     @Test
-    @DisplayName("Saga 응답(PointCharged) 수신 시 Saga 상태가 SHIPPING_SCHEDULING으로 전이되고 다음 커맨드가 발행된다")
-    void testSagaHappyPathNextStep() throws Exception {
-        assertThat(registry.getListenerContainers()).isNotEmpty();
+    @DisplayName("Saga 응답(InventoryReserved) 수신 시 Saga 상태가 전이되고 다음 커맨드가 발행된다")
+    void testSagaReplyFlow() throws Exception {
         // given
+        // 테스트할 Saga 데이터를 'INVENTORY_RESERVING' 상태로 DB에 미리 저장
         long sagaId = 1000L;
         long loanId = 2000L;
         long memberId = 1L;
@@ -108,67 +112,62 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
                 .memberId(memberId)
                 .bookId(bookId)
                 .triggerEventId(triggerEventId)
-                .currentStep(LoanSagaStep.POINT_CHARGING)
+                .currentStep(LoanSagaStep.INVENTORY_RESERVING)
                 .status(SagaStatus.PROCESSING)
                 .build();
         loanSagaRepository.save(saga);
 
         // when
-        // 포인트 서비스가 보낸 성공 응답 메시지 생성
-        String fakeReplyJson = createFakePointChargedEvent(sagaId, loanId, memberId);
+        // 재고 서비스가 보낸 더미 응답 메시지
+        String fakeReplyJson = createFakeInventoryReservedEvent(sagaId, loanId, bookId);
+        kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson).get(5, SECONDS);
 
-        // Kafka로 성공 응답 발행
-        kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
-
-        // await (처리)
+        // Kafka 리스너가 메시지를 받아 인박스 테이블에 저장할 시간동안 짧은 대기
+        // 인박스 스케줄러가 인박스 테이블에서 폴링
         await()
                 .pollInterval(Duration.ofSeconds(2))
                 .atMost(8, SECONDS).untilAsserted(() -> {
-                    inboxPollingScheduler.pollAndProcess();
+            // Inbox 스케줄러를 반복적으로 실행
+            inboxPollingScheduler.pollAndProcess();
 
-                    // 검증: Saga 상태가 배송 예약 중(SHIPPING_SCHEDULING)으로 변경되었는지 확인
-                    LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-                    assertThat(changedSaga.getCurrentStep())
-                            .isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-                });
+            // Saga 상태가 다음 단계(POINT_CHARGING)로 변경되었는지 확인
+            LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
+            assertThat(changedSaga.getCurrentStep())
+                    .isEqualTo(LoanSagaStep.POINT_CHARGING);
+        });
 
         // then
         LoanSaga finalSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-        assertThat(finalSaga.getCurrentStep()).isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
+        assertThat(finalSaga.getCurrentStep()).isEqualTo(LoanSagaStep.POINT_CHARGING);
 
-        // 검증: Outbox에 SHIPPING_SCHEDULE (배송 예약) 커맨드가 저장되었는지 확인
-        Optional<OutboxEventRecord> nextCommand = outboxEventRecordRepository.findAll()
+        // DB에서 아웃박스 테이블에 PointCharged 커맨드 새로 저장되었는지 확인
+        boolean exists = outboxEventRecordRepository.findAll()
                 .stream()
-                .filter(rec -> rec.getAggregateId().equals(sagaId) &&
-                        // 다음 단계 커맨드(SHIPPING_SCHEDULE) 검증
-                        rec.getEventType().equals(SagaCommandType.SHIPPING_SCHEDULE.getValue()) &&
-                        rec.getOutboxEventRecordStatus() == OutboxEventRecordStatus.NEW)
-                .findFirst();
+                .anyMatch(r -> r.getAggregateId().equals(sagaId) &&
+                        r.getEventType().equals(SagaCommandType.POINT_CHARGE.getValue()) &&
+                        r.getOutboxEventRecordStatus() == OutboxEventRecordStatus.NEW);
 
-        assertThat(nextCommand).isPresent();
+        assertThat(exists).isTrue();
     }
 
-    private String createFakePointChargedEvent(Long sagaId, Long loanId, Long memberId) throws Exception {
-
-        PointChargedReply replyPayload = new PointChargedReply(
+    private String createFakeInventoryReservedEvent(Long sagaId, Long loanId, Long bookId) throws Exception {
+        InventoryReservedReply replyPayload = new InventoryReservedReply(
                 String.valueOf(snowflake.nextId()),
                 String.valueOf(sagaId),
-                String.valueOf(snowflake.nextId()),
-                1L,
-                String.valueOf(memberId),
-                100L,
-                String.valueOf(snowflake.nextId())
+                String.valueOf(snowflake.nextId()), // causationCommandId
+                0L, // loanVersion
+                String.valueOf(bookId),
+                String.valueOf(snowflake.nextId())  // reservationId
         );
 
         JsonNode payloadNode = objectMapper.valueToTree(replyPayload);
 
         // MessageEnvelope 생성
         MessageEnvelope envelope = new MessageEnvelope(
-                replyPayload.eventId(),
-                String.valueOf(loanId),
-                replyPayload.loanVersion(),
-                SagaReplyType.POINT_CHARGED.getValue(),
+                String.valueOf(snowflake.nextId()), // eventId
+                String.valueOf(loanId),        // aggregateId (대출 ID)
+                0L,                            // aggregateVersion
+                SagaReplyType.INVENTORY_RESERVED.getValue(),
                 payloadNode
         );
 

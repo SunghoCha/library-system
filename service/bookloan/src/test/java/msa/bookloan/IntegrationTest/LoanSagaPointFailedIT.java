@@ -10,6 +10,7 @@ import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.DatabaseClearExtension;
 import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
@@ -17,20 +18,30 @@ import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.point.PointChargeFailedReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
+import java.time.Duration;
 import java.util.Optional;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@Import(KafkaTestBase.KafkaTopics.class)
+@ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
@@ -53,6 +64,9 @@ public class LoanSagaPointFailedIT extends KafkaTestBase {
     private InboxPollingScheduler inboxPollingScheduler;
 
     @Autowired
+    KafkaListenerEndpointRegistry registry;
+
+    @Autowired
     Snowflake snowflake;
 
     @MockBean
@@ -60,6 +74,22 @@ public class LoanSagaPointFailedIT extends KafkaTestBase {
 
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
+
+    @BeforeEach
+    void waitForKafkaAssignment() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container == null) throw new IllegalStateException("listener not found");
+        container.start();
+        ContainerTestUtils.waitForAssignment(container, 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container != null && container.isRunning()) {
+            container.stop();
+        }
+    }
 
     @Test
     @DisplayName("Saga 응답(PointChargeFailed) 수신 시 Saga 상태가 COMPENSATING으로 전이되고 보상 커맨드가 발행된다")
@@ -80,7 +110,6 @@ public class LoanSagaPointFailedIT extends KafkaTestBase {
                 .triggerEventId(triggerEventId)
                 .currentStep(LoanSagaStep.POINT_CHARGING)
                 .status(SagaStatus.PROCESSING)
-                .version(1L) // (재고 예약을 통과한 상태로 가정)
                 .build();
         loanSagaRepository.save(saga);
 
@@ -92,7 +121,9 @@ public class LoanSagaPointFailedIT extends KafkaTestBase {
         kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
 
         // await (처리)
-        await().atMost(5, SECONDS).untilAsserted(() -> {
+        await()
+                .pollInterval(Duration.ofSeconds(2))
+                .atMost(8, SECONDS).untilAsserted(() -> {
             inboxPollingScheduler.pollAndProcess();
 
             // 검증: Saga 상태가 보상 중(COMPENSATING)으로 변경되었는지 확인

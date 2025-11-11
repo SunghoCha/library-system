@@ -7,17 +7,28 @@ spring:
       ddl-auto: create
     open-in-view: false
   kafka:
-    # 임베디드 카프카 브로커 주입(EmbeddedKafka가 노출하는 값)
-    bootstrap-servers: ${spring.embedded.kafka.brokers}
     consumer:
       # 테스트 재실행 시 가장 앞에서부터 읽기
       auto-offset-reset: earliest
+    listener:
+      auto-startup: true
+      ack-mode: record
+      concurrency: 1
+      missing-topics-fatal: false  # 테스트에서 토픽 준비 전 예외 방지
+
 
 
 app:
   kafka:
     enabled: true
     source-token: book-loan
+    listeners:
+      saga-replies:
+        enabled: true
+        id: sagaRepliesListener
+      catalog-replica:
+        id: catalogReplicaListener
+
 
     # commands
     topic-member-check: member.check
@@ -55,3 +66,12 @@ logging:
     msa.bookloan.adapter.out.persistence.outbox.repository: DEBUG  # (선택) 쿼리 로그용
     org.hibernate.SQL: DEBUG              # (선택) 실제 SELECT/UPDATE 보려면
     org.hibernate.orm.jdbc.bind: TRACE    # (선택) 바인딩 파라미터 확인
+    org.testcontainers: DEBUG
+
+    # 추가: 조건 평가/빈 생성 추적
+    org.springframework.boot.autoconfigure.condition: DEBUG
+    org.springframework.beans.factory.support: DEBUG
+
+    # (선택) 구성 클래스/카프카 쪽 부가 힌트
+    org.springframework.context.annotation: DEBUG
+    org.springframework.kafka.config: DEBUG

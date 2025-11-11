@@ -18,9 +18,9 @@ public class SagaReplyKafkaListener {
     private final EventPayloadValidator payloadValidator;
 
     @KafkaListener(
+            id = "${app.kafka.listeners.saga-replies.id:sagaRepliesListener}",
             topics = "${app.kafka.topic-saga-replies}",
-            groupId = "${app.kafka.group-saga-replies}",
-            containerFactory = "envelopeListenerFactory"
+            groupId = "${app.kafka.group-saga-replies}"
     )
     @Transactional
     public void onSagaReply(ConsumerRecord<String, MessageEnvelope> record) {

@@ -45,11 +45,12 @@ public class KafkaConsumerConfig {
         );
     }
 
-    @Bean(name = "envelopeListenerFactory")
+    @Bean(name = "kafkaListenerContainerFactory")
     public ConcurrentKafkaListenerContainerFactory<String, MessageEnvelope>
     kafkaListenerContainerFactory(
             ConsumerFactory<String, MessageEnvelope> consumerFactory,
-            DefaultErrorHandler errorHandler) {
+            DefaultErrorHandler errorHandler,
+            KafkaProperties kafkaProperties) {
 
         ConcurrentKafkaListenerContainerFactory<String, MessageEnvelope> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
@@ -57,16 +58,21 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(errorHandler);
 
-        // 언제 오프셋 커밋할지: RECORD 모드
-        factory.getContainerProperties().setAckMode(AckMode.RECORD);
+        // 언제 오프셋 커밋할지: RECORD 모드. 나중에 다른 모드도 사용해야하면 외부변수화
+        AckMode ackMode = kafkaProperties.getListener().getAckMode();
+        factory.getContainerProperties().setAckMode(ackMode != null ? ackMode : AckMode.RECORD);
+
         factory.getContainerProperties().setSyncCommits(true);
         factory.setBatchListener(false);
 
         // 스레드 병렬 처리: 파티션 수에 따라 조정
-        factory.setConcurrency(3);
+        Integer concurrency = kafkaProperties.getListener().getConcurrency();
+        if (concurrency != null) {
+            factory.setConcurrency(concurrency);
+        }
 
         // TODO : 나중에 카프카 연결하면 설정 풀기
-        //factory.setAutoStartup(false);
+        factory.setAutoStartup(kafkaProperties.getListener().isAutoStartup());
 
         return factory;
     }

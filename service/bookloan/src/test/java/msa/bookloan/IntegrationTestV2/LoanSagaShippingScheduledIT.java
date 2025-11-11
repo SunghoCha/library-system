@@ -1,9 +1,8 @@
-package msa.bookloan.IntegrationTest;
+package msa.bookloan.IntegrationTestV2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import msa.bookloan.adapter.in.messaging.inbox.scheduler.InboxPollingScheduler;
-import msa.bookloan.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.application.port.out.MemberPort;
@@ -13,9 +12,8 @@ import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
 import msa.bookloan.testsupport.KafkaTestBase;
 import msa.common.events.MessageEnvelope;
-import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
-import msa.common.events.bookloan.saga.reply.point.PointChargedReply;
+import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
 import msa.common.events.outbox.OutboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.AfterEach;
@@ -34,7 +32,6 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.time.Duration;
-import java.util.Optional;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,10 +40,10 @@ import static org.awaitility.Awaitility.await;
 @Import(KafkaTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
-//        "app.kafka.enabled=true",
+        "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
 })
-public class LoanSagaPointReplyIT extends KafkaTestBase {
+public class LoanSagaShippingScheduledIT extends KafkaTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -75,26 +72,26 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-    @BeforeEach
-    void waitForKafkaAssignment() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container == null) throw new IllegalStateException("listener not found");
-        container.start();
-        ContainerTestUtils.waitForAssignment(container, 1);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
-    }
+//    @BeforeEach
+//    void waitForKafkaAssignment() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container == null) throw new IllegalStateException("listener not found");
+//        container.start();
+//        ContainerTestUtils.waitForAssignment(container, 1);
+//    }
+//
+//    @AfterEach
+//    void tearDown() {
+//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+//        if (container != null && container.isRunning()) {
+//            container.stop();
+//        }
+//    }
 
     @Test
-    @DisplayName("Saga 응답(PointCharged) 수신 시 Saga 상태가 SHIPPING_SCHEDULING으로 전이되고 다음 커맨드가 발행된다")
-    void testSagaHappyPathNextStep() throws Exception {
-        assertThat(registry.getListenerContainers()).isNotEmpty();
+    @DisplayName("Saga 응답(ShippingScheduled) 수신 시 Saga가 FINISHED/COMPLETED 상태로 종결된다")
+    void testSagaCompletionFlow() throws Exception {
+
         // given
         long sagaId = 1000L;
         long loanId = 2000L;
@@ -108,14 +105,15 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
                 .memberId(memberId)
                 .bookId(bookId)
                 .triggerEventId(triggerEventId)
-                .currentStep(LoanSagaStep.POINT_CHARGING)
+                // given 상태: 배송 예약 중
+                .currentStep(LoanSagaStep.SHIPPING_SCHEDULING)
                 .status(SagaStatus.PROCESSING)
                 .build();
         loanSagaRepository.save(saga);
 
         // when
-        // 포인트 서비스가 보낸 성공 응답 메시지 생성
-        String fakeReplyJson = createFakePointChargedEvent(sagaId, loanId, memberId);
+        // 배송 서비스가 보낸 성공 응답 메시지 생성
+        String fakeReplyJson = createFakeShippingScheduledEvent(sagaId, loanId, bookId);
 
         // Kafka로 성공 응답 발행
         kafkaTemplate.send(REPLY_TOPIC, String.valueOf(sagaId), fakeReplyJson);
@@ -124,41 +122,41 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
         await()
                 .pollInterval(Duration.ofSeconds(2))
                 .atMost(8, SECONDS).untilAsserted(() -> {
-                    inboxPollingScheduler.pollAndProcess();
+            inboxPollingScheduler.pollAndProcess();
 
-                    // 검증: Saga 상태가 배송 예약 중(SHIPPING_SCHEDULING)으로 변경되었는지 확인
-                    LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-                    assertThat(changedSaga.getCurrentStep())
-                            .isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-                });
+            // 검증: Saga 상태가 완료(FINISHED)로 변경되었는지 확인
+            LoanSaga changedSaga = loanSagaRepository.findById(sagaId).orElseThrow();
+            assertThat(changedSaga.getCurrentStep())
+                    .isEqualTo(LoanSagaStep.FINISHED);
+        });
 
-        // then
+        // then (최종 검증)
         LoanSaga finalSaga = loanSagaRepository.findById(sagaId).orElseThrow();
-        assertThat(finalSaga.getCurrentStep()).isEqualTo(LoanSagaStep.SHIPPING_SCHEDULING);
-        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.PROCESSING);
 
-        // 검증: Outbox에 SHIPPING_SCHEDULE (배송 예약) 커맨드가 저장되었는지 확인
-        Optional<OutboxEventRecord> nextCommand = outboxEventRecordRepository.findAll()
+        // 검증: Step과 Status가 모두 최종 완료 상태인지 확인
+        assertThat(finalSaga.getCurrentStep()).isEqualTo(LoanSagaStep.FINISHED);
+        assertThat(finalSaga.getStatus()).isEqualTo(SagaStatus.COMPLETED);
+
+        // 검증: Outbox에 더 이상 새로운 커맨드가 발행되지 않았는지 확인
+        long newCommandCount = outboxEventRecordRepository.findAll()
                 .stream()
                 .filter(rec -> rec.getAggregateId().equals(sagaId) &&
-                        // 다음 단계 커맨드(SHIPPING_SCHEDULE) 검증
-                        rec.getEventType().equals(SagaCommandType.SHIPPING_SCHEDULE.getValue()) &&
                         rec.getOutboxEventRecordStatus() == OutboxEventRecordStatus.NEW)
-                .findFirst();
+                .count();
 
-        assertThat(nextCommand).isPresent();
+        assertThat(newCommandCount).isZero();
     }
 
-    private String createFakePointChargedEvent(Long sagaId, Long loanId, Long memberId) throws Exception {
+    private String createFakeShippingScheduledEvent(Long sagaId, Long loanId, Long bookId) throws Exception {
 
-        PointChargedReply replyPayload = new PointChargedReply(
+        ShippingScheduledReply replyPayload = new ShippingScheduledReply(
                 String.valueOf(snowflake.nextId()),
                 String.valueOf(sagaId),
                 String.valueOf(snowflake.nextId()),
-                1L,
-                String.valueOf(memberId),
-                100L,
-                String.valueOf(snowflake.nextId())
+                2L,
+                String.valueOf(snowflake.nextId()),
+                String.valueOf(bookId),
+                "TRACKING-12345"
         );
 
         JsonNode payloadNode = objectMapper.valueToTree(replyPayload);
@@ -168,7 +166,8 @@ public class LoanSagaPointReplyIT extends KafkaTestBase {
                 replyPayload.eventId(),
                 String.valueOf(loanId),
                 replyPayload.loanVersion(),
-                SagaReplyType.POINT_CHARGED.getValue(),
+                // 성공 이벤트 타입 사용
+                SagaReplyType.SHIPPING_SCHEDULED.getValue(),
                 payloadNode
         );
 
