@@ -11,7 +11,7 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
@@ -27,8 +27,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
-import org.springframework.kafka.KafkaException;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.MessageListenerContainer;
@@ -42,7 +42,7 @@ import static org.awaitility.Awaitility.await;
 
 
 @Slf4j
-@Import(KafkaTestBase.KafkaTopics.class)
+@Import(IntegrationTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
@@ -50,7 +50,7 @@ import static org.awaitility.Awaitility.await;
         "spring.kafka.admin.fail-fast=true",
         "spring.kafka.listener.missing-topics-fatal=true"
 })
-public class LoanSagaReplyIT extends KafkaTestBase {
+public class LoanSagaReplyIT extends IntegrationTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -90,10 +90,7 @@ public class LoanSagaReplyIT extends KafkaTestBase {
 
     @AfterEach
     void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        registry.getListenerContainers().forEach(Lifecycle::stop);
     }
 
     @Test

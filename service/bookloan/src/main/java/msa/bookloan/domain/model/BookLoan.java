@@ -20,7 +20,7 @@ import java.time.LocalDate;
 }
 )
 @Getter
-@Builder
+@Builder // TODO: 마무리단게때 생성자 빌더로 옮길지 고민
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BookLoan extends BaseTimeEntity implements Persistable<Long> {

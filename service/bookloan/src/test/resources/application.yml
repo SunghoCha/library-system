@@ -1,7 +1,7 @@
 spring:
   datasource:
-    url: jdbc:tc:mysql:8.3.0:///testdb?useAffectedRows=true
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+#    url: jdbc:tc:mysql:8.3.0:///testdb?useAffectedRows=true
+#    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   jpa:
     hibernate:
       ddl-auto: create
@@ -10,8 +10,16 @@ spring:
     consumer:
       # 테스트 재실행 시 가장 앞에서부터 읽기
       auto-offset-reset: earliest
+      properties:
+        allow.auto.create.topics: false
+    producer:
+      properties:
+        allow.auto.create.topics: false
+    admin:
+      properties:
+        allow.auto.create.topics: false
     listener:
-      auto-startup: true
+      auto-startup: false
       ack-mode: record
       concurrency: 1
       missing-topics-fatal: false  # 테스트에서 토픽 준비 전 예외 방지
@@ -67,11 +75,15 @@ logging:
     org.hibernate.SQL: DEBUG              # (선택) 실제 SELECT/UPDATE 보려면
     org.hibernate.orm.jdbc.bind: TRACE    # (선택) 바인딩 파라미터 확인
     org.testcontainers: DEBUG
+    org.springframework.test.context.cache: TRACE
+    org.springframework.test.context.support: TRACE
+    org:springframework:test:context: TRACE
 
     # 추가: 조건 평가/빈 생성 추적
-    org.springframework.boot.autoconfigure.condition: DEBUG
-    org.springframework.beans.factory.support: DEBUG
+#    org.springframework.boot.autoconfigure.condition: DEBUG
+#    org.springframework.beans.factory.support: DEBUG
+
 
     # (선택) 구성 클래스/카프카 쪽 부가 힌트
-    org.springframework.context.annotation: DEBUG
-    org.springframework.kafka.config: DEBUG
+#    org.springframework.context.annotation: DEBUG
+#    org.springframework.kafka.config: DEBUG

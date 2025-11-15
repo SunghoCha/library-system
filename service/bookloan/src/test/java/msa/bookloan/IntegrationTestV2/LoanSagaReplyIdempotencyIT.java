@@ -2,6 +2,7 @@ package msa.bookloan.IntegrationTestV2;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.messaging.inbox.scheduler.InboxPollingScheduler;
 import msa.bookloan.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
@@ -10,7 +11,7 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBaseV2;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -38,13 +40,14 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@Import(KafkaTestBase.KafkaTopics.class)
+@Slf4j
+@Import(IntegrationTestBaseV2.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
 })
-public class LoanSagaReplyIdempotencyIT extends KafkaTestBase {
+public class LoanSagaReplyIdempotencyIT extends IntegrationTestBaseV2 {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -73,22 +76,27 @@ public class LoanSagaReplyIdempotencyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-//    @BeforeEach
-//    void waitForKafkaAssignment() {
-//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-//        if (container == null) throw new IllegalStateException("listener not found");
-//        container.start();
-//        ContainerTestUtils.waitForAssignment(container, 1);
-//    }
-//
-//    @AfterEach
-//    void tearDown() {
-//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-//        if (container != null && container.isRunning()) {
-//            container.stop();
-//        }
-//    }
+    @BeforeEach
+    void waitForKafkaAssignment() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container == null) throw new IllegalStateException("listener not found");
 
+        log.info("Found listener container: {}", container);
+
+        // 컨테이너의 Group ID (어떤 컨슈머 그룹인지 확인)
+        log.info("Container Group ID: {}", container.getGroupId());
+
+        // start() 호출 전 현재 실행 상태 확인 (아마도 false)
+        log.info("Container isRunning() before start: {}", container.isRunning());
+
+        container.start();
+        ContainerTestUtils.waitForAssignment(container, 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        registry.getListenerContainers().forEach(Lifecycle::stop);
+    }
 
     @Test
     @DisplayName("중복된 응답 메시지를 수신해도 사가 상태 전이는 1번만 발생한다")

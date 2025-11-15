@@ -1,11 +1,12 @@
 package msa.bookloan.IntegrationTestV2;
 
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
 import msa.bookloan.adapter.out.messaging.outbox.scheduler.OutboxPollingScheduler;
 import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.application.service.LoanService;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBaseV2;
 import msa.common.domain.model.MemberGrade;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -32,26 +34,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
-
-@Import(KafkaTestBase.KafkaTopics.class)
+@Slf4j
+@Import(IntegrationTestBaseV2.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
-        // 스케줄러 빈 ON (메서드는 직접 호출)
         "outbox.relay.enabled=true",
-        // 카프카 모듈 ON, 잡다한 리스너는 OFF
         "app.kafka.enabled=true",
         "app.kafka.listeners.catalog.enabled=false",
-        // 테스트에선 Feign OFF
-        "app.clients.enabled=false",
-        // 필요시 테스트 토픽 이름(이미 설정돼 있으면 생략 가능)
-        // "app.kafka.topic-inventory-reserve=book-loan.requested"
 })
 //@Import({
 //        msa.bookloan.infra.config.kafka.KafkaConsumerConfig.class,
 //        msa.bookloan.infra.config.kafka.KafkaProducerConfig.class,
 //        OutboxPublishIT.TestConsumers.class,
 //})
-public class OutboxPublishIT extends KafkaTestBase {
+public class OutboxPublishIT extends IntegrationTestBaseV2 {
 
     @Autowired
     private LoanService loanService;
@@ -69,19 +65,26 @@ public class OutboxPublishIT extends KafkaTestBase {
     void setUpAndWaitForListener() {
         when(memberPort.getGrade(anyLong())).thenReturn(MemberGrade.SILVER);
 
-//        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
-//        if (container == null) throw new IllegalStateException("listener not found");
-//        container.start();
-//        ContainerTestUtils.waitForAssignment(container, 1);
+        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
+        if (container == null) throw new IllegalStateException("listener not found");
+
+        log.info("Found listener container: {}", container);
+
+        // 컨테이너의 Group ID (어떤 컨슈머 그룹인지 확인)
+        log.info("Container Group ID: {}", container.getGroupId());
+
+        // start() 호출 전 현재 실행 상태 확인 (아마도 false)
+        log.info("Container isRunning() before start: {}", container.isRunning());
+
+        container.start();
+        ContainerTestUtils.waitForAssignment(container, 1);
     }
-//
-//    @AfterEach
-//    void tearDown() {
-//        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
-//        if (container != null && container.isRunning()) {
-//            container.stop();
-//        }
-//    }
+
+
+    @AfterEach
+    void tearDown() {
+        registry.getListenerContainers().forEach(Lifecycle::stop);
+    }
 
     @TestConfiguration
     static class TestConsumers {

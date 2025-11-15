@@ -10,7 +10,7 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBase;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.bookloan.saga.reply.shipping.ShippingScheduledReply;
@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -37,13 +38,13 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@Import(KafkaTestBase.KafkaTopics.class)
+@Import(IntegrationTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
 })
-public class LoanSagaShippingScheduledIT extends KafkaTestBase {
+public class LoanSagaShippingScheduledIT extends IntegrationTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -82,10 +83,7 @@ public class LoanSagaShippingScheduledIT extends KafkaTestBase {
 
     @AfterEach
     void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        registry.getListenerContainers().forEach(Lifecycle::stop);
     }
 
     @Test

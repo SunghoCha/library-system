@@ -5,7 +5,7 @@ import msa.bookloan.adapter.out.messaging.outbox.scheduler.OutboxPollingSchedule
 import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.application.service.LoanService;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBase;
 import msa.common.domain.model.MemberGrade;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
@@ -33,7 +34,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 
-@Import(KafkaTestBase.KafkaTopics.class)
+@Import(IntegrationTestBase.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         // 스케줄러 빈 ON (메서드는 직접 호출)
@@ -46,12 +47,7 @@ import static org.mockito.Mockito.when;
         // 필요시 테스트 토픽 이름(이미 설정돼 있으면 생략 가능)
         // "app.kafka.topic-inventory-reserve=book-loan.requested"
 })
-//@Import({
-//        msa.bookloan.infra.config.kafka.KafkaConsumerConfig.class,
-//        msa.bookloan.infra.config.kafka.KafkaProducerConfig.class,
-//        OutboxPublishIT.TestConsumers.class,
-//})
-public class OutboxPublishIT extends KafkaTestBase {
+public class OutboxPublishIT extends IntegrationTestBase {
 
     @Autowired
     private LoanService loanService;
@@ -77,10 +73,7 @@ public class OutboxPublishIT extends KafkaTestBase {
 
     @AfterEach
     void tearDown() {
-        MessageListenerContainer container = registry.getListenerContainer("testOutboxListener");
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        registry.getListenerContainers().forEach(Lifecycle::stop);
     }
 
     @TestConfiguration

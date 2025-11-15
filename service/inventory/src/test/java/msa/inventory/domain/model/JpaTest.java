@@ -1,14 +1,9 @@
 package msa.inventory.domain.model;
 
 import jakarta.persistence.EntityManager;
-import msa.inventory.repository.BookCopyRepository;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import msa.inventory.adaptor.out.persistence.bookCopy.repository.BookCopyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.data.jpa.repository.support.JpaEntityInformation;
-import org.springframework.data.jpa.repository.support.JpaEntityInformationSupport;
-import org.springframework.data.jpa.repository.support.JpaMetamodelEntityInformation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -11,7 +11,7 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
-import msa.bookloan.testsupport.KafkaTestBase;
+import msa.bookloan.testsupport.IntegrationTestBaseV2;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.Lifecycle;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -41,15 +42,13 @@ import static org.awaitility.Awaitility.await;
 
 
 @Slf4j
-@Import(KafkaTestBase.KafkaTopics.class)
+@Import(IntegrationTestBaseV2.KafkaTopics.class)
 @ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
-        "spring.kafka.admin.fail-fast=true",
-        "spring.kafka.listener.missing-topics-fatal=true"
 })
-public class LoanSagaReplyIT extends KafkaTestBase {
+public class LoanSagaReplyIT extends IntegrationTestBaseV2 {
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -78,22 +77,19 @@ public class LoanSagaReplyIT extends KafkaTestBase {
     @Value("${app.kafka.topic-saga-replies}")
     private String REPLY_TOPIC;
 
-//    @BeforeEach
-//    void waitForKafkaAssignment() {
-//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-//        if (container == null) throw new IllegalStateException("listener not found");
-//        container.start();
-//        log.info("container start: {}, groupId: {}", container, container.getGroupId());
-//        ContainerTestUtils.waitForAssignment(container, 1);
-//    }
-//
-//    @AfterEach
-//    void tearDown() {
-//        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
-//        if (container != null && container.isRunning()) {
-//            container.stop();
-//        }
-//    }
+    @BeforeEach
+    void waitForKafkaAssignment() {
+        MessageListenerContainer container = registry.getListenerContainer("sagaRepliesListener");
+        if (container == null) throw new IllegalStateException("listener not found");
+        container.start();
+        log.info("container start: {}, groupId: {}", container, container.getGroupId());
+        ContainerTestUtils.waitForAssignment(container, 1);
+    }
+
+    @AfterEach
+    void tearDown() {
+        registry.getListenerContainers().forEach(Lifecycle::stop);
+    }
 
     @Test
     @DisplayName("Saga 응답(InventoryReserved) 수신 시 Saga 상태가 전이되고 다음 커맨드가 발행된다")

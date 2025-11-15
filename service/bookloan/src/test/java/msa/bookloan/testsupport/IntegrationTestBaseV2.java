@@ -8,16 +8,25 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-public abstract class KafkaTestBase {
+@Testcontainers
+public abstract class IntegrationTestBaseV2 {
 
-    private static final KafkaContainer KAFKA;
+    @Container
+    private static final KafkaContainer KAFKA =
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
 
-    static {
-        KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
-        KAFKA.start();
-    }
+//    @Container
+//    private static final MySQLContainer<?> MYSQL =
+//            new MySQLContainer<>(DockerImageName.parse("mysql:8.3.0"))
+//                    .withDatabaseName("testdb")
+//                    .withUsername("test")
+//                    .withPassword("test");
+
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry r) {
@@ -32,6 +41,11 @@ public abstract class KafkaTestBase {
 
         // 프로젝트 플래그
         r.add("app.kafka.enabled", () -> "true");
+
+        // MYSQL 설정
+//        r.add("spring.datasource.url", MYSQL::getJdbcUrl);
+//        r.add("spring.datasource.username", MYSQL::getUsername);
+//        r.add("spring.datasource.password", MYSQL::getPassword);
     }
 
     @TestConfiguration
