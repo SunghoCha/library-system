@@ -21,7 +21,7 @@ public class InboxPollingScheduler {
     private final InboxEventDispatcher inboxEventDispatcher;
     private final InstanceIdentity instanceIdentity;
 
-    @Scheduled(fixedDelayString = "${inbox.retry.delay:60000}")
+    @Scheduled(fixedDelayString = "${inbox.retry.delay:500}")
     public void pollAndProcess() {
         String workerId = instanceIdentity.workerId();
 

@@ -12,7 +12,8 @@ import org.springframework.context.annotation.Import;
 @Import({
         SnowflakeConfig.class,
         CommonAuditingAutoConfig.class,
-        CommonTimeAutoConfig.class
+        CommonTimeAutoConfig.class,
+        CommonValidationConfig.class
 })
 @EnableConfigurationProperties({
         OutboxSchedulerProps.class,

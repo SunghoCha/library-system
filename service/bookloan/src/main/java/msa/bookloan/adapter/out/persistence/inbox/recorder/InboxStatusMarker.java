@@ -20,7 +20,7 @@ import static org.apache.commons.lang3.StringUtils.abbreviate;
 @RequiredArgsConstructor
 public class InboxStatusMarker {
 
-    private final InboxEventRecordRepository repository;
+    private final InboxEventRecordRepository eventRecordRepository;
     private final InboxProcessingProps inboxProcessingProps;
     private final Clock clock;
 
@@ -30,7 +30,7 @@ public class InboxStatusMarker {
         Objects.requireNonNull(leaseId, "leaseId");
 
         LocalDateTime now = LocalDateTime.now(clock);
-        long updated = repository.markProcessedByEventId(eventId, leaseId, now);
+        long updated = eventRecordRepository.markProcessedByEventId(eventId, leaseId, now);
 
         if (updated != 1) {
             throw new OptimisticLockingFailureException(
@@ -46,7 +46,7 @@ public class InboxStatusMarker {
 
         LocalDateTime now = LocalDateTime.now(clock);
         String safeReason = abbreviate(reason, inboxProcessingProps.errorMaxLength());
-        long updated = repository.markFailedByEventId(eventId, leaseId, safeReason, now);
+        long updated = eventRecordRepository.markFailedByEventId(eventId, leaseId, safeReason, now);
 
         if (updated == 1) {
             log.warn("[Inbox] 처리 실패로 마킹됨(재시도 예정) (eventId={}, leaseId={}, reason={})", eventId, leaseId, safeReason);
@@ -62,7 +62,7 @@ public class InboxStatusMarker {
 
         LocalDateTime now = LocalDateTime.now(clock);
         String safeReason = abbreviate(reason, inboxProcessingProps.errorMaxLength());
-        long updated = repository.markDeadLetter(eventId, leaseId, safeReason, now);
+        long updated = eventRecordRepository.markDeadLetter(eventId, leaseId, safeReason, now);
 
         if (updated == 1) {
             log.warn("[Inbox] DLT로 마킹됨 (eventId={}, leaseId={}, reason={})", eventId, leaseId, safeReason);

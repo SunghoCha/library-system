@@ -27,14 +27,11 @@ import static msa.common.events.inbox.dto.InboxEventRecordStatus.*;
 @RequiredArgsConstructor
 public class InboxAppender {
 
-    // TODO : 추후 외부변수 분리 고려. InboxProps
-    private static final int MAX_ATTEMPTS = 3;
-
     private final InboxEventRecordRepository eventRecordRepository;
     private final ObjectMapper objectMapper;
     private final Snowflake snowflake;
 
-    public boolean upsertRecord(ConsumerRecord<String, MessageEnvelope> record) {
+    public void upsertRecord(ConsumerRecord<String, MessageEnvelope> record) {
         MessageEnvelope envelope = record.value();
         if (envelope.payload() == null) {
             throw new IllegalStateException("Inbox serialize fail: payload is null");
@@ -57,46 +54,10 @@ public class InboxAppender {
                 record.offset()
         );
 
-        boolean isNew = (affected == 1);
-        if (isNew) {
-            log.debug("[Inbox] 신규 저장: eventId={} type={} topic={}",
-                    eventId, envelope.eventType(), record.topic());
-        } else {
-            // affected = 2는 ON DUPLICATE KEY UPDATE가 실행됨을 의미
-            log.debug("[Inbox] 중복 수신 (무시): eventId={} type={} topic={}",
-                    eventId, envelope.eventType(), record.topic());
-        }
+        log.debug("[Inbox] upsert 완료: type={}, aggId={}, eventId={}, affected={}",
+                envelope.eventType(), envelope.aggregateId(),
+                envelope.eventId(), affected);
 
-        return isNew;
-    }
-
-    // 삭제가능성 있음
-    @Transactional
-    public void recordSuccess(Long eventId) {
-        updateStatus(eventId, PROCESSED, List.of(NEW, FAILED));
-    }
-
-    // 삭제가능성 있음
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordFailure(Long eventId, String errorMessage) {
-        long incremented = eventRecordRepository.incrementRetryCountIfBelowMax(eventId, MAX_ATTEMPTS, errorMessage);
-        if (incremented == 0) {
-            updateStatus(eventId, DEAD_LETTER, List.of(NEW, FAILED));
-        } else {
-            updateStatus(eventId, FAILED, List.of(NEW, FAILED));
-        }
-
-    }
-
-    private boolean updateStatus(Long eventId, InboxEventRecordStatus target, List<InboxEventRecordStatus> allowed) {
-        long updated = eventRecordRepository.updateStatusIfPending(eventId, target, allowed);
-        if (updated == 1) {
-            log.debug("Inbox status -> {} (eventId={})", target, eventId);
-            return true;
-        } else {
-            log.debug("Inbox status skip (eventId={}, target={})", eventId, target);
-            return false;
-        }
     }
 
     private String serializePayload(ConsumerRecord<String, ?> record, MessageEnvelope envelope) {

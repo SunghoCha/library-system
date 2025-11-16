@@ -1,7 +1,7 @@
-package msa.bookloan.adapter.out.persistence.inbox.repository;
+package msa.inventory.adaptor.out.persistence.inbox.repository;
 
-import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
+import msa.inventory.adaptor.out.persistence.inbox.entity.InboxEventRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -61,10 +61,6 @@ public interface InboxEventRecordRepository extends JpaRepository<InboxEventReco
             @Param("limit") int limit,
             @Param("maxRetry") int maxRetry,
             @Param("now") LocalDateTime now);
-
-
-
-
 
 
 }

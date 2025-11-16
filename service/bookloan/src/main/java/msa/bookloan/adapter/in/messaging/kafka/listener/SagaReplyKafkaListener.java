@@ -57,8 +57,8 @@ public class SagaReplyKafkaListener {
 
     }
 
-    private static String summarize(ConstraintViolationException ex) {
-        return ex.getConstraintViolations().stream()
+    private static String summarize(ConstraintViolationException e) {
+        return e.getConstraintViolations().stream()
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .findFirst()
                 .orElse("violations");

@@ -1,4 +1,4 @@
-package msa.bookloan.adapter.out.persistence.inbox.entity;
+package msa.inventory.adaptor.out.persistence.inbox.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
