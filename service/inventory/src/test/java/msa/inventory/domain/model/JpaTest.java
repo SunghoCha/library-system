@@ -1,7 +1,7 @@
 package msa.inventory.domain.model;
 
 import jakarta.persistence.EntityManager;
-import msa.inventory.adaptor.out.persistence.bookCopy.repository.BookCopyRepository;
+import msa.inventory.adaptor.out.persistence.bookcopy.repository.BookCopyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
