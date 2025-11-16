@@ -22,6 +22,8 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.DatabaseClearExtension;
+import msa.bookloan.testsupport.MySqlIntegrationTestBase;
 import msa.common.events.bookloan.saga.command.*;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,20 +134,16 @@ class LoanRequestSagaOrchestratorTest {
             long aggVer = event.aggregateVersion();
             long eventId = event.eventId();
 
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(1);
-
             when(sagaRepository.insertIfAbsent(
                     anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
                     anyString(), anyString(), any(LocalDateTime.class)
             )).thenReturn(true);
 
-            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
 
             // When
             orchestrator.start(event);
 
             // Then
-            verify(bookLoanRepository).tryBindSaga(eq(loanId), eq(sagaId));
 
             verify(sagaRepository).insertIfAbsent(
                     eq(sagaId),
@@ -171,24 +169,6 @@ class LoanRequestSagaOrchestratorTest {
         }
 
         @Test
-        @DisplayName("start 실패: 바인딩 실패(tryBindSaga=0) 시 즉시 반환한다.")
-        void start_FailsOnBind() {
-            // given
-            LoanRequestedInternalEvent event = createEvent();
-
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(0);
-
-            // when
-            orchestrator.start(event);
-
-            // then
-            verify(bookLoanRepository).tryBindSaga(anyLong(), anyLong());
-
-            verify(sagaRepository, never()).insertIfAbsent(any(), any(), any(), any(), any(), any(), any(), any(), any());
-            verify(commandOutboxRecorder, never()).save(any());
-        }
-
-        @Test
         @DisplayName("start 실패: 사가 Row 중복(insertIfAbsent=false) 시 즉시 반환한다.")
         void start_FailsOnSagaCreate() {
             // given
@@ -200,7 +180,6 @@ class LoanRequestSagaOrchestratorTest {
             long aggVer = event.aggregateVersion();
             long eventId = event.eventId();
 
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong())).thenReturn(1);
 
             when(sagaRepository.insertIfAbsent(
                     anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
@@ -211,8 +190,6 @@ class LoanRequestSagaOrchestratorTest {
             orchestrator.start(event);
 
             // then
-            verify(bookLoanRepository).tryBindSaga(eq(loanId), eq(sagaId));
-
             verify(sagaRepository).insertIfAbsent(
                     eq(sagaId),
                     eq(loanId),
@@ -226,81 +203,6 @@ class LoanRequestSagaOrchestratorTest {
             );
 
             verify(commandOutboxRecorder, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("실패(멱등성): 동일 이벤트 2회 수신 시, 2번째는 tryBindSaga에서 차단된다.")
-        void start_Idempotency_FailsOnBind() {
-            // given
-            LoanRequestedInternalEvent event = createEvent();
-            long sagaId = event.sagaId();
-            long loanId = event.loanId();
-
-            // 첫 번째 호출에는 1(성공) 반환, 두 번째 호출에는 0(실패) 반환
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong()))
-                    .thenReturn(1, 0);
-
-            // 첫 번째 호출이 통과할 경우를 대비한 스터빙. 앞에서 하난 0으로 걸러지니 둘 다 true반환해도 상관없을듯
-            when(sagaRepository.insertIfAbsent(
-                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
-                    anyString(), anyString(), any(LocalDateTime.class)
-            )).thenReturn(true);
-            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
-
-            // when
-            orchestrator.start(event); // 첫 번째 호출 (성공)
-            orchestrator.start(event); // 두 번째 호출 (실패)
-
-            // then
-            // tryBindSaga는 2번 모두 시도되어야 함
-            verify(bookLoanRepository, times(2)).tryBindSaga(eq(loanId), eq(sagaId));
-
-
-            verify(sagaRepository).insertIfAbsent(
-                    eq(sagaId), eq(loanId), anyLong(), anyLong(), anyLong(), anyLong(),
-                    anyString(), anyString(), any(LocalDateTime.class)
-            );
-            verify(commandOutboxRecorder).save(any(ReserveInventoryCommand.class));
-        }
-
-        @Test
-        @DisplayName("실패(멱등성/경합): 2회 수신이 tryBindSaga를 통과해도, insertIfAbsent에서 차단된다.")
-        void start_Idempotency_FailsOnInsert() {
-            // given
-            // (이 시나리오는 tryBindSaga가 멱등성 보장을 못 하거나,
-            //  두 스레드가 동시에 tryBindSaga(0)을 통과한 경합 상태를 가정)
-            LoanRequestedInternalEvent event = createEvent();
-            long sagaId = event.sagaId();
-            long loanId = event.loanId();
-
-            // tryBindSaga는 두 번 다 통과 (1 반환).
-            when(bookLoanRepository.tryBindSaga(anyLong(), anyLong()))
-                    .thenReturn(1, 1);
-
-            // insertIfAbsent는 첫 번째는 성공(true), 두 번째는 실패(false)
-            when(sagaRepository.insertIfAbsent(
-                    anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(),
-                    anyString(), anyString(), any(LocalDateTime.class)
-            )).thenReturn(true, false);
-
-            when(commandOutboxRecorder.save(any(ReserveInventoryCommand.class))).thenReturn(true);
-
-            // when
-            orchestrator.start(event); // 1. 첫 번째 호출 (성공)
-            orchestrator.start(event); // 2. 두 번째 호출 (실패)
-
-            // then
-            // tryBindSaga는 2번 모두 시도됨
-            verify(bookLoanRepository, times(2)).tryBindSaga(eq(loanId), eq(sagaId));
-
-            // insertIfAbsent도 2번 모두 시도됨
-            verify(sagaRepository, times(2)).insertIfAbsent(
-                    eq(sagaId), eq(loanId), anyLong(), anyLong(), anyLong(), anyLong(),
-                    anyString(), anyString(), any(LocalDateTime.class)
-            );
-
-            // save(부수 효과)는 첫 번째 성공한 호출에서 "단 1회"만 실행되어야 함
-            verify(commandOutboxRecorder, times(1)).save(any(ReserveInventoryCommand.class));
         }
 
     }
@@ -1017,8 +919,6 @@ class LoanRequestSagaOrchestratorTest {
             lenient().when(sagaRepository.findForUpdate(eq(SAGA_ID))).thenReturn(Optional.of(mockSaga));
 
             lenient().when(sagaTimeouts.compensationTimeoutFor()).thenReturn(COMPENSATION_TIMEOUT);
-
-            lenient().when(commandOutboxRecorder.save(any(SagaCommand.class))).thenReturn(true);
 
             lenient().when(sagaRepository.save(any(LoanSaga.class))).thenReturn(mockSaga);
 

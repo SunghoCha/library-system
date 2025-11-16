@@ -15,6 +15,7 @@ import org.springframework.util.backoff.FixedBackOff;
 
 @Slf4j
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnBean(KafkaModuleConfig.class)
 public class KafkaErrorHandlerConfig {
 
     @Bean

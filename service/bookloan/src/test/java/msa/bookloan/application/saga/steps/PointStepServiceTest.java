@@ -8,6 +8,7 @@ import msa.bookloan.application.saga.reply.point.PointChargedInternalEvent;
 import msa.bookloan.application.saga.reply.point.PointRefundedInternalEvent;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.DatabaseClearExtension;
 import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.events.bookloan.saga.command.ReleaseInventoryCommand;
 import msa.common.events.bookloan.saga.command.ScheduleShippingCommand;
@@ -171,7 +172,7 @@ class PointStepServiceTest {
         void shouldMoveCompensationStepAndRecordNextCommand() {
             // given
             // 보상 시나리오를 위한 사전 상태 설정
-            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
+            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, SHIPPING_SCHEDULING
 
             PointRefundedInternalEvent event = new PointRefundedInternalEvent(
@@ -179,7 +180,7 @@ class PointStepServiceTest {
             );
 
             when(sagaRepository.findById(SAGA_ID)).thenReturn(Optional.of(testSaga));
-            when(sagaTimeouts.stepTimeout(POINT_CHARGING)).thenReturn(Duration.ofMinutes(5));
+            when(sagaTimeouts.stepTimeout(INVENTORY_RESERVING)).thenReturn(Duration.ofMinutes(5));
             when(snowflake.nextId()).thenReturn(98765L);
 
             // when
@@ -190,7 +191,7 @@ class PointStepServiceTest {
             verify(sagaRepository).saveAndFlush(sagaCaptor.capture());
             LoanSaga capturedSaga = sagaCaptor.getValue();
             assertThat(capturedSaga.getStatus()).isEqualTo(SagaStatus.COMPENSATING);
-            assertThat(capturedSaga.getCurrentStep()).isEqualTo(POINT_CHARGING); // 보상 단계가 역으로 이동했는지 확인
+            assertThat(capturedSaga.getCurrentStep()).isEqualTo(INVENTORY_RESERVING); // 보상 단계가 역으로 이동했는지 확인
 
             ArgumentCaptor<ReleaseInventoryCommand> commandCaptor = ArgumentCaptor.forClass(ReleaseInventoryCommand.class);
             verify(commandOutboxRecorder).save(commandCaptor.capture());
@@ -198,11 +199,11 @@ class PointStepServiceTest {
         }
 
         @Test
-        @DisplayName("무시: 사가가 올바른 보상 단계(from SHIPPING_SCHEDULING)가 아니면 아무 작업도 수행하지 않는다")
+        @DisplayName("무시: 사가가 올바른 보상 단계(from POINT_CHARGING)가 아니면 아무 작업도 수행하지 않는다")
         void shouldDoNothing_whenSagaIsNotInCorrectCompensatingStep() {
             // given
             // 잘못된 보상 단계 설정
-            testSaga.markProcessing(POINT_CHARGING, Duration.ofMinutes(5), now(fixedClock));
+            testSaga.markProcessing(SHIPPING_SCHEDULING, Duration.ofMinutes(5), now(fixedClock));
             testSaga.enterCompensating(Duration.ofMinutes(30), now(fixedClock)); // 현재 상태: COMPENSATING, POINT_CHARGING
 
             PointRefundedInternalEvent event = new PointRefundedInternalEvent(

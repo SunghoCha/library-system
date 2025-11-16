@@ -23,7 +23,7 @@ import java.util.Map;
 import static org.springframework.kafka.listener.ContainerProperties.AckMode;
 
 @Configuration
-@ConditionalOnClass(KafkaTemplate.class)
+@ConditionalOnBean(KafkaModuleConfig.class)
 public class KafkaConsumerConfig {
 
     @Bean

@@ -4,12 +4,13 @@ import msa.bookloan.adapter.in.messaging.kafka.listener.BookCatalogProjectionEve
 import msa.bookloan.adapter.in.messaging.kafka.listener.SagaReplyKafkaListener;
 import msa.bookloan.adapter.in.messaging.kafka.util.validator.EventPayloadValidator;
 import msa.bookloan.adapter.out.persistence.inbox.recorder.InboxAppender;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "app.kafka", name = "enabled", havingValue = "true")
+@ConditionalOnBean(KafkaModuleConfig.class)
 public class KafkaListenersConfig {
 
     @Bean

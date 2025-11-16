@@ -7,9 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import msa.bookcatalog.adapter.out.persistence.outbox.entity.OutboxEventRecord;
 import msa.bookcatalog.adapter.out.persistence.outbox.repository.OutboxEventRecordRepository;
 import msa.bookcatalog.application.event.BookCatalogChangedEvent;
-import msa.common.domain.model.BookTypeRef;
-import msa.common.domain.model.CategoryRef;
-import msa.common.events.bookcatalog.BookCatalogChangedPayload;
+import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
@@ -23,69 +21,63 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.time.LocalDateTime.*;
+import static java.time.LocalDateTime.now;
 import static msa.common.events.outbox.OutboxEventRecordStatus.NEW;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class EventRecorder {
+    private static final String AGGREGATE_TYPE = "BookCatalog";
 
     private final Clock clock;
     private final Snowflake snowflake;
     private final ObjectMapper objectMapper;
     private final OutboxEventRecordRepository eventRecordRepository;
-    private final OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
+    private final List<OutboxRoutingResolver<?>> resolvers;
 
-    // TODO : 추후 이벤트 종류 늘어나면 제네릭 메서드로 변경 예정
     @Transactional
-    public boolean save(BookCatalogChangedEvent event) {
+    public void save(OutboxRecordableEvent event) {
         String payloadJson = serializeToPayload(event);
-        OutboxRouting routing = routingResolver.doResolve(event);
+
+        OutboxRouting routing = route(event);
         if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
-            throw new IllegalStateException("Routing is invalid. eventId={} " + event.getEventId());
+            throw new IllegalStateException("Invalid routing for event: " + event);
         }
 
         int affected = eventRecordRepository.upsertOutbox(
                 snowflake.nextId(),
-                event.getEventId(),
-                event.getEventType(),
-                String.valueOf(event.getAggregateId()),
-                event.getAggregateType(),
-                event.getAggregateVersion(),
+                event.eventId(),
+                event.eventType().getValue(),
+                event.aggregateId(),
+                AGGREGATE_TYPE,
+                event.aggregateVersion(),
                 payloadJson,
                 routing.getTopic(),
                 routing.getPartitionKey(),
-                event.getOccurredAt());
+                LocalDateTime.now(clock)
+        );
 
-        boolean isNew = (affected == 1);
+        log.debug("[Outbox] upsert 완료: type={} aggType={} aggId={} eventId={} affected={}",
+                event.eventType().getValue(), AGGREGATE_TYPE, event.aggregateId(),
+                event.eventId(), affected);
 
-        if (isNew) {
-            log.debug("[Outbox] inserted: type={} aggType={} aggId={} eventId={} topic={}",
-                    event.getEventType(), event.getAggregateType(), event.getAggregateId(),
-                    event.getEventId(), routing.getTopic());
-        } else {
-            log.debug("[Outbox] duplicate-skip: type={} aggType={} aggId={} eventId={}",
-                    event.getEventType(), event.getAggregateType(), event.getAggregateId(), event.getEventId());
-        }
-
-        return isNew;
     }
 
     @Transactional
-    public void saveAll(List<BookCatalogChangedEvent> events) {
+    public void saveAll(List<OutboxRecordableEvent> events) {
         if (events == null || events.isEmpty()) {
             return;
         }
 
         Set<Long> eventIdsToSave = events.stream()
-                .map(BookCatalogChangedEvent::getEventId)
+                .map(OutboxRecordableEvent::eventId)
                 .collect(Collectors.toSet());
 
         Set<Long> existingEventIds = eventRecordRepository.findExistingEventIdsByEventIdIn(eventIdsToSave);
 
         List<OutboxEventRecord> newRecords = events.stream()
-                .filter(event -> !existingEventIds.contains(event.getEventId()))
+                .filter(event -> !existingEventIds.contains(event.eventId()))
                 .collect(Collectors.toSet()) // eventId로 이퀄스해시코드 구현해서 중복 제거
                 .stream()
                 .map(this::toRecord)
@@ -100,23 +92,23 @@ public class EventRecorder {
         log.debug("OutboxEventRecord {}건 저장 완료. (중복 {}건 스킵)", newRecords.size(), existingEventIds.size());
     }
 
-    public OutboxEventRecord toRecord(BookCatalogChangedEvent event) {
+    public OutboxEventRecord toRecord(OutboxRecordableEvent event) {
         String payload = serializeToPayload(event);
 
-        OutboxRouting routing = routingResolver.doResolve(event);
+        OutboxRouting routing = route(event);
         if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
             throw new IllegalStateException("Routing is invalid: " + event);
         }
 
         return OutboxEventRecord.builder()
                 .id(snowflake.nextId())
-                .eventId(event.getEventId())
-                .eventType(event.getEventType())
-                .aggregateId(event.getAggregateId())
-                .aggregateType(event.getAggregateType())
-                .aggregateVersion(event.getAggregateVersion())
+                .eventId(event.eventId())
+                .eventType(event.eventType().getValue())
+                .aggregateId(event.aggregateId())
+                .aggregateType(event.aggregateType())
+                .aggregateVersion(event.aggregateVersion())
                 .payload(payload)
-                .occurredAt(event.getOccurredAt())
+                .occurredAt(event.occurredAt())
                 .outboxEventRecordStatus(NEW)
                 .routing(routing)
                 .build();
@@ -161,24 +153,32 @@ public class EventRecorder {
         return updated;
     }
 
-    private String serializeToPayload(BookCatalogChangedEvent event) {
+    private OutboxRouting route(OutboxRecordableEvent event) {
+        OutboxRoutingResolver<?> target = null;
+
+        for (OutboxRoutingResolver<?> resolver : resolvers) {
+            if (resolver.supports(event)) {
+                target = resolver;
+            }
+        }
+
+        if (target == null) {
+            throw new IllegalStateException("No OutboxRoutingResolver for type: " + event.getClass().getName());
+        }
+
+        OutboxRouting routing = target.resolve(event);
+        if (routing == null || routing.getTopic() == null) {
+            throw new IllegalStateException("Resolver returned null routing/topic for " + event.getClass().getName());
+        }
+
+        return routing;
+    }
+
+    private String serializeToPayload(OutboxRecordableEvent event) {
         try {
-            BookCatalogChangedPayload payload = new BookCatalogChangedPayload(
-                    String.valueOf(event.getEventId()),
-                    event.getEventType(),
-                    String.valueOf(event.getBookId()),
-                    event.getAggregateVersion(),
-                    String.valueOf(event.getAggregateId()),
-                    event.getAggregateType(),
-                    event.getTitle(),
-                    event.getAuthor(),
-                    new CategoryRef(event.getCategory().categoryId(), event.getCategory().categoryName()),
-                    new BookTypeRef(event.getBookType().bookType(), event.getBookType().bookTypeName()),
-                    event.getOccurredAt()
-            );
-            return objectMapper.writeValueAsString(payload);
+            return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.getEventId(), e);
+            throw new IllegalStateException("Outbox payload serialize failed: eventId=" + event.eventId(), e);
         }
     }
 

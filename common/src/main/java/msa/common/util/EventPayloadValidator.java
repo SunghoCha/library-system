@@ -1,14 +1,12 @@
-package msa.bookloan.adapter.in.messaging.kafka.util.validator;
+package msa.common.util;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-@Component
 @RequiredArgsConstructor
 public class EventPayloadValidator {
 
@@ -31,3 +29,4 @@ public class EventPayloadValidator {
         return cv.getPropertyPath() + " " + cv.getMessage();
     }
 }
+

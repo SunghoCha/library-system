@@ -8,6 +8,7 @@ import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.application.service.batch.mapper.BookCatalogEventMapper;
 import msa.bookcatalog.domain.model.BookCatalog;
+import msa.common.events.outbox.OutboxRecordableEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,9 +58,9 @@ public class BookCatalogBatchService {
 
         bookCatalogRepository.flush(); // version 정보 업데이트
 
-        ArrayList<BookCatalogChangedEvent> events = new ArrayList<>(toInsert.size() + toUpdate.size());
-        toInsert.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEventType.CREATED.getValue() )));
-        toUpdate.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEventType.UPDATED.getValue())));
+        ArrayList<OutboxRecordableEvent> events = new ArrayList<>(toInsert.size() + toUpdate.size());
+        toInsert.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEventType.CREATED )));
+        toUpdate.forEach(book -> events.add(bookCatalogEventMapper.toEventFrom(book, CatalogEventType.UPDATED)));
 
         if (!events.isEmpty()) {
             eventRecorder.saveAll(events);

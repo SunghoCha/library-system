@@ -41,10 +41,15 @@ dependencies {
     compileOnly 'jakarta.persistence:jakarta.persistence-api:3.1.0'
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0'
 
+    implementation "org.springframework.kafka:spring-kafka"
 
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:mysql'
+
+    testImplementation platform("org.testcontainers:testcontainers-bom:1.20.2")
+    testImplementation "org.testcontainers:mysql"
+    testImplementation "org.testcontainers:jdbc"
+    testImplementation "org.testcontainers:junit-jupiter"
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation "org.testcontainers:kafka"
 }
 
 // --- QueryDSL 설정 (기존과 동일) ---

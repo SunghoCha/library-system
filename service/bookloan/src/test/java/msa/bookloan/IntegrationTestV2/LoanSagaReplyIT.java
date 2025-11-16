@@ -11,6 +11,7 @@ import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
 import msa.bookloan.testsupport.DatabaseClearExtension;
+import msa.bookloan.testsupport.IntegrationTestBase;
 import msa.bookloan.testsupport.IntegrationTestBaseV2;
 import msa.common.events.MessageEnvelope;
 import msa.common.events.bookloan.saga.command.SagaCommandType;
@@ -43,12 +44,11 @@ import static org.awaitility.Awaitility.await;
 
 @Slf4j
 @Import(IntegrationTestBaseV2.KafkaTopics.class)
-@ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "app.kafka.enabled=true",
         "app.kafka.listeners.saga-replies.enabled=true",
 })
-public class LoanSagaReplyIT extends IntegrationTestBaseV2 {
+public class LoanSagaReplyIT extends IntegrationTestBase {
 
     @Autowired
     private ObjectMapper objectMapper;

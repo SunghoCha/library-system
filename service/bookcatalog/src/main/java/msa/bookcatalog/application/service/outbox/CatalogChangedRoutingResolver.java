@@ -22,7 +22,7 @@ public class CatalogChangedRoutingResolver implements OutboxRoutingResolver<Book
     public OutboxRouting doResolve(BookCatalogChangedEvent event) {
         return OutboxRouting.builder()
                 .topic(kafkaProps.getTopicCatalogChanged())
-                .partitionKey(String.valueOf(event.getAggregateId()))
+                .partitionKey(String.valueOf(event.aggregateId()))
                 .build();
     }
 }

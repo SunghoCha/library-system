@@ -10,6 +10,7 @@ import msa.bookcatalog.application.event.CatalogEventType;
 import msa.bookcatalog.testsupport.time.TestClocks;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
+import msa.common.events.outbox.OutboxRecordableEvent;
 import msa.common.events.outbox.OutboxRoutingResolver;
 import msa.common.events.outbox.dto.OutboxRouting;
 import msa.common.snowflake.Snowflake;
@@ -47,9 +48,6 @@ class EventRecorderTest {
     @Mock private OutboxEventRecordRepository eventRecordRepository;
     @Mock private OutboxRoutingResolver<BookCatalogChangedEvent> routingResolver;
 
-    @Captor
-    private ArgumentCaptor<OutboxEventRecord> recordCaptor;
-
     @Captor private ArgumentCaptor<List<OutboxEventRecord>> recordListCaptor;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -57,8 +55,10 @@ class EventRecorderTest {
 
     @BeforeEach
     void setUp() {
+        //lenient().when(routingResolver.payloadType()).thenReturn(BookCatalogChangedEvent.class);
+
         // 생성자를 통해 의존성과 topic 값을 직접 주입
-        eventRecorder = new EventRecorder(fixedClock, snowflake, objectMapper, eventRecordRepository, routingResolver);
+        eventRecorder = new EventRecorder(fixedClock, snowflake, objectMapper, eventRecordRepository, List.of(routingResolver));
     }
 
     @Test
@@ -69,15 +69,16 @@ class EventRecorderTest {
         long expectedDbId = 9999L;
         when(snowflake.nextId()).thenReturn(expectedDbId);
 
-        OutboxRouting expectedRouting = new OutboxRouting(testTopic, String.valueOf(event.getAggregateId()));
-        when(routingResolver.doResolve(any(BookCatalogChangedEvent.class))).thenReturn(expectedRouting);
+        OutboxRouting expectedRouting = new OutboxRouting(testTopic, String.valueOf(event.aggregateId()));
+        given(routingResolver.supports(any())).willReturn(true);
+        given(routingResolver.resolve(any())).willReturn(expectedRouting);
 
         when(eventRecordRepository.upsertOutbox(
                 eq(expectedDbId),
                 eq(event.getEventId()),
-                eq(event.getEventType()),
-                eq(String.valueOf(event.getAggregateId())),
-                eq(event.getAggregateType()),
+                eq(event.getEventType().getValue()),
+                eq(event.aggregateId()),
+                eq(event.aggregateType()),
                 eq(event.getAggregateVersion()),
                 anyString(), // payload JSON은 직렬화 결과라 엄격 매칭 불필요
                 eq(expectedRouting.getTopic()),
@@ -87,16 +88,15 @@ class EventRecorderTest {
 
 
         // when
-        boolean isNew = eventRecorder.save(event);
+        eventRecorder.save(event);
 
         // then
-        assertThat(isNew).isTrue();
         verify(eventRecordRepository, times(1)).upsertOutbox(
                 eq(expectedDbId),
                 eq(event.getEventId()),
-                eq(event.getEventType()),
-                eq(String.valueOf(event.getAggregateId())),
-                eq(event.getAggregateType()),
+                eq(event.getEventType().getValue()),
+                eq(event.aggregateId()),
+                eq(event.aggregateType()),
                 eq(event.getAggregateVersion()),
                 anyString(),
                 eq(expectedRouting.getTopic()),
@@ -112,14 +112,16 @@ class EventRecorderTest {
         // given
         BookCatalogChangedEvent event1 = createTestEvent(1L, 100L);
         BookCatalogChangedEvent event2 = createTestEvent(2L, 200L);
-        List<BookCatalogChangedEvent> events = List.of(event1, event2);
+        List<OutboxRecordableEvent> events = List.of(event1, event2);
 
         given(snowflake.nextId()).willReturn(1001L, 1002L);
 
-        OutboxRouting routing1 = new OutboxRouting(testTopic, String.valueOf(event1.getAggregateId()));
-        OutboxRouting routing2 = new OutboxRouting(testTopic, String.valueOf(event2.getAggregateId()));
-        given(routingResolver.doResolve(event1)).willReturn(routing1);
-        given(routingResolver.doResolve(event2)).willReturn(routing2);
+        OutboxRouting routing1 = new OutboxRouting(testTopic, String.valueOf(event1.aggregateId()));
+        OutboxRouting routing2 = new OutboxRouting(testTopic, String.valueOf(event2.aggregateId()));
+
+        given(routingResolver.supports(any())).willReturn(true);
+        given(routingResolver.resolve(event1)).willReturn(routing1);
+        given(routingResolver.resolve(event2)).willReturn(routing2);
         // when
         eventRecorder.saveAll(events);
 
@@ -151,7 +153,7 @@ class EventRecorderTest {
         // given
         BookCatalogChangedEvent event = createTestEvent(2L, 1L);
         ObjectMapper mockObjectMapper = mock(ObjectMapper.class);
-        eventRecorder = new EventRecorder(fixedClock, snowflake, mockObjectMapper, eventRecordRepository, routingResolver);
+        eventRecorder = new EventRecorder(fixedClock, snowflake, mockObjectMapper, eventRecordRepository, List.of(routingResolver));
 
         given(mockObjectMapper.writeValueAsString(any())).willThrow(new JsonProcessingException("serialization error"){});
 
@@ -220,7 +222,7 @@ class EventRecorderTest {
     private BookCatalogChangedEvent createTestEvent(Long eventId, Long bookId) {
         return BookCatalogChangedEvent.builder()
                 .eventId(eventId)
-                .eventType(CatalogEventType.CREATED.getValue())
+                .eventType(CatalogEventType.CREATED)
                 .bookId(bookId)
                 .aggregateVersion(1L)
                 .title("New Title")

@@ -35,17 +35,32 @@ public class EventRecorder {
     private final OutboxEventRecordRepository eventRecordRepository;
     private final List<OutboxRoutingResolver<?>> resolvers;
 
-    @Deprecated // TODO: 트랜잭션걸고 save에서 발생하는 예외가 catch에서 잡히지도 않을거고 추후 필요할떄 수정해야함. 업서트로 할 듯?
     @Transactional
     public void save(OutboxRecordableEvent event) {
-        OutboxEventRecord record = toRecord(event);
-        try {
-            eventRecordRepository.save(record);
-            log.debug("[Outbox] saved: eventId={}, dbId={}", event.eventId(), record.getId());
-        } catch (DataIntegrityViolationException e) {
-            // eventId 유니크 충돌 : 이미 저장된 이벤트로 간주하고 스킵
-            log.info("[Outbox] duplicate skipped: eventId={}", event.eventId());
+        String payloadJson = serializeToPayload(event);
+
+        OutboxRouting routing = route(event);
+        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
+            throw new IllegalStateException("Invalid routing for event: " + event);
         }
+
+        int affected = eventRecordRepository.upsertOutbox(
+                snowflake.nextId(),
+                event.eventId(),
+                event.eventType().getValue(),
+                event.aggregateId(),
+                AGGREGATE_TYPE,
+                null,
+                payloadJson,
+                routing.getTopic(),
+                routing.getPartitionKey(),
+                LocalDateTime.now(clock)
+        );
+
+        log.debug("[Outbox] upsert 완료: type={} aggType={} aggId={} eventId={} affected={}",
+                event.eventType().getValue(), AGGREGATE_TYPE, event.aggregateId(),
+                event.eventId(), affected);
+
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -81,28 +96,6 @@ public class EventRecorder {
             log.error("[Outbox] 데드레터 전이: eventId={}, error={}", eventId, error);
         }
         return updated;
-    }
-
-    private OutboxEventRecord toRecord(OutboxRecordableEvent event) {
-        String payload = serializeToPayload(event);
-
-        OutboxRouting routing = route(event);
-        if (routing == null || routing.getTopic() == null || routing.getPartitionKey() == null) {
-            throw new IllegalStateException("Invalid routing for event: " + event);
-        }
-
-        return OutboxEventRecord.builder()
-                .id(snowflake.nextId())
-                .eventId(event.eventId())
-                .eventType(CatalogEventType.CREATED.getValue())                 // 사가 시작이므로 CREATED로 고정
-                //.aggregateId(String.valueOf(event.loanId())) // TODO : 체크해야함
-                .aggregateType(AGGREGATE_TYPE)
-                .aggregateVersion(event.aggregateVersion())
-                .payload(payload)
-                .occurredAt(event.occurredAt())
-                .outboxEventRecordStatus(NEW)
-                .routing(routing)
-                .build();
     }
 
     private OutboxRouting route(OutboxRecordableEvent event) {

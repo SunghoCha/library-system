@@ -8,6 +8,7 @@ import msa.bookloan.adapter.in.messaging.inbox.handler.InboxEventHandler;
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
 import msa.bookloan.adapter.out.persistence.inbox.repository.InboxEventRecordRepository;
 import msa.bookloan.application.port.out.MemberPort;
+import msa.bookloan.testsupport.MySqlIntegrationTestBase;
 import msa.common.events.inbox.dto.ConsumerRecordMetadata;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.exception.BusinessNotRetryableException;
@@ -15,6 +16,7 @@ import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -34,7 +36,7 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @Import(InboxEventDispatcherIntegrationTest.TestHandlerConfiguration.class)
-public class InboxEventDispatcherIntegrationTest {
+public class InboxEventDispatcherIntegrationTest extends MySqlIntegrationTestBase {
 
     @Autowired
     private InboxEventDispatcher dispatcher;

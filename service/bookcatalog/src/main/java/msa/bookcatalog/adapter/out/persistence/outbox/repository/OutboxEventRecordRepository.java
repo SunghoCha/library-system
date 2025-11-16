@@ -56,7 +56,7 @@ public interface OutboxEventRecordRepository extends JpaRepository<OutboxEventRe
     int upsertOutbox(@Param("id") long id,
                      @Param("eventId") long eventId,
                      @Param("eventType") String eventType,
-                     @Param("aggregateId") String aggregateId,
+                     @Param("aggregateId") Long aggregateId,
                      @Param("aggregateType") String aggregateType,
                      @Param("aggregateVersion") Long aggregateVersion,
                      @Param("payload") String payload,

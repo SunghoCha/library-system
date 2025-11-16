@@ -9,6 +9,7 @@ import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.MySqlIntegrationTestBase;
 import msa.bookloan.testsupport.time.TestClocks;
 import msa.common.snowflake.Snowflake;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,9 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 
-@Transactional
 @SpringBootTest
-public class InventoryStepServiceIntegrationTest {
+public class InventoryStepServiceIntegrationTest extends MySqlIntegrationTestBase {
 
     @Autowired
     private InventoryStepService inventoryStepService;
@@ -59,18 +59,18 @@ public class InventoryStepServiceIntegrationTest {
     @DisplayName("afterInventoryReleased 메소드 (재고 해제 보상 완료 시)")
     class AfterInventoryReleasedTest {
 
-        @Test
-        @DisplayName("성공: 보상 중인 사가를 FAILED(COMPENSATION)로 확정하고 BookLoan의 sagaId를 정리한다")
-        void shouldFinalizeAsFailed_whenCompensating() {
-            // given
-            // 시맨틱 락 걸린 bookLoan
-            setupBookLoanInDb(LOAN_ID, BOOK_ID);
-
-            // when
-
-
-            // then
-        }
+//        @Test
+//        @DisplayName("성공: 보상 중인 사가를 FAILED(COMPENSATION)로 확정하고 BookLoan의 sagaId를 정리한다")
+//        void shouldFinalizeAsFailed_whenCompensating() {
+//            // given
+//            // 시맨틱 락 걸린 bookLoan
+//            setupBookLoanInDb(LOAN_ID, BOOK_ID);
+//
+//            // when
+//
+//
+//            // then
+//        }
 
     }
 

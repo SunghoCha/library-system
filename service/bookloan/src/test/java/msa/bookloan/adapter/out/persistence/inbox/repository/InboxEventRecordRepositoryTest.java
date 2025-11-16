@@ -1,6 +1,7 @@
 package msa.bookloan.adapter.out.persistence.inbox.repository;
 
 import msa.bookloan.adapter.out.persistence.inbox.entity.InboxEventRecord;
+import msa.bookloan.testsupport.MySqlIntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -9,12 +10,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Testcontainers
 @DataJpaTest(properties = {
         "app.kafka.enabled=false"
 })
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // h2로 교체 금지
-class InboxEventRecordRepositoryTest {
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+class InboxEventRecordRepositoryTest extends MySqlIntegrationTestBase {
 
     @Autowired
     private InboxEventRecordRepository projectionEventRecordRepository;

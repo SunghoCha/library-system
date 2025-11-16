@@ -14,6 +14,7 @@ import msa.bookcatalog.domain.model.BookCategory;
 import msa.bookcatalog.domain.model.BookType;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
+import msa.common.events.EventType;
 import msa.common.snowflake.Snowflake;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,7 @@ public class BookCatalogService {
 
         BookCatalog saved = bookCatalogRepository.save(bookCatalog);
 
-        eventPublisher.publishEvent(toEventFrom(saved, CatalogEventType.CREATED.getValue()));
+        eventPublisher.publishEvent(toEventFrom(saved, CatalogEventType.CREATED));
         return saved.getId();
     }
 
@@ -66,7 +67,7 @@ public class BookCatalogService {
         }
         bookCatalogRepository.flush(); // 버전 정보 업데이트
 
-        eventPublisher.publishEvent(toEventFrom(bookCatalog, CatalogEventType.UPDATED.getValue()));
+        eventPublisher.publishEvent(toEventFrom(bookCatalog, CatalogEventType.UPDATED));
         return bookCatalog.getId();
     }
 
@@ -89,7 +90,7 @@ public class BookCatalogService {
                 .build();
     }
 
-    private BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, String eventType) {
+    private BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, EventType eventType) {
         CategoryRef categoryRef = new CategoryRef(bookCatalog.getCategory().categoryId(), bookCatalog.getCategory().categoryName());
         BookTypeRef bookTypeRef = new BookTypeRef(bookCatalog.getBookType().name(), bookCatalog.getBookType().displayName());
 

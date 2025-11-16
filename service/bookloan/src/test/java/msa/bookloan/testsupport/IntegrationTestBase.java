@@ -1,6 +1,7 @@
 package msa.bookloan.testsupport;
 
 import org.apache.kafka.clients.admin.NewTopic;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -11,6 +12,7 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+@ExtendWith(DatabaseClearExtension.class)
 public abstract class IntegrationTestBase {
 
     private static final KafkaContainer KAFKA;

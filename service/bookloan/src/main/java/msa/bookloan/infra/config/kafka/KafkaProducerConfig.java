@@ -3,6 +3,7 @@ package msa.bookloan.infra.config.kafka;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnBean(KafkaModuleConfig.class)
 public class KafkaProducerConfig {
 
     @Bean

@@ -6,6 +6,7 @@ import msa.bookloan.adapter.out.messaging.outbox.scheduler.OutboxPollingSchedule
 import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.application.service.LoanService;
 import msa.bookloan.testsupport.DatabaseClearExtension;
+import msa.bookloan.testsupport.IntegrationTestBase;
 import msa.bookloan.testsupport.IntegrationTestBaseV2;
 import msa.common.domain.model.MemberGrade;
 import msa.common.events.MessageEnvelope;
@@ -36,7 +37,6 @@ import static org.mockito.Mockito.when;
 
 @Slf4j
 @Import(IntegrationTestBaseV2.KafkaTopics.class)
-@ExtendWith(DatabaseClearExtension.class)
 @SpringBootTest(properties = {
         "outbox.relay.enabled=true",
         "app.kafka.enabled=true",
@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 //        msa.bookloan.infra.config.kafka.KafkaProducerConfig.class,
 //        OutboxPublishIT.TestConsumers.class,
 //})
-public class OutboxPublishIT extends IntegrationTestBaseV2 {
+public class OutboxPublishIT extends IntegrationTestBase {
 
     @Autowired
     private LoanService loanService;

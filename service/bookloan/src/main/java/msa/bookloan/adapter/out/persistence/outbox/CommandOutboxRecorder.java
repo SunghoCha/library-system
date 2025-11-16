@@ -20,6 +20,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class CommandOutboxRecorder {
+    // 클래스자체가 sags전용이라 일단 놔둬도 문제는 없을듯
     private static final String AGGREGATE_TYPE = "LoanSaga"; // 이걸 외부변수화 해야하는지 고민
 
     private final Clock clock;
@@ -29,7 +30,7 @@ public class CommandOutboxRecorder {
     private final List<OutboxRoutingResolver<?>> resolvers;
 
     @Transactional
-    public boolean save(SagaCommand command) {
+    public void save(SagaCommand command) {
         OutboxRouting routing = route(command);
         String payloadJson = toJson(command);
 
@@ -46,14 +47,8 @@ public class CommandOutboxRecorder {
                 LocalDateTime.now(clock)
         );
 
-        boolean isNew = (affected == 1);
-        if (isNew) {
-            log.debug("[Outbox] 저장 완료: type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
-        } else {
-            log.debug("[Outbox] 중복 (건너뜀): type={} sagaId={} cmdId={}", command.type(), command.sagaId(), command.commandId());
-        }
-
-        return isNew;
+        log.debug("[Outbox] upsert 완료: type={} sagaId={} cmdId={} affected={}",
+                command.type(), command.sagaId(), command.commandId(), affected);
     }
 
     private OutboxRouting route(SagaCommand command) {

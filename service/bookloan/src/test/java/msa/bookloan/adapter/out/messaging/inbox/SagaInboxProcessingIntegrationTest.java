@@ -9,6 +9,7 @@ import msa.bookloan.adapter.out.persistence.saga.repository.LoanSagaRepository;
 import msa.bookloan.domain.saga.LoanSaga;
 import msa.bookloan.domain.saga.LoanSagaStep;
 import msa.bookloan.domain.saga.SagaStatus;
+import msa.bookloan.testsupport.MySqlIntegrationTestBase;
 import msa.common.events.bookloan.saga.reply.SagaReplyType;
 import msa.common.events.inbox.dto.InboxEventRecordStatus;
 import msa.common.snowflake.Snowflake;
@@ -30,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Transactional
-public class SagaInboxProcessingIntegrationTest {
+public class SagaInboxProcessingIntegrationTest extends MySqlIntegrationTestBase {
 
     @Autowired
     private InboxPollingScheduler scheduler;
@@ -76,22 +77,22 @@ public class SagaInboxProcessingIntegrationTest {
         when(snowflake.nextId()).thenReturn(INBOX_RECORD_PK,OUTBOX_ID, NEXT_COMMAND_ID);
     }
 
-    @Test
-    @DisplayName("재고 예약 완료 이벤트 수신 시 사가 상태가 POINT_CHARGING으로 전이되고 Outbox에 커맨드가 저장된다")
-    void shouldProcessInventoryReservedEventSuccessfully() throws Exception {
-        // given
-        // saga가 INVENTORY_RESERVING 상태에 있음
-        LoanSaga saga = createAndSaveSaga(SAGA_ID, LOAN_ID, SagaStatus.PROCESSING, LoanSagaStep.INVENTORY_RESERVING);
-        // 컨슈머로 INVENTORY_RESERVED 리플라이 와서 인박스에 저장한 상태
-        String eventType = SagaReplyType.INVENTORY_RESERVED.getValue();
-//        InventoryReservedReply reply = new InventoryReservedReply(INBOX_EVENT_ID, SAGA_ID, 99L, 0L, BOOK_ID, 88L);
-//        createAndSaveInboxEvent(INBOX_EVENT_ID, eventType, reply, InboxEventRecordStatus.NEW);
-
-        assertThat(outboxRepository.count()).isZero();
-        // when
-        // TODO : 미완성 테스트
-
-    }
+//    @Test
+//    @DisplayName("재고 예약 완료 이벤트 수신 시 사가 상태가 POINT_CHARGING으로 전이되고 Outbox에 커맨드가 저장된다")
+//    void shouldProcessInventoryReservedEventSuccessfully() throws Exception {
+//        // given
+//        // saga가 INVENTORY_RESERVING 상태에 있음
+//        LoanSaga saga = createAndSaveSaga(SAGA_ID, LOAN_ID, SagaStatus.PROCESSING, LoanSagaStep.INVENTORY_RESERVING);
+//        // 컨슈머로 INVENTORY_RESERVED 리플라이 와서 인박스에 저장한 상태
+//        String eventType = SagaReplyType.INVENTORY_RESERVED.getValue();
+////        InventoryReservedReply reply = new InventoryReservedReply(INBOX_EVENT_ID, SAGA_ID, 99L, 0L, BOOK_ID, 88L);
+////        createAndSaveInboxEvent(INBOX_EVENT_ID, eventType, reply, InboxEventRecordStatus.NEW);
+//
+//        assertThat(outboxRepository.count()).isZero();
+//        // when
+//        // TODO : 미완성 테스트
+//
+//    }
 
     private LoanSaga createAndSaveSaga(Long sagaId, Long loanId, SagaStatus status, LoanSagaStep step) {
         LoanSaga saga = LoanSaga.builder()

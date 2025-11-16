@@ -5,18 +5,19 @@ import lombok.Builder;
 import lombok.Getter;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
-import msa.common.events.DomainEvent;
+import msa.common.events.EventType;
+import msa.common.events.outbox.OutboxRecordableEvent;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Getter
-public class BookCatalogChangedEvent implements DomainEvent {
+public class BookCatalogChangedEvent implements OutboxRecordableEvent {
 
     public static final String AGGREGATE_TYPE = "BookCatalog";
 
     private final Long eventId;
-    private final String eventType;
+    private final EventType eventType;
     private final long bookId;
     private final long aggregateVersion;
 
@@ -29,7 +30,7 @@ public class BookCatalogChangedEvent implements DomainEvent {
     private final LocalDateTime occurredAt;
 
     @Builder
-    public BookCatalogChangedEvent(Long eventId, String eventType, long bookId, long aggregateVersion,
+    public BookCatalogChangedEvent(Long eventId, EventType eventType, long bookId, long aggregateVersion,
                                    String title, String author, CategoryRef category,
                                    BookTypeRef  bookType, LocalDateTime occurredAt) {
         this.eventId = Objects.requireNonNull(eventId, "eventId must not be null");
@@ -44,15 +45,34 @@ public class BookCatalogChangedEvent implements DomainEvent {
     }
 
     @Override
-    public long getAggregateId() {
+    public Long eventId() {
+        return eventId;
+    }
+
+    @Override
+    public EventType eventType() {
+        return eventType;
+    }
+
+    @Override
+    public String aggregateType() {
+        return AGGREGATE_TYPE;
+    }
+
+    @Override
+    public Long aggregateId() {
         return bookId;
     }
 
     @Override
-    public String getAggregateType() { return AGGREGATE_TYPE; }
+    public Long aggregateVersion() {
+        return aggregateVersion;
+    }
 
     @Override
-    public long getAggregateVersion() { return aggregateVersion; }
+    public LocalDateTime occurredAt() {
+        return occurredAt;
+    }
 
     @Override
     public boolean equals(Object o) {

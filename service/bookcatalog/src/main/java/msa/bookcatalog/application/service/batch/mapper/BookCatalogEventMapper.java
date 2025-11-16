@@ -5,6 +5,7 @@ import msa.bookcatalog.application.event.BookCatalogChangedEvent;
 import msa.bookcatalog.domain.model.BookCatalog;
 import msa.common.domain.model.BookTypeRef;
 import msa.common.domain.model.CategoryRef;
+import msa.common.events.EventType;
 import msa.common.snowflake.Snowflake;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +17,7 @@ public class BookCatalogEventMapper {
 
     private final Snowflake snowflake;
 
-    public BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, String eventType) {
+    public BookCatalogChangedEvent toEventFrom(BookCatalog bookCatalog, EventType eventType) {
         CategoryRef categoryRef = new CategoryRef(bookCatalog.getCategory().categoryId(), bookCatalog.getCategory().categoryName());
         BookTypeRef bookTypeRef = new BookTypeRef(bookCatalog.getBookType().name(), bookCatalog.getBookType().displayName());
 
