@@ -6,6 +6,7 @@ import msa.common.domain.base.BaseTimeEntity;
 import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 @Entity
 @Table(
@@ -23,7 +24,7 @@ import java.time.LocalDate;
 @Builder // TODO: 마무리단게때 생성자 빌더로 옮길지 고민
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
+public class BookLoan extends BaseTimeEntity {
 
     @Id
     @Column(name = "book_loan_id")
@@ -55,7 +56,7 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
     private Long currentSagaId;
 
     @Column
-    private Boolean active; // 부분 유니크 (true or null)
+    private Boolean active; // 부분 유니크 (true or null, null은 유니크 중복가능) 중복대출 방어
 
     public static BookLoan createPending(CreateSpec spec) {
         return BookLoan.builder()
@@ -71,28 +72,42 @@ public class BookLoan extends BaseTimeEntity implements Persistable<Long> {
                 .build();
     }
 
-    // Persistable 구현
-    @Transient
-    private boolean isNew = true;
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @Override
-    public Long getId() {
-        return id;
-    }
-
-    @PostLoad
-    @PostPersist
-    void markNotNew() {
-        this.isNew = false;
-    }
-
     public void markLoaned() {
         this.loanStatus = LoanStatus.LOANED;
+        this.active = true;
+    }
+
+    public void markReturned(LocalDate returnDate) {
+        this.loanStatus = LoanStatus.RETURNED;
+        this.returnDate = returnDate;
+        this.active = null; // 더 이상 활성 대출 아님
+    }
+
+    public void markCancelled() {
+        this.loanStatus = LoanStatus.CANCELLED;
+        this.active = null;
+    }
+
+    public void markFailed() {
+        this.loanStatus = LoanStatus.FAILED;
+        this.active = null;
+    }
+
+    public void attachSaga(Long sagaId) {
+        Objects.requireNonNull(sagaId, "sagaId must not be null");
+
+        if (currentSagaId != null && !currentSagaId.equals(sagaId)) {
+            throw new IllegalStateException(
+                    "이미 다른 사가가 진행 중입니다. current=" + this.currentSagaId + ", requested=" + sagaId
+            );
+        }
+        this.currentSagaId = sagaId;
+    }
+
+    public boolean isCancellableBy(Long memberId) {
+        return this.memberId.equals(memberId)
+                && Boolean.TRUE.equals(this.active)
+                && this.loanStatus == LoanStatus.PENDING;
     }
 
     public static record CreateSpec(

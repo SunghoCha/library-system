@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCancelResult;
 import msa.bookloan.adapter.in.web.controller.dto.request.LoanCreateRequest;
 import msa.bookloan.adapter.in.web.controller.dto.response.LoanCancelResponse;
@@ -18,6 +19,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/loans")
@@ -55,7 +57,12 @@ public class LoanController {
     public ResponseEntity<LoanCancelResponse> cancel(@PathVariable Long loanId) {
         Long memberId = 1L; // TODO: 시큐리티 붙이면 교체
 
+        log.info("[LoanController] 대출 취소 요청 접수: memberId={}, loanId={}", memberId, loanId);
+
         LoanCancelResult result = loanService.requestCancel(memberId, loanId);
+
+        log.info("[LoanController] 취소 Saga 시작 위임: sagaId={}, loanId={}, newStatus={}",
+                result.sagaId(), loanId, result.loanStatus().name());
 
         String statusUrl = ServletUriComponentsBuilder
                 .fromCurrentRequestUri().replacePath("/loans/{id}")
@@ -63,10 +70,7 @@ public class LoanController {
                 .toUriString();
         URI location = URI.create(statusUrl);
 
-        LoanCancelResponse body = new LoanCancelResponse(
-                loanId, result.sagaId(), "ACCEPTED", statusUrl);
-
-        return ResponseEntity.accepted().location(location).body(body);
+        return ResponseEntity.accepted().location(location).body(LoanCancelResponse.of(result, statusUrl));
     }
 
 

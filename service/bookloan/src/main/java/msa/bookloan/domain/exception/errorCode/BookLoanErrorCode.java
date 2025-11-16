@@ -6,7 +6,9 @@ import org.springframework.http.HttpStatus;
 public enum BookLoanErrorCode implements ErrorCode {
 
     OVERDUE_BLOCKED(HttpStatus.CONFLICT, "BL-001", "연체 중인 대출이 존재합니다."),
-    LOAN_NOT_FOUND (HttpStatus.NOT_FOUND,  "BL-002", "요청하신 대출을 찾을 수 없습니다.");
+    LOAN_NOT_FOUND (HttpStatus.NOT_FOUND,  "BL-002", "요청하신 대출을 찾을 수 없습니다."),
+    LOAN_NOT_CANCELLABLE(HttpStatus.BAD_REQUEST, "L-004", "이 대출은 취소할 수 없는 상태입니다."),
+    ;
 
     private final HttpStatus status;
     private final String code;

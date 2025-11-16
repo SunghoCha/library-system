@@ -11,8 +11,11 @@ import msa.bookloan.application.port.out.MemberPort;
 import msa.bookloan.application.port.out.lock.DistributedLock;
 import msa.bookloan.application.service.dto.LoanCreateResult;
 import msa.bookloan.application.service.exception.LoanLimitExceededException;
+import msa.bookloan.application.service.exception.LoanNotCancellableException;
+import msa.bookloan.domain.exception.BookLoanNotFoundException;
 import msa.bookloan.domain.exception.OverdueBlockedException;
 import msa.bookloan.domain.model.BookLoan;
+import msa.bookloan.domain.model.LoanStatus;
 import msa.bookloan.domain.policy.LoanLimitPolicy;
 import msa.bookloan.domain.saga.SagaAbortReason;
 import msa.common.domain.model.MemberGrade;
@@ -74,16 +77,26 @@ public class LoanService {
     @Transactional
     public LoanCancelResult requestCancel(Long memberId, Long loanId) {
         BookLoan loan = bookLoanRepository.findById(loanId)
-                .orElseThrow(() -> new IllegalArgumentException("loan not found")); // 대출관련 커스텀 예외
+                .orElseThrow(() -> new BookLoanNotFoundException(loanId));
 
-        eventPublisher.publishEvent(newUserCancelEvent(loan, memberId));
-        return new LoanCancelResult(loanId, null);
+        if (!loan.isCancellableBy(memberId)) {
+            throw new LoanNotCancellableException(loanId);
+        }
+
+        Long sagaId  = loan.getCurrentSagaId();
+        if (sagaId  == null) {
+            sagaId  = snowflake.nextId();
+            loan.attachSaga(sagaId);
+        }
+
+        eventPublisher.publishEvent(newUserCancelEvent(loan, memberId, sagaId));
+        return new LoanCancelResult(loanId, sagaId , LoanStatus.PENDING);
     }
 
-    private LoanCancelRequestedInternalEvent newUserCancelEvent(BookLoan loan, Long memberId) {
+    private LoanCancelRequestedInternalEvent newUserCancelEvent(BookLoan loan, Long memberId, Long currentSagaId) {
         return new LoanCancelRequestedInternalEvent(
                 snowflake.nextId(),
-                loan.getCurrentSagaId(),                          // sagaId 모름
+                currentSagaId,
                 loan.getId(),
                 memberId,
                 loan.getBookId(),

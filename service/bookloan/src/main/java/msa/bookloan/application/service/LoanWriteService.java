@@ -51,6 +51,7 @@ public class LoanWriteService {
         LocalDate loanDate = LocalDate.now(clock);
         LocalDate dueDate = loanDate.plusDays(loanTermPolicy.loanPeriodFor(bookType));
 
+        // 이 방식이 좋은게맞는지 의문
         BookLoan.CreateSpec createSpec = new BookLoan.CreateSpec(
                 loanId, memberId, bookId, sagaId, loanDate, dueDate
         );
